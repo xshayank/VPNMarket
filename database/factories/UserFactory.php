@@ -24,7 +24,7 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
-
+        // ساخت دستی نمونه Faker
         $faker = Faker::create();
 
         return [
