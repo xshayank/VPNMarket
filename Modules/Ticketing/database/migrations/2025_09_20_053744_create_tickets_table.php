@@ -17,8 +17,8 @@ return new class extends Migration
             $table->string('subject');
             $table->text('message');
             $table->string('priority')->default('medium'); // low, medium, high
-            $table->string('source')->default('web')->after('status');
             $table->string('status')->default('open');
+            $table->string('source')->default('web');
             $table->timestamps();
         });
     }
