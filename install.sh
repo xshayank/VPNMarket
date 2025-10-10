@@ -47,18 +47,18 @@ sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 sudo mysql -e "FLUSH PRIVILEGES;"
 
 sudo cp .env.example .env
-sudo sed -i "s/DB_DATABASE=.*/DB_DATABASE=$DB_NAME/" .env
-sudo sed -i "s/DB_USERNAME=.*/DB_USERNAME=$DB_USER/" .env
-sudo sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" .env
+
+# === تغییر کلیدی: استفاده از جداکننده "|" برای دستورات sed برای جلوگیری از خطا ===
+sudo sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_NAME|" .env
+sudo sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USER|" .env
+sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=http://$DOMAIN|" .env
-sudo sed -i "s/APP_ENV=.*/APP_ENV=production/" .env
+sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
 echo -e "${YELLOW}🧰 مرحله ۵ از ۷: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
-# اجرای Composer که دیگر به دیتابیس نیاز ندارد
 sudo -u www-data composer install --no-dev --optimize-autoloader
 sudo -u www-data php artisan key:generate
-# حالا که .env تنظیم شده، دستورات نیازمند به دیتابیس را اجرا می‌کنیم
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
 
