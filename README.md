@@ -22,8 +22,7 @@
 ## ✨ نمایی از محیط پنل
 
 <p align="center">
-  <!-- لینک‌های صحیح به تصاویر پنل شما -->
-  <img src="https://raw.githubusercontent.com/arvinvahed/VPNMarket/main/github/github/panel1.PNG" width="45%" alt="داشبورد اصلی">
+   <img src="https://raw.githubusercontent.com/arvinvahed/VPNMarket/main/github/github/panel1.PNG" width="45%" alt="داشبورد اصلی">
   <img src="https://raw.githubusercontent.com/arvinvahed/VPNMarket/main/github/github/panel2.PNG" width="45%" alt="مدیریت کاربران">
   <br>
   <img src="https://raw.githubusercontent.com/arvinvahed/VPNMarket/main/github/github/panel3.PNG" width="90%" alt="تنظیمات سرور">
@@ -67,7 +66,7 @@
 - 🔵 **گروه پشتیبانی تلگرام:** [**VPNMarket_OfficialSupport**](https://t.me/VPNMarket_OfficialSupport)
   - *محل اصلی برای پرسش و پاسخ و حل مشکلات شما.*
 
-- 🔴 **کانال آموزشی یوتیوب:** [**Iran Clips**](https://www.youtube.com/@iraneclips8168/videos)
+- 🔴 **کانال آموزشی یوتیوب:** [**Iran Eclips**](https://www.youtube.com/@iraneclips8168/videos)
   - *آموزش‌های ویدیویی نصب، کانفیگ و استفاده از تمام امکانات پروژه.*
 
 ## ⚙️ راهنمای نصب (جادوی تک-دستوری)
