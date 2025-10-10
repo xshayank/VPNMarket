@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- نصب خودکار پروژه VPNMarket روی Ubuntu 22.04 (نسخه نهایی) ---
+# --- نصب خودکار پروژه VPNMarket روی Ubuntu 22.04 (نسخه نهایی قطعی) ---
 # نویسنده: Arvin Vahed
 # https://github.com/arvinvahed/VPNMarket
 
@@ -38,30 +38,29 @@ if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
 sudo git clone $GITHUB_REPO $PROJECT_PATH
-
-# === تغییر کلیدی: تنظیم دسترسی‌ها بلافاصله بعد از دانلود ===
-echo -e "${YELLOW}🧰 مرحله ۴ از ۷: تنظیم دسترسی‌های صحیح فایل‌ها...${NC}"
-sudo chown -R www-data:www-data $PROJECT_PATH
 cd $PROJECT_PATH
 
-echo -e "${YELLOW}⚙️ مرحله ۵ از ۷: نصب وابستگی‌ها و تنظیمات لاراول...${NC}"
-sudo -u www-data cp .env.example .env
-# حالا Composer به عنوان کاربر www-data اجازه نوشتن در پوشه را دارد
-sudo -u www-data composer install --no-dev --optimize-autoloader
-sudo -u www-data php artisan key:generate
-
-echo -e "${YELLOW}🧩 مرحله ۶ از ۷: ساخت دیتابیس و اجرای مایگریشن‌ها...${NC}"
+echo -e "${YELLOW}🧩 مرحله ۴ از ۷: ساخت دیتابیس و تنظیم فایل .env...${NC}"
+# --- تغییر کلیدی: ابتدا دیتابیس را می‌سازیم و .env را پر می‌کنیم ---
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
+sudo cp .env.example .env
 sudo sed -i "s/DB_DATABASE=.*/DB_DATABASE=$DB_NAME/" .env
 sudo sed -i "s/DB_USERNAME=.*/DB_USERNAME=$DB_USER/" .env
 sudo sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=http://$DOMAIN|" .env
 sudo sed -i "s/APP_ENV=.*/APP_ENV=production/" .env
 
+echo -e "${YELLOW}🧰 مرحله ۵ از ۷: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+# حالا که .env آماده است، مالکیت را تغییر داده و Composer را اجرا می‌کنیم
+sudo chown -R www-data:www-data $PROJECT_PATH
+sudo -u www-data composer install --no-dev --optimize-autoloader
+sudo -u www-data php artisan key:generate
+
+echo -e "${YELLOW}🔗 مرحله ۶ از ۷: اجرای مایگریشن‌ها و لینک کردن Storage...${NC}"
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
