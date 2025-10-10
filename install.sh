@@ -41,7 +41,6 @@ sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
 echo -e "${YELLOW}🧩 مرحله ۴ از ۷: ساخت دیتابیس و تنظیم فایل .env...${NC}"
-# --- تغییر کلیدی: ابتدا دیتابیس را می‌سازیم و .env را پر می‌کنیم ---
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
@@ -55,16 +54,20 @@ sudo sed -i "s|APP_URL=.*|APP_URL=http://$DOMAIN|" .env
 sudo sed -i "s/APP_ENV=.*/APP_ENV=production/" .env
 
 echo -e "${YELLOW}🧰 مرحله ۵ از ۷: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
-# حالا که .env آماده است، مالکیت را تغییر داده و Composer را اجرا می‌کنیم
 sudo chown -R www-data:www-data $PROJECT_PATH
+# اجرای Composer که دیگر به دیتابیس نیاز ندارد
 sudo -u www-data composer install --no-dev --optimize-autoloader
 sudo -u www-data php artisan key:generate
+# حالا که .env تنظیم شده، دستورات نیازمند به دیتابیس را اجرا می‌کنیم
+sudo -u www-data php artisan package:discover --ansi
+sudo -u www-data php artisan filament:upgrade
 
 echo -e "${YELLOW}🔗 مرحله ۶ از ۷: اجرای مایگریشن‌ها و لینک کردن Storage...${NC}"
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
 echo -e "${YELLOW}🌍 مرحله ۷ از ۷: پیکربندی وب‌سرور (Nginx)...${NC}"
+# ... (بقیه اسکریپت بدون تغییر) ...
 sudo tee /etc/nginx/sites-available/vpnmarket >/dev/null <<EOF
 server {
     listen 80;
