@@ -17,10 +17,8 @@ return new class extends Migration
             $table->unsignedInteger('price');
             $table->string('currency')->default('هزار تومان');
             $table->text('features');
-
-            $table->unsignedInteger('volume_gb')->default(30)->after('price');
-
-            $table->unsignedInteger('duration_days')->default(30)->after('volume_gb');
+            $table->unsignedInteger('volume_gb')->default(30);
+            $table->unsignedInteger('duration_days')->default(30);
             $table->boolean('is_popular')->default(false);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
