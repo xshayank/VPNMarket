@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# --- نصب خودکار پروژه VPNMarket روی Ubuntu 22.04 (نسخه نهایی قطعی) ---
+# --- نصب خودکار و هوشمند پروژه VPNMarket روی Ubuntu 22.04 (نسخه نهایی) ---
 # نویسنده: Arvin Vahed
 # https://github.com/arvinvahed/VPNMarket
+# این اسکریپت برای مقابله با خطاهای رایج بهینه‌سازی شده است.
 
 set -e
 
@@ -14,7 +15,10 @@ NC='\033[0m'
 echo -e "${CYAN}--- خوش آمدید! در حال آماده‌سازی برای نصب پروژه VPNMarket ---${NC}"
 echo
 
-read -p "🌐 لطفا دامنه خود را وارد کنید (مثال: vpn.example.com): " DOMAIN
+read -p "🌐 لطفا دامنه خود را وارد کنید (مثال: market.example.com): " DOMAIN
+# --- هوشمندسازی ورودی: حذف http/https و اسلش انتهایی از دامنه ---
+DOMAIN=$(echo $DOMAIN | sed 's|http[s]*://||g' | sed 's|/.*||g')
+
 read -p "🗃 یک نام برای دیتابیس انتخاب کنید (مثال: vpnmarket): " DB_NAME
 read -p "👤 یک نام کاربری برای دیتابیس انتخاب کنید (مثال: vpnuser): " DB_USER
 read -s -p "🔑 یک رمز عبور قوی برای کاربر دیتابیس وارد کنید: " DB_PASS
@@ -24,50 +28,56 @@ echo
 PROJECT_PATH="/var/www/vpnmarket"
 GITHUB_REPO="https://github.com/arvinvahed/VPNMarket.git"
 
-echo -e "${YELLOW}📦 مرحله ۱ از ۷: به‌روزرسانی سیستم و نصب پیش‌نیازها...${NC}"
+echo -e "${YELLOW}📦 مرحله ۱ از ۸: به‌روزرسانی سیستم و نصب پیش‌نیازها...${NC}"
 sudo apt-get update -y
 sudo apt-get install -y git curl nginx certbot python3-certbot-nginx mysql-server composer unzip software-properties-common
 
-echo -e "${YELLOW}☕ مرحله ۲ از ۷: افزودن مخزن PHP و نصب PHP 8.3...${NC}"
+echo -e "${YELLOW}☕ مرحله ۲ از ۸: افزودن مخزن PHP و نصب PHP 8.3...${NC}"
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
 sudo apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-bcmath php8.3-intl
 
-echo -e "${YELLOW}⬇️ مرحله ۳ از ۷: دانلود سورس پروژه از گیت‌هاب...${NC}"
+echo -e "${YELLOW}🚀 مرحله ۳ از ۸: فعال‌سازی سرویس PHP-FPM...${NC}"
+sudo systemctl enable php8.3-fpm
+sudo systemctl start php8.3-fpm
+
+echo -e "${YELLOW}⬇️ مرحله ۴ از ۸: دانلود سورس پروژه از گیت‌هاب...${NC}"
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
 sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
-echo -e "${YELLOW}🧩 مرحله ۴ از ۷: ساخت دیتابیس و تنظیم فایل .env...${NC}"
+echo -e "${YELLOW}🧩 مرحله ۵ از ۸: ساخت دیتابیس و تنظیم فایل .env...${NC}"
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
 sudo cp .env.example .env
-
-# === تغییر کلیدی: استفاده از جداکننده "|" برای دستورات sed برای جلوگیری از خطا ===
+# --- هوشمندسازی: استفاده از جداکننده "|" برای جلوگیری از خطا در رمزهای عبور خاص ---
 sudo sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_NAME|" .env
 sudo sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USER|" .env
 sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
-sudo sed -i "s|APP_URL=.*|APP_URL=http://$DOMAIN|" .env
+sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env # تغییر به https برای استفاده با SSL
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
-echo -e "${YELLOW}🧰 مرحله ۵ از ۷: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+echo -e "${YELLOW}🧰 مرحله ۶ از ۸: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
 sudo -u www-data composer install --no-dev --optimize-autoloader
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
 
-echo -e "${YELLOW}🔗 مرحله ۶ از ۷: اجرای مایگریشن‌ها و لینک کردن Storage...${NC}"
+echo -e "${YELLOW}🔗 مرحله ۷ از ۸: اجرای مایگریشن‌ها و لینک کردن Storage...${NC}"
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
-echo -e "${YELLOW}🌍 مرحله ۷ از ۷: پیکربندی وب‌سرور (Nginx)...${NC}"
-# ... (بقیه اسکریپت بدون تغییر) ...
+echo -e "${YELLOW}🌍 مرحله ۸ از ۸: پیکربندی وب‌سرور (Nginx)...${NC}"
+# --- هوشمندسازی: پیدا کردن خودکار مسیر صحیح سوکت PHP-FPM ---
+PHP_FPM_SOCK=$(grep -oP 'listen = \K.*' /etc/php/8.3/fpm/pool.d/www.conf)
+echo "مسیر سوکت PHP-FPM پیدا شد: $PHP_FPM_SOCK"
+
 sudo tee /etc/nginx/sites-available/vpnmarket >/dev/null <<EOF
 server {
     listen 80;
@@ -91,7 +101,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/8.3-fpm.sock;
+        fastcgi_pass unix:$PHP_FPM_SOCK; # استفاده از مسیر خودکار
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
     }
@@ -121,4 +131,6 @@ echo -e "--------------------------------------------------"
 echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}https://$DOMAIN${NC}"
 echo -e "📂 مسیر فایل‌های پروژه: ${CYAN}$PROJECT_PATH${NC}"
 echo -e "🔑 برای ورود به پنل مدیریت، به آدرس ${CYAN}https://$DOMAIN/admin${NC} بروید."
+echo -e "   - ایمیل: admin@example.com"
+echo -e "   - رمز عبور: password"
 echo -e "--------------------------------------------------"
