@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- نصب خودکار پروژه VPNMarket روی Ubuntu 22.04 ---
+# --- نصب خودکار پروژه VPNMarket روی Ubuntu 22.04 (نسخه اصلاح شده) ---
 # نویسنده: Arvin Vahed
 # https://github.com/arvinvahed/VPNMarket
 
@@ -33,18 +33,17 @@ echo -e "${YELLOW}📦 مرحله ۱ از ۸: به‌روزرسانی سیستم
 sudo apt-get update -y
 sudo apt-get install -y git curl nginx certbot python3-certbot-nginx mysql-server composer unzip software-properties-common
 
-# --- مرحله ۲: افزودن مخزن PHP و نصب PHP ---
+# --- مرحله ۲: افزودن مخزن PHP و نصب PHP 8.3 ---
 echo -e "${YELLOW}☕ مرحله ۲ از ۸: افزودن مخزن PHP برای دریافت آخرین نسخه...${NC}"
-# این بخش مشکل عدم شناسایی پکیج PHP را حل می‌کند
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
 
-echo -e "${YELLOW}🐘 مرحله ۳ از ۸: نصب PHP 8.2 و افزونه‌های مورد نیاز...${NC}"
-sudo apt-get install -y php8.2-fpm php8.2-mysql php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip php8.2-bcmath
+echo -e "${YELLOW}🐘 مرحله ۳ از ۸: نصب PHP 8.3 و افزونه‌های مورد نیاز...${NC}"
+# === تغییر کلیدی: ارتقا به PHP 8.3 و اضافه کردن php8.3-intl ===
+sudo apt-get install -y php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-bcmath php8.3-intl
 
 # --- مرحله ۴: کلون کردن پروژه و تنظیم لاراول ---
 echo -e "${YELLOW}⬇️ مرحله ۴ از ۸: دانلود سورس پروژه از گیت‌هاب...${NC}"
-# اگر پوشه از قبل وجود داشت، آن را حذف می‌کنیم تا از بروز خطا جلوگیری شود
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
@@ -53,7 +52,6 @@ cd $PROJECT_PATH
 
 echo -e "${YELLOW}⚙️ مرحله ۵ از ۸: نصب وابستگی‌ها و تنظیمات اولیه لاراول...${NC}"
 sudo cp .env.example .env
-# اجرای Composer با کاربر www-data برای جلوگیری از مشکلات دسترسی
 sudo -u www-data composer install --no-dev --optimize-autoloader
 sudo php artisan key:generate
 
@@ -64,7 +62,6 @@ sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
-# جایگزینی اطلاعات دیتابیس در فایل .env
 sudo sed -i "s/DB_DATABASE=.*/DB_DATABASE=$DB_NAME/" .env
 sudo sed -i "s/DB_USERNAME=.*/DB_USERNAME=$DB_USER/" .env
 sudo sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASS/" .env
@@ -89,7 +86,7 @@ server {
 
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-XSS-Protection "1; mode=block";
-    add_header X-Content-Type-Options "nosiff";
+    add_header X-Content-Type-Options "nosniff";
 
     index index.php;
     charset utf-8;
@@ -104,7 +101,8 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        # === تغییر کلیدی: استفاده از سوکت PHP 8.3 ===
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
     }
@@ -115,9 +113,7 @@ server {
 }
 EOF
 
-# فعال‌سازی کانفیگ و ریستارت Nginx
 sudo ln -sf /etc/nginx/sites-available/vpnmarket /etc/nginx/sites-enabled/
-# حذف کانفیگ پیش‌فرض برای جلوگیری از تداخل
 if [ -f "/etc/nginx/sites-enabled/default" ]; then
     sudo rm /etc/nginx/sites-enabled/default
 fi
@@ -129,8 +125,6 @@ read -p "🔒 آیا مایل به فعال‌سازی HTTPS رایگان با C
 if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     echo -e "${YELLOW}در حال نصب گواهی SSL برای $DOMAIN ...${NC}"
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN
-    # --non-interactive: از پرسیدن سوالات اضافه جلوگیری می‌کند
-    # -m: یک ایمیل برای اطلاع‌رسانی‌های Certbot (می‌توانید تغییر دهید)
 fi
 
 echo
