@@ -6,9 +6,9 @@
 # === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
 
-set -e
+set -e # توقف اسکریپت در صورت بروز هرگونه خطا
 
-
+# --- تعریف متغیرها و رنگ‌ها ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -21,7 +21,7 @@ PHP_VERSION="8.3"
 echo -e "${CYAN}--- خوش آمدید! در حال آماده‌سازی برای نصب پروژه VPNMarket ---${NC}"
 echo
 
-
+# --- دریافت اطلاعات از کاربر ---
 read -p "🌐 لطفا دامنه خود را وارد کنید (مثال: market.example.com): " DOMAIN
 DOMAIN=$(echo $DOMAIN | sed 's|http[s]*://||g' | sed 's|/.*||g')
 
@@ -103,13 +103,13 @@ echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
 echo "نصب پکیج‌های Node.js با npm..."
-# استفاده از HOME=/var/www برای اطمینان از دسترسی www-data به پوشه کش (اگرچه در خطوط قبلی حل شد)
+# استفاده از HOME=/var/www برای حل مشکل دسترسی کش npm
 sudo -u www-data HOME=/var/www npm install
 
 echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
 sudo -u www-data HOME=/var/www npm run build
 
-# حذف فایل‌های موقت npm cache
+# حذف فایل‌های موقت
 sudo rm -rf $PROJECT_PATH/.npm
 sudo rm -rf $PROJECT_PATH/npm-debug.log
 
@@ -169,19 +169,18 @@ if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
 
-
-echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت (بدون Caching Config)...${NC}"
-
-sudo -u www-data php artisan route:cache
-sudo -u www-data php artisan view:cache
+# --- بهینه‌سازی نهایی بعد از راه‌اندازی کامل سرور ---
+echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
+# 💡 این دستورات باید پس از اصلاح config/telegram.php، بدون خطا اجرا شوند.
+sudo -u www-data php artisan optimize
 
 # --- پیام نهایی ---
 echo
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "${GREEN}✅ نصب با موفقیت کامل شد!${NC}"
 echo -e "--------------------------------------------------"
-echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}https://$DOMAIN${NC}"
-echo -e "🔑 پنل مدیریت: ${CYAN}https://$DOMAIN/admin${NC}"
+echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}http://$DOMAIN${NC}"
+echo -e "🔑 پنل مدیریت: ${CYAN}http://$DOMAIN/admin${NC}"
 echo
 echo -e "   - ایمیل ورود: ${YELLOW}admin@example.com${NC}"
 echo -e "   - رمز عبور: ${YELLOW}password${NC}"
