@@ -6,9 +6,9 @@
 # === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
 
-set -e # توقف اسکریپت در صورت بروز هرگونه خطا
+set -e
 
-# --- تعریف متغیرها و رنگ‌ها ---
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -51,7 +51,7 @@ sudo apt-get install -y git curl composer unzip software-properties-common gpg
 echo -e "${YELLOW}📦 مرحله ۲ از ۹: نصب نسخه جدید Node.js...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
-echo -e "${GREEN}Node.js $(node -v) با موفقیت نصب شد.${NC}"
+echo -e "${GREEN}Node.js $(node -v) و npm $(npm -v) با موفقیت نصب شدند.${NC}"
 
 # --- مرحله ۳: نصب PHP 8.3 ---
 echo -e "${YELLOW}☕ مرحله ۳ از ۹: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
@@ -103,13 +103,11 @@ echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
 echo "نصب پکیج‌های Node.js با npm..."
-# ===> تغییر کلیدی: مشخص کردن مسیر کش برای npm برای جلوگیری از خطای دسترسی <===
 sudo -u www-data npm install --cache .npm --prefer-offline
 
 echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
 sudo -u www-data npm run build
 
-# بعد از اتمام کار، پوشه کش npm را پاک می‌کنیم
 sudo rm -rf .npm
 
 sudo -u www-data php artisan key:generate
@@ -117,10 +115,11 @@ sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
-sudo -u www-data php artisan optimize
+
+
 
 # --- مرحله ۹: پیکربندی نهایی Nginx ---
-echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx)...${NC}"
+echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx) و بهینه‌سازی نهایی...${NC}"
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
 
@@ -166,6 +165,10 @@ if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     echo -e "${YELLOW}در حال نصب گواهی SSL برای $DOMAIN ...${NC}"
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
+
+# --- بهینه‌سازی نهایی بعد از راه‌اندازی کامل سرور ---
+echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
+sudo -u www-data php artisan optimize
 
 # --- پیام نهایی ---
 echo
