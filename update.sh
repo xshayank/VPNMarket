@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# ===              اسکریپت آپدیت پروژه VPNMarket                   ===
+# ===              اسکریپت آپدیت هوشمند و امن پروژه VPNMarket                ===
 # ==============================================================================
 
 set -e # توقف اسکریپت در صورت بروز هرگونه خطا
@@ -19,64 +19,56 @@ WEB_USER="www-data"
 # --- مرحله ۰: بررسی‌های اولیه ---
 echo -e "${CYAN}--- شروع فرآیند آپدیت پروژه VPNMarket ---${NC}"
 
-# بررسی اینکه آیا اسکریپت از پوشه صحیح اجرا می‌شود
 if [ "$PWD" != "$PROJECT_PATH" ]; then
-  echo -e "${RED}خطا: این اسکریپت باید از داخل پوشه پروژه اجرا شود.${NC}"
-  echo -e "لطفاً ابتدا دستور 'cd $PROJECT_PATH' را اجرا کرده و سپس دوباره تلاش کنید."
+  echo -e "${RED}خطا: این اسکریپت باید از داخل پوشه پروژه ('cd $PROJECT_PATH') اجرا شود.${NC}"
   exit 1
 fi
 
-# بررسی وجود فایل .env
 if [ ! -f ".env" ]; then
-    echo -e "${RED}خطا: فایل .env یافت نشد! فرآیند آپدیت قابل انجام نیست.${NC}"
+    echo -e "${RED}خطا: فایل .env یافت نشد!${NC}"
     exit 1
 fi
 
 echo
 
 # --- مرحله ۱: پشتیبان‌گیری و حالت تعمیر ---
-echo -e "${YELLOW}مرحله ۱ از ۸: ایجاد نسخه پشتیبان از .env و فعال‌سازی حالت تعمیر...${NC}"
+echo -e "${YELLOW}مرحله ۱ از ۷: ایجاد نسخه پشتیبان از .env و فعال‌سازی حالت تعمیر...${NC}"
 sudo cp .env .env.bak.$(date +%Y-%m-%d_%H-%M-%S)
-echo -e "یک نسخه پشتیبان از فایل .env شما ساخته شد."
+echo "یک نسخه پشتیبان از فایل .env شما در همین مسیر ساخته شد."
 sudo -u $WEB_USER php artisan down || true
 
 # --- مرحله ۲: دریافت آخرین کدها از گیت‌هاب ---
-echo -e "${YELLOW}مرحله ۲ از ۸: دریافت آخرین تغییرات از گیت‌هاب...${NC}"
-echo -e "کنار گذاشتن تغییرات محلی (در صورت وجود)..."
-sudo git stash || true
-echo -e "در حال دریافت آخرین نسخه از برنچ main..."
+echo -e "${YELLOW}مرحله ۲ از ۷: دریافت آخرین تغییرات از گیت‌هاب...${NC}"
+echo "کنار گذاشتن تغییرات محلی (در صورت وجود)..."
+sudo git stash push --include-untracked
+echo "در حال دریافت آخرین نسخه از برنچ main..."
 sudo git pull origin main
-echo -e "بازگرداندن تغییرات محلی (در صورت وجود)..."
-sudo git stash pop || true # || true باعث می‌شود اگر stash خالی بود، خطا ندهد
+# (ما دیگر stash pop را اجرا نمی‌کنیم تا از تداخل جلوگیری شود. تغییرات کاربر کنار گذاشته می‌شود)
 
 # --- مرحله ۳: تنظیم دسترسی‌های صحیح ---
-echo -e "${YELLOW}مرحله ۳ از ۸: تنظیم مجدد دسترسی‌های فایل...${NC}"
+echo -e "${YELLOW}مرحله ۳ از ۷: تنظیم مجدد دسترسی‌های فایل...${NC}"
 sudo chown -R $WEB_USER:$WEB_USER .
 
 # --- مرحله ۴: آپدیت وابستگی‌های PHP (Composer) ---
-echo -e "${YELLOW}مرحله ۴ از ۸: به‌روزرسانی پکیج‌های PHP با Composer...${NC}"
+echo -e "${YELLOW}مرحله ۴ از ۷: به‌روزرسانی پکیج‌های PHP...${NC}"
 sudo -u $WEB_USER composer install --no-dev --optimize-autoloader
 
 # --- مرحله ۵: آپدیت وابستگی‌های Frontend (NPM) ---
-echo -e "${YELLOW}مرحله ۵ از ۸: به‌روزرسانی پکیج‌های Node.js و کامپایل assets...${NC}"
-# نصب مجدد Node modules و کامپایل
-sudo -u $WEB_USER HOME=/var/www npm install
-sudo -u $WEB_USER HOME=/var/www npm run build
+echo -e "${YELLOW}مرحله ۵ از ۷: به‌روزرسانی پکیج‌های Node.js و کامپایل assets...${NC}"
+# استفاده از --cache برای جلوگیری از مشکلات دسترسی
+sudo -u $WEB_USER npm install --cache .npm --prefer-offline
+sudo -u $WEB_USER npm run build
+sudo rm -rf .npm
 echo "فایل‌های JS/CSS برای محیط Production کامپایل شدند."
 
 # --- مرحله ۶: آپدیت دیتابیس ---
-echo -e "${YELLOW}مرحله ۶ از ۸: اجرای مایگریشن‌های جدید دیتابیس (در صورت وجود)...${NC}"
+echo -e "${YELLOW}مرحله ۶ از ۷: اجرای مایگریشن‌های جدید دیتابیس...${NC}"
 sudo -u $WEB_USER php artisan migrate --force
 
-# --- مرحله ۷: پاکسازی و بهینه‌سازی کش‌ها ---
-echo -e "${YELLOW}مرحله ۷ از ۸: پاکسازی و ساخت مجدد کش‌ها برای حداکثر سرعت...${NC}"
-# ابتدا همه کش‌ها را پاک می‌کنیم
+# --- مرحله ۷: پاکسازی کش‌ها و خروج از حالت تعمیر ---
+echo -e "${YELLOW}مرحله ۷ از ۷: پاکسازی کش‌ها و فعال‌سازی مجدد سایت...${NC}"
+# ===> تغییر کلیدی: جایگزینی optimize با optimize:clear برای جلوگیری از خطا <===
 sudo -u $WEB_USER php artisan optimize:clear
-# سپس کش‌های جدید را می‌سازیم (بهتر از پاک کردن تک تک است)
-sudo -u $WEB_USER php artisan optimize
-
-# --- مرحله ۸: خروج از حالت تعمیر ---
-echo -e "${YELLOW}مرحله ۸ از ۸: فعال‌سازی مجدد سایت...${NC}"
 sudo -u $WEB_USER php artisan up
 
 echo
