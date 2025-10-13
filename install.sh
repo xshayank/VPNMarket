@@ -21,7 +21,7 @@ PHP_VERSION="8.3"
 echo -e "${CYAN}--- خوش آمدید! در حال آماده‌سازی برای نصب پروژه VPNMarket ---${NC}"
 echo
 
-# --- دریافت اطلاعات از کاربر ---
+
 read -p "🌐 لطفا دامنه خود را وارد کنید (مثال: market.example.com): " DOMAIN
 DOMAIN=$(echo $DOMAIN | sed 's|http[s]*://||g' | sed 's|/.*||g')
 
@@ -95,7 +95,7 @@ sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
-# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend ---
+# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend (با رفع مشکلات دسترسی) ---
 echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
 
@@ -103,13 +103,17 @@ echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
 echo "نصب پکیج‌های Node.js با npm..."
-sudo -u www-data npm install --cache .npm --prefer-offline
+# استفاده از HOME=/var/www برای اطمینان از دسترسی www-data به پوشه کش (اگرچه در خطوط قبلی حل شد)
+sudo -u www-data HOME=/var/www npm install
 
 echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
-sudo -u www-data npm run build
+sudo -u www-data HOME=/var/www npm run build
 
-sudo rm -rf .npm
+# حذف فایل‌های موقت npm cache
+sudo rm -rf $PROJECT_PATH/.npm
+sudo rm -rf $PROJECT_PATH/npm-debug.log
 
+echo "اجرای دستورات نهایی Artisan..."
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
@@ -117,8 +121,7 @@ sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
 
-
-# --- مرحله ۹: پیکربندی نهایی Nginx ---
+# --- مرحله ۹: پیکربندی نهایی Nginx و بهینه‌سازی نهایی ---
 echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx) و بهینه‌سازی نهایی...${NC}"
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
@@ -166,9 +169,11 @@ if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
 
-# --- بهینه‌سازی نهایی بعد از راه‌اندازی کامل سرور ---
-echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
-sudo -u www-data php artisan optimize
+
+echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت (بدون Caching Config)...${NC}"
+
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
 
 # --- پیام نهایی ---
 echo
