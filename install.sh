@@ -99,17 +99,21 @@ sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
 
+# 🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز
+echo "🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز..."
+sudo rm -rf $PROJECT_PATH/node_modules
+
 echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
 # 💡 رفع خطا: اطمینان از دسترسی www-data به پوشه کش npm
-echo "🌟 رفع خطای EACCES npm: تنظیم مالکیت پوشه کش..."
+echo "🌟 رفع خطای EACCES npm: تنظیم مالکیت پوشه کش به UID 33 (www-data)..."
 NPM_CACHE_DIR="/var/www/.npm"
 if [ ! -d "$NPM_CACHE_DIR" ]; then
     sudo mkdir -p "$NPM_CACHE_DIR"
 fi
-# اجبار به تغییر مالکیت برای جلوگیری از خطا
-sudo chown -R www-data:www-data "$NPM_CACHE_DIR"
+# اجبار به تغییر مالکیت به 33:33 (UID/GID پیش‌فرض www-data) برای جلوگیری از خطا
+sudo chown -R 33:33 "$NPM_CACHE_DIR"
 
 echo "نصب پکیج‌های Node.js با npm..."
 # اجرای npm با HOME=/var/www برای استفاده از کش صحیح
