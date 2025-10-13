@@ -2,8 +2,6 @@
 
 # ==================================================================================
 # === اسکریپت نصب نهایی، هوشمند و ضد خطا برای پروژه VPNMarket روی Ubuntu 22.04    ===
-# === نویسنده: Arvin Vahed                                                       ===
-# === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
 
 set -e # توقف اسکریپت در صورت بروز هرگونه خطا
@@ -99,6 +97,10 @@ sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
 
+# 💡 رفع خطای کش: پاک کردن کش تنظیمات برای خواندن مقادیر جدید .env
+echo "🧹 پاکسازی کش تنظیمات قدیمی برای اعمال مقادیر دیتابیس..."
+sudo -u www-data php artisan config:clear || true
+
 # 🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز
 echo "🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز..."
 sudo rm -rf $PROJECT_PATH/node_modules
@@ -130,6 +132,7 @@ echo "اجرای دستورات نهایی Artisan..."
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
+# ❗ این دستور حالا باید از مقادیر جدید .env استفاده کند
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
@@ -184,7 +187,6 @@ fi
 
 # --- بهینه‌سازی نهایی (بدون optimize) ---
 echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت (بدون Caching Config)...${NC}"
-# چون optimize حذف شد، از دستورات کش ایمن برای سرعت استفاده می‌کنیم
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan view:cache
 
