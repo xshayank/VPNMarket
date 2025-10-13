@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==================================================================================
-# === اسکریپت نصب نهایی، هوشمند و ضد خطا برای پروژه VPNMarket روی Ubuntu 22.04    ===
+# === اسکریپت نصب نهایی    VPNMarket روی Ubuntu 22.04    ===
 # === نویسنده: Arvin Vahed                                                       ===
 # === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
@@ -14,6 +14,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m'
+PROJECT_PATH="/var/www/vpnmarket"
+GITHUB_REPO="https://github.com/arvinvahed/VPNMarket.git"
+PHP_VERSION="8.3"
 
 echo -e "${CYAN}--- خوش آمدید! در حال آماده‌سازی برای نصب پروژه VPNMarket ---${NC}"
 echo
@@ -24,49 +27,65 @@ DOMAIN=$(echo $DOMAIN | sed 's|http[s]*://||g' | sed 's|/.*||g')
 
 read -p "🗃 یک نام برای دیتابیس انتخاب کنید (مثال: vpnmarket): " DB_NAME
 read -p "👤 یک نام کاربری برای دیتابیس انتخاب کنید (مثال: vpnuser): " DB_USER
-read -s -p "🔑 یک رمز عبور قوی برای کاربر دیتابیس وارد کنید: " DB_PASS
+# بررسی عدم خالی بودن رمز عبور
+while true; do
+    read -s -p "🔑 یک رمز عبور قوی برای کاربر دیتابیس وارد کنید: " DB_PASS
+    echo
+    if [ -z "$DB_PASS" ]; then
+        echo -e "${RED}رمز عبور نمی‌تواند خالی باشد. لطفا دوباره وارد کنید.${NC}"
+    else
+        break
+    fi
+done
+
+read -p "✉️ ایمیل شما برای گواهی SSL و اخطارهای Certbot: " ADMIN_EMAIL
 echo
 echo
 
-# --- متغیرهای پروژه ---
-PROJECT_PATH="/var/www/vpnmarket"
-GITHUB_REPO="https://github.com/arvinvahed/VPNMarket.git"
-PHP_VERSION="8.3"
-
-# --- مرحله ۱: نصب تمام پیش‌نیازها ---
-echo -e "${YELLOW}📦 مرحله ۱ از ۹: به‌روزرسانی سیستم و نصب تمام پیش‌نیازها...${NC}"
+# --- مرحله ۱: نصب پیش‌نیازهای اولیه ---
+echo -e "${YELLOW}📦 مرحله ۱ از ۹: به‌روزرسانی سیستم و نصب پیش‌نیازهای اولیه...${NC}"
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-# --->>> اضافه شدن nodejs و npm برای کامپایل فایل‌های Vite <<<---
-sudo apt-get install -y git curl nginx certbot python3-certbot-nginx mysql-server composer unzip software-properties-common gpg nodejs npm
+sudo apt-get install -y git curl composer unzip software-properties-common gpg
 
-# --- مرحله ۲: نصب PHP ---
-echo -e "${YELLOW}☕ مرحله ۲ از ۹: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
+# --- مرحله ۲: نصب Node.js نسخه LTS (جدید) ---
+echo -e "${YELLOW}📦 مرحله ۲ از ۹: نصب نسخه جدید Node.js...${NC}"
+# استفاده از مخزن NodeSource برای نصب آخرین LTS
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs
+echo -e "${GREEN}Node.js $(node -v) با موفقیت نصب شد.${NC}"
+
+# --- مرحله ۳: نصب PHP 8.3 ---
+echo -e "${YELLOW}☕ مرحله ۳ از ۹: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
 sudo apt-get install -y php${PHP_VERSION}-fpm php${PHP_VERSION}-mysql php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath php${PHP_VERSION}-intl php${PHP_VERSION}-gd php${PHP_VERSION}-dom
 
-# --- مرحله ۳: تنظیم نسخه پیش‌فرض PHP ---
-echo -e "${YELLOW}🔧 مرحله ۳ از ۹: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
+# --- مرحله ۴: تنظیم نسخه پیش‌فرض PHP ---
+echo -e "${YELLOW}🔧 مرحله ۴ از ۹: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
 sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
 
-# --- مرحله ۴: فعال‌سازی سرویس‌ها ---
-echo -e "${YELLOW}🚀 مرحله ۴ از ۹: فعال‌سازی سرویس‌های PHP-FPM و MySQL...${NC}"
+# --- مرحله ۵: نصب و فعال‌سازی سرویس‌های اصلی ---
+echo -e "${YELLOW}🚀 مرحله ۵ از ۹: نصب و فعال‌سازی سرویس‌های Nginx و MySQL...${NC}"
+sudo apt-get install -y nginx certbot python3-certbot-nginx mysql-server
 sudo systemctl enable php${PHP_VERSION}-fpm
 sudo systemctl start php${PHP_VERSION}-fpm
+sudo systemctl enable nginx
+sudo systemctl start nginx
 sudo systemctl enable mysql
 sudo systemctl start mysql
 
-# --- مرحله ۵: دانلود پروژه ---
-echo -e "${YELLOW}⬇️ مرحله ۵ از ۹: دانلود سورس پروژه از گیت‌هاب...${NC}"
+# --- مرحله ۶: دانلود پروژه ---
+echo -e "${YELLOW}⬇️ مرحله ۶ از ۹: دانلود سورس پروژه از گیت‌הاب...${NC}"
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
+# دانلود با sudo و سپس تغییر مالکیت (اگرچه git clone توسط root انجام می‌شود، اما با chown رفع می‌شود)
 sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
-# --- مرحله ۶: تنظیم دیتابیس و .env ---
-echo -e "${YELLOW}🧩 مرحله ۶ از ۹: ساخت دیتابیس و تنظیم فایل .env...${NC}"
+# --- مرحله ۷: تنظیم دیتابیس و .env ---
+echo -e "${YELLOW}🧩 مرحله ۷ از ۹: ساخت دیتابیس و تنظیم فایل .env...${NC}"
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
@@ -79,31 +98,32 @@ sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
-# --- مرحله ۷: نصب وابستگی‌های Backend و Frontend ---
-echo -e "${YELLOW}🧰 مرحله ۷ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend (اصلاح شده برای رفع خطای Node.js) ---
+echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+# تنظیم مالکیت کامل برای www-data
 sudo chown -R www-data:www-data $PROJECT_PATH
 
 echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
-# --->>> بخش جدید برای نصب و کامپایل فرانت‌اند <<<---
-echo "نصب پکیج‌های Node.js با npm..."
-sudo npm install
-echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
-sudo npm run build
+echo "نصب پکیج‌های Node.js با npm (تحت www-data)..."
+# 🌟 اصلاح حیاتی: اجرای npm install تحت کاربر www-data
+sudo -u www-data npm install
+
+echo "کامپایل کردن فایل‌های CSS/JS برای تولید (تحت www-data)..."
+# 🌟 اصلاح حیاتی: اجرای npm run build تحت کاربر www-data
+sudo -u www-data npm run build
 
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
-
-# --- مرحله ۸: اجرای مایگریشن‌ها و بهینه‌سازی نهایی ---
-echo -e "${YELLOW}🔗 مرحله ۸ از ۹: اجرای مایگریشن‌ها و بهینه‌سازی نهایی...${NC}"
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
-sudo -u www-data php artisan optimize # بهینه‌سازی کش‌ها
+sudo -u www-data php artisan optimize
 
 # --- مرحله ۹: پیکربندی نهایی Nginx ---
 echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx)...${NC}"
+# پیدا کردن مسیر سوکت PHP-FPM
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
 
@@ -112,29 +132,22 @@ server {
     listen 80;
     server_name $DOMAIN;
     root $PROJECT_PATH/public;
-
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-XSS-Protection "1; mode=block";
     add_header X-Content-Type-Options "nosniff";
-
     index index.php;
     charset utf-8;
-
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
-
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
-
     error_page 404 /index.php;
-
     location ~ \.php$ {
         fastcgi_pass unix:$PHP_FPM_SOCK_PATH;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
     }
-
     location ~ /\.(?!well-known).* {
         deny all;
     }
@@ -154,7 +167,8 @@ echo
 read -p "🔒 آیا مایل به فعال‌سازی HTTPS رایگان با Certbot هستید؟ (پیشنهاد می‌شود) (y/n): " ENABLE_SSL
 if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     echo -e "${YELLOW}در حال نصب گواهی SSL برای $DOMAIN ...${NC}"
-    sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN
+    # استفاده از ایمیل واقعی کاربر
+    sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
 
 # --- پیام نهایی ---
@@ -163,7 +177,5 @@ echo -e "${GREEN}=====================================================${NC}"
 echo -e "${GREEN}✅ نصب با موفقیت کامل شد!${NC}"
 echo -e "--------------------------------------------------"
 echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}https://$DOMAIN${NC}"
-echo -e "🔑 برای ورود به پنل مدیریت، به آدرس ${CYAN}https://$DOMAIN/admin${NC} بروید."
-echo -e "   - ایمیل: admin@example.com"
-echo -e "   - رمز عبور: password"
+echo -e "⚠️ امنیت: اگر کاربر پیش‌فرض Admin ایجاد شده است، ${RED}لطفاً سریعاً رمز عبور را تغییر دهید!${NC}"
 echo -e "${GREEN}=====================================================${NC}"
