@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==================================================================================
-# === اسکریپت نصب نهایی    VPNMarket روی Ubuntu 22.04    ===
+# === اسکریپت نصب نهایی، هوشمند و ضد خطا برای پروژه VPNMarket روی Ubuntu 22.04    ===
 # === نویسنده: Arvin Vahed                                                       ===
 # === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
@@ -27,7 +27,6 @@ DOMAIN=$(echo $DOMAIN | sed 's|http[s]*://||g' | sed 's|/.*||g')
 
 read -p "🗃 یک نام برای دیتابیس انتخاب کنید (مثال: vpnmarket): " DB_NAME
 read -p "👤 یک نام کاربری برای دیتابیس انتخاب کنید (مثال: vpnuser): " DB_USER
-# بررسی عدم خالی بودن رمز عبور
 while true; do
     read -s -p "🔑 یک رمز عبور قوی برای کاربر دیتابیس وارد کنید: " DB_PASS
     echo
@@ -48,9 +47,8 @@ export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
 sudo apt-get install -y git curl composer unzip software-properties-common gpg
 
-# --- مرحله ۲: نصب Node.js نسخه LTS (جدید) ---
+# --- مرحله ۲: نصب Node.js نسخه LTS ---
 echo -e "${YELLOW}📦 مرحله ۲ از ۹: نصب نسخه جدید Node.js...${NC}"
-# استفاده از مخزن NodeSource برای نصب آخرین LTS
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 echo -e "${GREEN}Node.js $(node -v) با موفقیت نصب شد.${NC}"
@@ -80,7 +78,6 @@ echo -e "${YELLOW}⬇️ مرحله ۶ از ۹: دانلود سورس پروژه
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
-# دانلود با sudo و سپس تغییر مالکیت (اگرچه git clone توسط root انجام می‌شود، اما با chown رفع می‌شود)
 sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
@@ -98,21 +95,22 @@ sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
-# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend (اصلاح شده برای رفع خطای Node.js) ---
+# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend ---
 echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
-# تنظیم مالکیت کامل برای www-data
 sudo chown -R www-data:www-data $PROJECT_PATH
 
 echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
-echo "نصب پکیج‌های Node.js با npm (تحت www-data)..."
-# 🌟 اصلاح حیاتی: اجرای npm install تحت کاربر www-data
-sudo -u www-data npm install
+echo "نصب پکیج‌های Node.js با npm..."
+# ===> تغییر کلیدی: مشخص کردن مسیر کش برای npm برای جلوگیری از خطای دسترسی <===
+sudo -u www-data npm install --cache .npm --prefer-offline
 
-echo "کامپایل کردن فایل‌های CSS/JS برای تولید (تحت www-data)..."
-# 🌟 اصلاح حیاتی: اجرای npm run build تحت کاربر www-data
+echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
 sudo -u www-data npm run build
+
+# بعد از اتمام کار، پوشه کش npm را پاک می‌کنیم
+sudo rm -rf .npm
 
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
@@ -123,7 +121,6 @@ sudo -u www-data php artisan optimize
 
 # --- مرحله ۹: پیکربندی نهایی Nginx ---
 echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx)...${NC}"
-# پیدا کردن مسیر سوکت PHP-FPM
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
 
@@ -167,7 +164,6 @@ echo
 read -p "🔒 آیا مایل به فعال‌سازی HTTPS رایگان با Certbot هستید؟ (پیشنهاد می‌شود) (y/n): " ENABLE_SSL
 if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     echo -e "${YELLOW}در حال نصب گواهی SSL برای $DOMAIN ...${NC}"
-    # استفاده از ایمیل واقعی کاربر
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
 
