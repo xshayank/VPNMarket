@@ -116,14 +116,14 @@ class OrderResource extends Resource
                                     $config = null;
                                     $success = false;
 
-                                    // --- شروع کد دست‌نخورده شما برای ساخت سرویس ---
+
                                     if ($panelType === 'marzban') {
                                         $trafficInBytes = $volumeInGB * 1073741824;
                                         $marzbanService = new MarzbanService(
                                             $settings->get('marzban_host'),
                                             $settings->get('marzban_sudo_username'),
                                             $settings->get('marzban_sudo_password'),
-                                            $settings->get('marzban_node_hostname')
+                                           $settings->get('marzban_node_hostname')
                                         );
                                         $expireTimestamp = now()->addDays($durationInDays)->timestamp;
                                         $userData = ['username' => $uniqueUsername, 'data_limit' => $trafficInBytes, 'expire' => $expireTimestamp];
@@ -167,7 +167,9 @@ class OrderResource extends Resource
                                                     Notification::make()->title('خطا')->body('آدرس پایه لینک سابسکریپشن در تنظیمات سایت وارد نشده است.')->danger()->send();
                                                     return;
                                                 }
-                                                $config = $subBaseUrl . '/json/' . $subId;
+                                                $config = $subBaseUrl . '/sub/' . $subId;
+
+
                                             } else {
                                                 $uuid = $response['generated_uuid'];
                                                 $streamSettings = json_decode($inboundData['streamSettings'], true);

@@ -41,6 +41,7 @@ class PlanResource extends Resource
                     ->default('تومان/ماهانه'),
                 Forms\Components\Textarea::make('features')
                     ->label('ویژگی‌ها')
+                    ->required()
                     ->helperText('هر ویژگی را در یک خط جدید بنویسید.'),
 
 

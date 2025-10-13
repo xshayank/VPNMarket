@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->unsignedInteger('price');
             $table->string('currency')->default('هزار تومان');
-            $table->text('features');
+            $table->text('features')->nullable();
             $table->unsignedInteger('volume_gb')->default(30);
             $table->unsignedInteger('duration_days')->default(30);
             $table->boolean('is_popular')->default(false);

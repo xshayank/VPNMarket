@@ -49,6 +49,7 @@ Route::middleware(['auth'])->group(function () {
 
 
 
+
     // Order & Payment Process
     Route::post('/order/{order}/renew', [OrderController::class, 'renew'])->name('order.renew');
     Route::post('/order/{plan}', [OrderController::class, 'store'])->name('order.store'); // Step 1: Create Order
