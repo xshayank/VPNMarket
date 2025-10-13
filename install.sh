@@ -34,31 +34,31 @@ GITHUB_REPO="https://github.com/arvinvahed/VPNMarket.git"
 PHP_VERSION="8.3"
 
 # --- مرحله ۱: نصب تمام پیش‌نیازها ---
-echo -e "${YELLOW}📦 مرحله ۱ از ۸: به‌روزرسانی سیستم و نصب تمام پیش‌نیازها...${NC}"
+echo -e "${YELLOW}📦 مرحله ۱ از ۹: به‌روزرسانی سیستم و نصب تمام پیش‌نیازها...${NC}"
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-sudo apt-get install -y git curl nginx certbot python3-certbot-nginx mysql-server composer unzip software-properties-common gpg
+# --->>> اضافه شدن nodejs و npm برای کامپایل فایل‌های Vite <<<---
+sudo apt-get install -y git curl nginx certbot python3-certbot-nginx mysql-server composer unzip software-properties-common gpg nodejs npm
 
 # --- مرحله ۲: نصب PHP ---
-echo -e "${YELLOW}☕ مرحله ۲ از ۸: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
+echo -e "${YELLOW}☕ مرحله ۲ از ۹: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
 sudo apt-get install -y php${PHP_VERSION}-fpm php${PHP_VERSION}-mysql php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath php${PHP_VERSION}-intl php${PHP_VERSION}-gd php${PHP_VERSION}-dom
 
 # --- مرحله ۳: تنظیم نسخه پیش‌فرض PHP ---
-echo -e "${YELLOW}🔧 مرحله ۳ از ۸: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
-# این دستور به صورت خودکار PHP 8.3 را به عنوان نسخه اصلی CLI انتخاب می‌کند
+echo -e "${YELLOW}🔧 مرحله ۳ از ۹: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
 sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
 
 # --- مرحله ۴: فعال‌سازی سرویس‌ها ---
-echo -e "${YELLOW}🚀 مرحله ۴ از ۸: فعال‌سازی سرویس‌های PHP-FPM و MySQL...${NC}"
+echo -e "${YELLOW}🚀 مرحله ۴ از ۹: فعال‌سازی سرویس‌های PHP-FPM و MySQL...${NC}"
 sudo systemctl enable php${PHP_VERSION}-fpm
 sudo systemctl start php${PHP_VERSION}-fpm
 sudo systemctl enable mysql
 sudo systemctl start mysql
 
 # --- مرحله ۵: دانلود پروژه ---
-echo -e "${YELLOW}⬇️ مرحله ۵ از ۸: دانلود سورس پروژه از گیت‌هاب...${NC}"
+echo -e "${YELLOW}⬇️ مرحله ۵ از ۹: دانلود سورس پروژه از گیت‌هاب...${NC}"
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
@@ -66,7 +66,7 @@ sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
 # --- مرحله ۶: تنظیم دیتابیس و .env ---
-echo -e "${YELLOW}🧩 مرحله ۶ از ۸: ساخت دیتابیس و تنظیم فایل .env...${NC}"
+echo -e "${YELLOW}🧩 مرحله ۶ از ۹: ساخت دیتابیس و تنظیم فایل .env...${NC}"
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
@@ -79,18 +79,31 @@ sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
 
-# --- مرحله ۷: نصب وابستگی‌های لاراول ---
-echo -e "${YELLOW}🧰 مرحله ۷ از ۸: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+# --- مرحله ۷: نصب وابستگی‌های Backend و Frontend ---
+echo -e "${YELLOW}🧰 مرحله ۷ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
+
+echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
+
+# --->>> بخش جدید برای نصب و کامپایل فرانت‌اند <<<---
+echo "نصب پکیج‌های Node.js با npm..."
+sudo npm install
+echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
+sudo npm run build
+
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
+
+# --- مرحله ۸: اجرای مایگریشن‌ها و بهینه‌سازی نهایی ---
+echo -e "${YELLOW}🔗 مرحله ۸ از ۹: اجرای مایگریشن‌ها و بهینه‌سازی نهایی...${NC}"
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
+sudo -u www-data php artisan optimize # بهینه‌سازی کش‌ها
 
-# --- مرحله ۸: پیکربندی نهایی Nginx ---
-echo -e "${YELLOW}🌍 مرحله ۸ از ۸: پیکربندی نهایی وب‌سرور (Nginx)...${NC}"
+# --- مرحله ۹: پیکربندی نهایی Nginx ---
+echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx)...${NC}"
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
 
