@@ -102,8 +102,17 @@ sudo chown -R www-data:www-data $PROJECT_PATH
 echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
+# 💡 رفع خطا: اطمینان از دسترسی www-data به پوشه کش npm
+echo "🌟 رفع خطای EACCES npm: تنظیم مالکیت پوشه کش..."
+NPM_CACHE_DIR="/var/www/.npm"
+if [ ! -d "$NPM_CACHE_DIR" ]; then
+    sudo mkdir -p "$NPM_CACHE_DIR"
+fi
+# اجبار به تغییر مالکیت برای جلوگیری از خطا
+sudo chown -R www-data:www-data "$NPM_CACHE_DIR"
+
 echo "نصب پکیج‌های Node.js با npm..."
-# استفاده از HOME=/var/www برای حل مشکل دسترسی کش npm
+# اجرای npm با HOME=/var/www برای استفاده از کش صحیح
 sudo -u www-data HOME=/var/www npm install
 
 echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
@@ -169,10 +178,12 @@ if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
 fi
 
-# --- بهینه‌سازی نهایی بعد از راه‌اندازی کامل سرور ---
-echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
-# 💡 این دستورات باید پس از اصلاح config/telegram.php، بدون خطا اجرا شوند.
-sudo -u www-data php artisan optimize
+# --- بهینه‌سازی نهایی (بدون optimize) ---
+echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت (بدون Caching Config)...${NC}"
+# چون optimize حذف شد، از دستورات کش ایمن برای سرعت استفاده می‌کنیم
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
+
 
 # --- پیام نهایی ---
 echo
