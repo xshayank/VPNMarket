@@ -1,7 +1,7 @@
-#!/bin-bash
+#!/bin/bash
 
 # ==============================================================================
-# ===         VPNMarket                          ===
+# ===              اسکریپت آپدیت پروژه VPNMarket                   ===
 # ==============================================================================
 
 set -e # توقف اسکریپت در صورت بروز هرگونه خطا
@@ -35,43 +35,48 @@ fi
 echo
 
 # --- مرحله ۱: پشتیبان‌گیری و حالت تعمیر ---
-echo -e "${YELLOW}مرحله ۱ از ۷: ایجاد نسخه پشتیبان از .env و فعال‌سازی حالت تعمیر...${NC}"
+echo -e "${YELLOW}مرحله ۱ از ۸: ایجاد نسخه پشتیبان از .env و فعال‌سازی حالت تعمیر...${NC}"
 sudo cp .env .env.bak.$(date +%Y-%m-%d_%H-%M-%S)
 echo -e "یک نسخه پشتیبان از فایل .env شما ساخته شد."
 sudo -u $WEB_USER php artisan down || true
 
 # --- مرحله ۲: دریافت آخرین کدها از گیت‌هاب ---
-echo -e "${YELLOW}مرحله ۲ از ۷: دریافت آخرین تغییرات از گیت‌هاب...${NC}"
+echo -e "${YELLOW}مرحله ۲ از ۸: دریافت آخرین تغییرات از گیت‌هاب...${NC}"
 echo -e "کنار گذاشتن تغییرات محلی (در صورت وجود)..."
-sudo git stash
+sudo git stash || true
 echo -e "در حال دریافت آخرین نسخه از برنچ main..."
 sudo git pull origin main
 echo -e "بازگرداندن تغییرات محلی (در صورت وجود)..."
 sudo git stash pop || true # || true باعث می‌شود اگر stash خالی بود، خطا ندهد
 
 # --- مرحله ۳: تنظیم دسترسی‌های صحیح ---
-echo -e "${YELLOW}مرحله ۳ از ۷: تنظیم مجدد دسترسی‌های فایل...${NC}"
+echo -e "${YELLOW}مرحله ۳ از ۸: تنظیم مجدد دسترسی‌های فایل...${NC}"
 sudo chown -R $WEB_USER:$WEB_USER .
 
-# --- مرحله ۴: آپدیت وابستگی‌های PHP ---
-echo -e "${YELLOW}مرحله ۴ از ۷: به‌روزرسانی پکیج‌های PHP با Composer...${NC}"
+# --- مرحله ۴: آپدیت وابستگی‌های PHP (Composer) ---
+echo -e "${YELLOW}مرحله ۴ از ۸: به‌روزرسانی پکیج‌های PHP با Composer...${NC}"
 sudo -u $WEB_USER composer install --no-dev --optimize-autoloader
 
-# --- مرحله ۵: آپدیت دیتابیس ---
-echo -e "${YELLOW}مرحله ۵ از ۷: اجرای مایگریشن‌های جدید دیتابیس (در صورت وجود)...${NC}"
+# --- مرحله ۵: آپدیت وابستگی‌های Frontend (NPM) ---
+echo -e "${YELLOW}مرحله ۵ از ۸: به‌روزرسانی پکیج‌های Node.js و کامپایل assets...${NC}"
+# نصب مجدد Node modules و کامپایل
+sudo -u $WEB_USER HOME=/var/www npm install
+sudo -u $WEB_USER HOME=/var/www npm run build
+echo "فایل‌های JS/CSS برای محیط Production کامپایل شدند."
+
+# --- مرحله ۶: آپدیت دیتابیس ---
+echo -e "${YELLOW}مرحله ۶ از ۸: اجرای مایگریشن‌های جدید دیتابیس (در صورت وجود)...${NC}"
 sudo -u $WEB_USER php artisan migrate --force
 
-# --- مرحله ۶: پاکسازی و بهینه‌سازی کش‌ها ---
-echo -e "${YELLOW}مرحله ۶ از ۷: پاکسازی و ساخت مجدد کش‌ها برای حداکثر سرعت...${NC}"
-sudo -u $WEB_USER php artisan view:clear
-sudo -u $WEB_USER php artisan route:clear
-sudo -u $WEB_USER php artisan config:clear
-sudo -u $WEB_USER php artisan cache:clear
-# بهینه‌سازی نهایی برای محیط production
+# --- مرحله ۷: پاکسازی و بهینه‌سازی کش‌ها ---
+echo -e "${YELLOW}مرحله ۷ از ۸: پاکسازی و ساخت مجدد کش‌ها برای حداکثر سرعت...${NC}"
+# ابتدا همه کش‌ها را پاک می‌کنیم
+sudo -u $WEB_USER php artisan optimize:clear
+# سپس کش‌های جدید را می‌سازیم (بهتر از پاک کردن تک تک است)
 sudo -u $WEB_USER php artisan optimize
 
-# --- مرحله ۷: خروج از حالت تعمیر ---
-echo -e "${YELLOW}مرحله ۷ از ۷: فعال‌سازی مجدد سایت...${NC}"
+# --- مرحله ۸: خروج از حالت تعمیر ---
+echo -e "${YELLOW}مرحله ۸ از ۸: فعال‌سازی مجدد سایت...${NC}"
 sudo -u $WEB_USER php artisan up
 
 echo
