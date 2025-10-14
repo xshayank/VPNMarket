@@ -104,14 +104,20 @@ sudo sed -i "s|QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
 
 # --- مرحله ۹: نصب وابستگی‌ها و اجرای دستورات Artisan ---
 echo -e "${YELLOW}🧰 مرحله ۹ از ۱۰: نصب وابستگی‌ها و اجرای دستورات نهایی Artisan...${NC}"
+echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
-# روش بهتر برای مدیریت کش npm
-sudo -u www-data npm config set cache $PROJECT_PATH/.npm --global
-sudo -u www-data npm install
+echo "نصب پکیج‌های Node.js با npm..."
+# --->>> بازگشت به روش امن و مستقیم برای npm <<<---
+sudo -u www-data npm install --cache $PROJECT_PATH/.npm --prefer-offline
+
+echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
 sudo -u www-data npm run build
+
+# پاکسازی کش npm بعد از اتمام کار
 sudo rm -rf $PROJECT_PATH/.npm
 
+echo "اجرای دستورات نهایی Artisan..."
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
