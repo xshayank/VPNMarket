@@ -2,7 +2,8 @@
 
 # ==================================================================================
 # === اسکریپت نصب نهایی VPNMarket روی Ubuntu 22.04 ===
-# ===  نویسنده:Arvin Vahed                                            ===
+# === نویسنده: Arvin Vahed                                                       ===
+# === https://github.com/arvinvahed/VPNMarket                                    ===
 # ==================================================================================
 
 set -e # توقف اسکریپت در صورت بروز هرگونه خطا
@@ -52,7 +53,7 @@ curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 echo -e "${GREEN}Node.js $(node -v) و npm $(npm -v) با موفقیت نصب شدند.${NC}"
 
-# --- مرحله ۳: نصب PHP 8.3 ---
+# --- مرحله ۳: نصب PHP 8.3 و افزونه‌های لازم ---
 echo -e "${YELLOW}☕ مرحله ۳ از ۱۱: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
@@ -63,8 +64,8 @@ echo -e "${YELLOW}🔧 مرحله ۴ از ۱۱: تنظیم نسخه پیش‌ف�
 sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
 
 # --- مرحله ۵: نصب و فعال‌سازی سرویس‌های اصلی ---
-echo -e "${YELLOW}🚀 مرحله ۵ از ۱۱: نصب و فعال‌سازی سرویس‌های Nginx, MySQL, Redis, Supervisor...${NC}"
-sudo apt-get install -y nginx certbot python3-certbot-nginx mysql-server redis-server supervisor
+echo -e "${YELLOW}🚀 مرحله ۵ از ۱۱: نصب و فعال‌سازی سرویس‌های Nginx, MySQL, Redis, Supervisor و UFW...${NC}"
+sudo apt-get install -y nginx certbot python3-certbot-nginx mysql-server redis-server supervisor ufw
 sudo systemctl enable --now php${PHP_VERSION}-fpm nginx mysql redis-server supervisor
 
 # --- مرحله ۶: پیکربندی فایروال (UFW) ---
@@ -91,7 +92,6 @@ sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 sudo mysql -e "FLUSH PRIVILEGES;"
 
 sudo cp .env.example .env
-# استفاده از | به عنوان جداکننده برای جلوگیری از خطا در صورت وجود کاراکتر / در رمز عبور
 sudo sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_NAME|" .env
 sudo sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USER|" .env
 sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
@@ -121,8 +121,6 @@ sudo rm -rf $PROJECT_PATH/node_modules $PROJECT_PATH/.npm
 
 echo "اجرای دستورات نهایی Artisan..."
 sudo -u www-data php artisan key:generate
-sudo -u www-data php artisan package:discover --ansi
-sudo -u www-data php artisan filament:upgrade
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
@@ -130,7 +128,6 @@ sudo -u www-data php artisan storage:link
 echo -e "${YELLOW}🌍 مرحله ۱۰ از ۱۱: پیکربندی نهایی وب‌سرور و صف‌ها...${NC}"
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
 
-# پیکربندی Nginx
 sudo tee /etc/nginx/sites-available/vpnmarket >/dev/null <<EOF
 server {
     listen 80;
@@ -162,7 +159,6 @@ if [ -f "/etc/nginx/sites-enabled/default" ]; then
 fi
 sudo nginx -t && sudo systemctl restart nginx
 
-# پیکربندی Supervisor برای صف‌ها
 sudo tee /etc/supervisor/conf.d/vpnmarket-worker.conf >/dev/null <<EOF
 [program:vpnmarket-worker]
 process_name=%(program_name)s_%(process_num)02d
@@ -187,7 +183,7 @@ echo -e "${YELLOW}🔒 مرحله ۱۱ از ۱۱: نصب گواهی SSL و به�
 read -p "آیا مایل به فعال‌سازی HTTPS رایگان با Certbot هستید؟ (پیشنهاد می‌شود) (y/n): " ENABLE_SSL
 if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
-    sudo systemctl status certbot.timer # بررسی فعال بودن تمدید خودکار
+    sudo systemctl status certbot.timer
 fi
 
 echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
@@ -208,3 +204,4 @@ echo -e "   - رمز عبور: ${YELLOW}password${NC}"
 echo
 echo -e "${RED}⚠️ اقدام فوری: لطفاً بلافاصله پس از اولین ورود، رمز عبور کاربر ادمین را تغییر دهید!${NC}"
 echo -e "${GREEN}=====================================================${NC}"
+
