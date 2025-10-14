@@ -4,6 +4,9 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WebhookController;
 use App\Models\Plan;
+use Modules\TelegramBot\Http\Controllers\WebhookController as TelegramWebhookController;
+use App\Http\Controllers\WebhookController as NowPaymentsWebhookController;
+
 use App\Models\Setting;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +80,9 @@ Route::middleware(['auth'])->group(function () {
 
 
 
+
+    Route::post('/webhooks/nowpayments', [NowPaymentsWebhookController::class, 'handle'])->name('webhooks.nowpayments');
+    Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('webhooks.telegram');
 
     // Order & Payment Process
     Route::post('/order/{order}/renew', [OrderController::class, 'renew'])->name('order.renew');
