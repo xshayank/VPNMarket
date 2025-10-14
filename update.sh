@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 PROJECT_PATH="/var/www/vpnmarket"
 WEB_USER="www-data"
+BUILD_LOG="$PROJECT_PATH/npm_build.log"
 
 # --- مرحله ۰: بررسی‌های اولیه ---
 echo -e "${CYAN}--- شروع فرآیند آپدیت پروژه VPNMarket ---${NC}"
@@ -34,16 +35,13 @@ echo
 # --- مرحله ۱: پشتیبان‌گیری و حالت تعمیر ---
 echo -e "${YELLOW}مرحله ۱ از ۷: ایجاد نسخه پشتیبان از .env و فعال‌سازی حالت تعمیر...${NC}"
 sudo cp .env .env.bak.$(date +%Y-%m-%d_%H-%M-%S)
-echo "یک نسخه پشتیبان از فایل .env شما در همین مسیر ساخته شد."
+echo "یک نسخه پشتیبان از فایل .env ساخته شد."
 sudo -u $WEB_USER php artisan down || true
 
 # --- مرحله ۲: دریافت آخرین کدها از گیت‌هاب ---
 echo -e "${YELLOW}مرحله ۲ از ۷: دریافت آخرین تغییرات از گیت‌هاب...${NC}"
-echo "کنار گذاشتن تغییرات محلی (در صورت وجود)..."
-sudo git stash push --include-untracked
-echo "در حال دریافت آخرین نسخه از برنچ main..."
+sudo git stash push --include-untracked || true
 sudo git pull origin main
-# (ما دیگر stash pop را اجرا نمی‌کنیم تا از تداخل جلوگیری شود. تغییرات کاربر کنار گذاشته می‌شود)
 
 # --- مرحله ۳: تنظیم دسترسی‌های صحیح ---
 echo -e "${YELLOW}مرحله ۳ از ۷: تنظیم مجدد دسترسی‌های فایل...${NC}"
@@ -53,21 +51,37 @@ sudo chown -R $WEB_USER:$WEB_USER .
 echo -e "${YELLOW}مرحله ۴ از ۷: به‌روزرسانی پکیج‌های PHP...${NC}"
 sudo -u $WEB_USER composer install --no-dev --optimize-autoloader
 
-# --- مرحله ۵: آپدیت وابستگی‌های Frontend (NPM) ---
+# --- مرحله ۵: آپدیت Frontend (Node.js/NPM) با timeout و لاگ ---
 echo -e "${YELLOW}مرحله ۵ از ۷: به‌روزرسانی پکیج‌های Node.js و کامپایل assets...${NC}"
-# استفاده از --cache برای جلوگیری از مشکلات دسترسی
-sudo -u $WEB_USER npm install --cache .npm --prefer-offline
-sudo -u $WEB_USER npm run build
-sudo rm -rf .npm
-echo "فایل‌های JS/CSS برای محیط Production کامپایل شدند."
+{
+    echo "شروع npm install و build: $(date)"
+    sudo -u $WEB_USER npm install --cache .npm --prefer-offline
+    # اجرای build با max buffer و لاگ
+    sudo -u $WEB_USER npm run build
+    echo "پایان npm build: $(date)"
+} &> "$BUILD_LOG" &
+
+BUILD_PID=$!
+echo -e "${CYAN}در حال build کردن frontend (PID=$BUILD_PID)...${NC}"
+echo -e "${CYAN}لاگ build در فایل $BUILD_LOG ذخیره می‌شود.${NC}"
+
+# صبر اختیاری برای ۱۰ دقیقه، بعد ادامه می‌دهد
+TIMEOUT=600
+SECONDS=0
+while kill -0 $BUILD_PID 2> /dev/null; do
+    if [ $SECONDS -ge $TIMEOUT ]; then
+        echo -e "${RED}⚠️ Build بیش از ۱۰ دقیقه طول کشید، اجرای اسکریپت ادامه پیدا می‌کند و build در پس‌زمینه ادامه دارد.${NC}"
+        break
+    fi
+    sleep 5
+done
 
 # --- مرحله ۶: آپدیت دیتابیس ---
-echo -e "${YELLOW}مرحله ۶ از ۷: اجرای مایگریشن‌های جدید دیتابیس...${NC}"
+echo -e "${YELLOW}مرحله ۶ از ۷: اجرای مایگریشن‌های دیتابیس...${NC}"
 sudo -u $WEB_USER php artisan migrate --force
 
 # --- مرحله ۷: پاکسازی کش‌ها و خروج از حالت تعمیر ---
 echo -e "${YELLOW}مرحله ۷ از ۷: پاکسازی کش‌ها و فعال‌سازی مجدد سایت...${NC}"
-# ===> تغییر کلیدی: جایگزینی optimize با optimize:clear برای جلوگیری از خطا <===
 sudo -u $WEB_USER php artisan optimize:clear
 sudo -u $WEB_USER php artisan up
 
@@ -75,3 +89,4 @@ echo
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "${GREEN}✅ پروژه با موفقیت به آخرین نسخه آپدیت شد!${NC}"
 echo -e "${GREEN}=====================================================${NC}"
+echo -e "${CYAN}اگر build frontend هنوز کامل نشده، می‌توانید لاگ آن را در $BUILD_LOG بررسی کنید.${NC}"
