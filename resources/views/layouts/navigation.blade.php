@@ -7,16 +7,15 @@
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('dashboard') }}">
                         @php
-
+                            use Illuminate\Support\Facades\Storage;
                             $logoPath = $settings->get('site_logo');
                         @endphp
 
-                        <img src="{{ $logoPath ? asset('storage/' . $logoPath) : asset('images/default-logo.png') }}"
+                        <img src="{{ $logoPath ? Storage::url($logoPath) : asset('images/default-logo.png') }}"
                              alt="Logo"
                              class="h-16 w-auto">
                     </a>
                 </div>
-
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
@@ -42,16 +41,11 @@
                     </x-slot>
 
                     <x-slot name="content">
-{{--                        <x-dropdown-link :href="route('profile.edit')">--}}
-{{--                            {{ __('پروفایل') }}--}}
-{{--                        </x-dropdown-link>--}}
-
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-
                             <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
+                                             onclick="event.preventDefault();
                                                 this.closest('form').submit();">
                                 {{ __('خروج از حساب') }}
                             </x-dropdown-link>
@@ -92,12 +86,10 @@
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
 
-
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-
                     <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
+                                           onclick="event.preventDefault();
                                         this.closest('form').submit();">
                         {{ __('Log Out') }}
                     </x-responsive-nav-link>

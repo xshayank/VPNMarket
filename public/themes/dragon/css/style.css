@@ -179,7 +179,7 @@ h1, h2, h3, h4, .dragon-title {
 @media (max-width: 768px) {
     .dragon-title-left {
         width: 150px;
-        transform: translateY(-50%) translateX(-10%)
+        transform: translateY(-50%) translateX(-10%);
         opacity: 0.6;
     }
     .dragon-title-right {
