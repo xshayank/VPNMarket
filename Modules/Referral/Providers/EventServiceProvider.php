@@ -1,6 +1,8 @@
 <?php
 
-namespace Modules\Referral\App\Providers;
+
+namespace Modules\Referral\Providers;
+
 
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 

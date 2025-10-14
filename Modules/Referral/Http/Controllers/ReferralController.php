@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Referral\app\Http\Controllers;
+namespace Modules\Referral\Http\Controllers;
 
 
 use App\Http\Controllers\Controller;
