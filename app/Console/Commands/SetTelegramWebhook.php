@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Setting;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SetTelegramWebhook extends Command
 {
@@ -28,22 +29,27 @@ class SetTelegramWebhook extends Command
     public function handle()
     {
         $this->info('Attempting to set Telegram webhook...');
+        Log::info('Running telegram:set-webhook command...');
 
-        // ۱. خواندن APP_URL از کانفیگ اصلی لاراول (که از .env می‌خواند)
+
         $appUrl = config('app.url');
 
-        // ۲. خواندن توکن ربات از دیتابیس (که در پنل ادمین تنظیم می‌شود)
+
         $botToken = Setting::where('key', 'telegram_bot_token')->value('value');
 
-        // ۳. بررسی وجود تنظیمات لازم
+
         if (!$appUrl || $appUrl === 'http://localhost') {
-            $this->error('Error: APP_URL is not set correctly in your .env file. It should be your public domain (e.g., https://yourdomain.com).');
+            $errorMessage = 'Error: APP_URL is not set correctly in your .env file. It should be your public domain (e.g., https://yourdomain.com).';
+            $this->error($errorMessage);
+            Log::error($errorMessage);
             return 1;
         }
 
         if (!$botToken) {
-            $this->error('Error: TELEGRAM_BOT_TOKEN is not set in your site settings.');
+            $errorMessage = 'Error: TELEGRAM_BOT_TOKEN is not set in your site settings.';
+            $this->error($errorMessage);
             $this->warn('Please configure the bot token in your Filament admin panel first.');
+            Log::error($errorMessage);
             return 1;
         }
 
@@ -52,23 +58,28 @@ class SetTelegramWebhook extends Command
         $telegramApiUrl = "https://api.telegram.org/bot{$botToken}/setWebhook?url={$webhookUrl}";
 
         $this->line("Setting webhook to: " . $webhookUrl);
+        Log::info("Attempting to set webhook to: " . $webhookUrl);
 
         // ۵. ارسال درخواست به تلگرام
         try {
             $response = Http::get($telegramApiUrl);
 
             if ($response->successful() && $response->json('ok') === true) {
-                $this->info('✅ Webhook set successfully!');
-                $this->line($response->json('description'));
+                $successMessage = '✅ Webhook set successfully! Description: ' . $response->json('description');
+                $this->info($successMessage);
+                Log::info($successMessage);
             } else {
-                $this->error('❌ Failed to set webhook.');
-                $this->error('Reason: ' . ($response->json('description') ?? 'Unknown error'));
+                $errorMessage = '❌ Failed to set webhook. Reason: ' . ($response->json('description') ?? 'Unknown error');
+                $this->error($errorMessage);
+                Log::error($errorMessage, $response->json() ?? []);
             }
         } catch (\Exception $e) {
-            $this->error('An exception occurred while trying to connect to the Telegram API.');
-            $this->error($e->getMessage());
+            $errorMessage = 'An exception occurred while trying to connect to the Telegram API: ' . $e->getMessage();
+            $this->error($errorMessage);
+            Log::critical($errorMessage);
         }
 
         return 0;
     }
 }
+
