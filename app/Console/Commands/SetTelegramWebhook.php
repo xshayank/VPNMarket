@@ -20,7 +20,7 @@ class SetTelegramWebhook extends Command
      *
      * @var string
      */
-    protected $description = 'Set the Telegram bot webhook URL based on the .env configuration';
+    protected $description = 'Set the Telegram bot webhook URL based on your configuration.';
 
     /**
      * Execute the console command.
@@ -29,25 +29,31 @@ class SetTelegramWebhook extends Command
     {
         $this->info('Attempting to set Telegram webhook...');
 
-        // ۱. خواندن تنظیمات از دیتابیس
-        $settings = Setting::all()->pluck('value', 'key');
-        $appUrl = $settings->get('app_url');
-        $botToken = $settings->get('telegram_bot_token');
+        // ۱. خواندن APP_URL از کانفیگ اصلی لاراول (که از .env می‌خواند)
+        $appUrl = config('app.url');
 
-        // ۲. بررسی وجود تنظیمات لازم
-        if (!$appUrl || !$botToken) {
-            $this->error('Error: APP_URL or TELEGRAM_BOT_TOKEN is not set in your site settings.');
-            $this->warn('Please make sure you have configured these values in your Filament admin panel.');
+        // ۲. خواندن توکن ربات از دیتابیس (که در پنل ادمین تنظیم می‌شود)
+        $botToken = Setting::where('key', 'telegram_bot_token')->value('value');
+
+        // ۳. بررسی وجود تنظیمات لازم
+        if (!$appUrl || $appUrl === 'http://localhost') {
+            $this->error('Error: APP_URL is not set correctly in your .env file. It should be your public domain (e.g., https://yourdomain.com).');
             return 1;
         }
 
-        // ۳. ساخت URL وب‌هوک
+        if (!$botToken) {
+            $this->error('Error: TELEGRAM_BOT_TOKEN is not set in your site settings.');
+            $this->warn('Please configure the bot token in your Filament admin panel first.');
+            return 1;
+        }
+
+        // ۴. ساخت URL وب‌هوک
         $webhookUrl = rtrim($appUrl, '/') . '/webhooks/telegram';
         $telegramApiUrl = "https://api.telegram.org/bot{$botToken}/setWebhook?url={$webhookUrl}";
 
-        $this->line("Webhook URL: " . $webhookUrl);
+        $this->line("Setting webhook to: " . $webhookUrl);
 
-        // ۴. ارسال درخواست به تلگرام
+        // ۵. ارسال درخواست به تلگرام
         try {
             $response = Http::get($telegramApiUrl);
 
@@ -66,5 +72,3 @@ class SetTelegramWebhook extends Command
         return 0;
     }
 }
-
-
