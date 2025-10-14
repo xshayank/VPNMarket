@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # ==================================================================================
-# === اسکریپت نصب VPNMarket روی Ubuntu 22.04    ===
-# === نویسنده: Arvin Vahed                                                       ===
-# === https://github.com/arvinvahed/VPNMarket                                    ===
+# === اسکریپت نصب نهایی VPNMarket روی Ubuntu 22.04 ===
+# ===  نویسنده:Arvin Vahed                                            ===
 # ==================================================================================
 
 set -e # توقف اسکریپت در صورت بروز هرگونه خطا
@@ -42,108 +41,96 @@ echo
 echo
 
 # --- مرحله ۱: نصب پیش‌نیازهای اولیه ---
-echo -e "${YELLOW}📦 مرحله ۱ از ۹: به‌روزرسانی سیستم و نصب پیش‌نیازهای اولیه...${NC}"
+echo -e "${YELLOW}📦 مرحله ۱ از ۱۱: به‌روزرسانی سیستم و نصب پیش‌نیازهای اولیه...${NC}"
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
 sudo apt-get install -y git curl composer unzip software-properties-common gpg
 
 # --- مرحله ۲: نصب Node.js نسخه LTS ---
-echo -e "${YELLOW}📦 مرحله ۲ از ۹: نصب نسخه جدید Node.js...${NC}"
+echo -e "${YELLOW}📦 مرحله ۲ از ۱۱: نصب نسخه جدید Node.js...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 echo -e "${GREEN}Node.js $(node -v) و npm $(npm -v) با موفقیت نصب شدند.${NC}"
 
 # --- مرحله ۳: نصب PHP 8.3 ---
-echo -e "${YELLOW}☕ مرحله ۳ از ۹: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
+echo -e "${YELLOW}☕ مرحله ۳ از ۱۱: افزودن مخزن PHP و نصب PHP ${PHP_VERSION}...${NC}"
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
-sudo apt-get install -y php${PHP_VERSION}-fpm php${PHP_VERSION}-mysql php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath php${PHP_VERSION}-intl php${PHP_VERSION}-gd php${PHP_VERSION}-dom
+sudo apt-get install -y php${PHP_VERSION}-fpm php${PHP_VERSION}-mysql php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath php${PHP_VERSION}-intl php${PHP_VERSION}-gd php${PHP_VERSION}-dom php${PHP_VERSION}-redis
 
 # --- مرحله ۴: تنظیم نسخه پیش‌فرض PHP ---
-echo -e "${YELLOW}🔧 مرحله ۴ از ۹: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
+echo -e "${YELLOW}🔧 مرحله ۴ از ۱۱: تنظیم نسخه پیش‌فرض PHP به ${PHP_VERSION}...${NC}"
 sudo update-alternatives --set php /usr/bin/php${PHP_VERSION}
 
 # --- مرحله ۵: نصب و فعال‌سازی سرویس‌های اصلی ---
-echo -e "${YELLOW}🚀 مرحله ۵ از ۹: نصب و فعال‌سازی سرویس‌های Nginx و MySQL...${NC}"
-sudo apt-get install -y nginx certbot python3-certbot-nginx mysql-server
-sudo systemctl enable php${PHP_VERSION}-fpm
-sudo systemctl start php${PHP_VERSION}-fpm
-sudo systemctl enable nginx
-sudo systemctl start nginx
-sudo systemctl enable mysql
-sudo systemctl start mysql
+echo -e "${YELLOW}🚀 مرحله ۵ از ۱۱: نصب و فعال‌سازی سرویس‌های Nginx, MySQL, Redis, Supervisor...${NC}"
+sudo apt-get install -y nginx certbot python3-certbot-nginx mysql-server redis-server supervisor
+sudo systemctl enable --now php${PHP_VERSION}-fpm nginx mysql redis-server supervisor
 
-# --- مرحله ۶: دانلود پروژه ---
-echo -e "${YELLOW}⬇️ مرحله ۶ از ۹: دانلود سورس پروژه از گیت‌הاب...${NC}"
+# --- مرحله ۶: پیکربندی فایروال (UFW) ---
+echo -e "${YELLOW}🛡️ مرحله ۶ از ۱۱: پیکربندی فایروال سرور...${NC}"
+sudo ufw allow 'OpenSSH'
+sudo ufw allow 'Nginx Full'
+echo "y" | sudo ufw enable
+sudo ufw status
+echo -e "${GREEN}فایروال با موفقیت فعال و پیکربندی شد.${NC}"
+
+# --- مرحله ۷: دانلود پروژه ---
+echo -e "${YELLOW}⬇️ مرحله ۷ از ۱۱: دانلود سورس پروژه از گیت‌הاب...${NC}"
 if [ -d "$PROJECT_PATH" ]; then
     sudo rm -rf "$PROJECT_PATH"
 fi
 sudo git clone $GITHUB_REPO $PROJECT_PATH
 cd $PROJECT_PATH
 
-# --- مرحله ۷: تنظیم دیتابیس و .env ---
-echo -e "${YELLOW}🧩 مرحله ۷ از ۹: ساخت دیتابیس و تنظیم فایل .env...${NC}"
+# --- مرحله ۸: تنظیم دیتابیس و .env ---
+echo -e "${YELLOW}🧩 مرحله ۸ از ۱۱: ساخت دیتابیس و تنظیم فایل .env...${NC}"
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
 sudo mysql -e "CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
 sudo cp .env.example .env
+# استفاده از | به عنوان جداکننده برای جلوگیری از خطا در صورت وجود کاراکتر / در رمز عبور
 sudo sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_NAME|" .env
 sudo sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USER|" .env
 sudo sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASS|" .env
 sudo sed -i "s|APP_URL=.*|APP_URL=https://$DOMAIN|" .env
 sudo sed -i "s|APP_ENV=.*|APP_ENV=production|" .env
+sudo sed -i "s|QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
 
-# --- مرحله ۸: نصب وابستگی‌های Backend و Frontend (با رفع مشکلات دسترسی) ---
-echo -e "${YELLOW}🧰 مرحله ۸ از ۹: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
+# --- مرحله ۹: نصب وابستگی‌های Backend و Frontend ---
+echo -e "${YELLOW}🧰 مرحله ۹ از ۱۱: تنظیم دسترسی‌ها و نصب وابستگی‌های پروژه...${NC}"
 sudo chown -R www-data:www-data $PROJECT_PATH
-
-# 💡 رفع خطای کش: پاک کردن کش تنظیمات برای خواندن مقادیر جدید .env
-echo "🧹 پاکسازی کش تنظیمات قدیمی برای اعمال مقادیر دیتابیس..."
 sudo -u www-data php artisan config:clear || true
-
-# 🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز
-echo "🧹 پاکسازی node_modules قبلی برای اطمینان از نصب تمیز..."
-sudo rm -rf $PROJECT_PATH/node_modules
 
 echo "نصب پکیج‌های PHP با Composer..."
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
-# 💡 رفع خطا: اطمینان از دسترسی www-data به پوشه کش npm
-echo "🌟 رفع خطای EACCES npm: تنظیم مالکیت پوشه کش به UID 33 (www-data)..."
 NPM_CACHE_DIR="/var/www/.npm"
-if [ ! -d "$NPM_CACHE_DIR" ]; then
-    sudo mkdir -p "$NPM_CACHE_DIR"
-fi
-# اجبار به تغییر مالکیت به 33:33 (UID/GID پیش‌فرض www-data) برای جلوگیری از خطا
+sudo mkdir -p "$NPM_CACHE_DIR"
 sudo chown -R 33:33 "$NPM_CACHE_DIR"
 
 echo "نصب پکیج‌های Node.js با npm..."
-# اجرای npm با HOME=/var/www برای استفاده از کش صحیح
 sudo -u www-data HOME=/var/www npm install
 
 echo "کامپایل کردن فایل‌های CSS/JS برای تولید..."
 sudo -u www-data HOME=/var/www npm run build
 
-# حذف فایل‌های موقت
-sudo rm -rf $PROJECT_PATH/.npm
-sudo rm -rf $PROJECT_PATH/npm-debug.log
+sudo rm -rf $PROJECT_PATH/node_modules $PROJECT_PATH/.npm
 
 echo "اجرای دستورات نهایی Artisan..."
 sudo -u www-data php artisan key:generate
 sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan filament:upgrade
-# ❗ این دستور حالا باید از مقادیر جدید .env استفاده کند
 sudo -u www-data php artisan migrate --seed --force
 sudo -u www-data php artisan storage:link
 
-
-# --- مرحله ۹: پیکربندی نهایی Nginx و بهینه‌سازی نهایی ---
-echo -e "${YELLOW}🌍 مرحله ۹ از ۹: پیکربندی نهایی وب‌سرور (Nginx) و بهینه‌سازی نهایی...${NC}"
+# --- مرحله ۱۰: پیکربندی Nginx و Supervisor ---
+echo -e "${YELLOW}🌍 مرحله ۱۰ از ۱۱: پیکربندی نهایی وب‌سرور و صف‌ها...${NC}"
 PHP_FPM_SOCK_PATH=$(grep -oP 'listen\s*=\s*\K.*' /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf | head -n 1 | sed 's/;//g' | xargs)
-echo "مسیر سوکت PHP-FPM با موفقیت پیدا شد: $PHP_FPM_SOCK_PATH"
 
+# پیکربندی Nginx
 sudo tee /etc/nginx/sites-available/vpnmarket >/dev/null <<EOF
 server {
     listen 80;
@@ -157,8 +144,6 @@ server {
     location / {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
     error_page 404 /index.php;
     location ~ \.php$ {
         fastcgi_pass unix:$PHP_FPM_SOCK_PATH;
@@ -174,32 +159,49 @@ EOF
 sudo ln -sf /etc/nginx/sites-available/vpnmarket /etc/nginx/sites-enabled/
 if [ -f "/etc/nginx/sites-enabled/default" ]; then
     sudo rm /etc/nginx/sites-enabled/default
-    echo "فایل کانفیگ پیش‌فرض Nginx حذف شد."
 fi
 sudo nginx -t && sudo systemctl restart nginx
-echo "کانفیگ Nginx با موفقیت تست و بارگذاری شد."
 
-# --- نصب SSL (اختیاری) ---
-echo
-read -p "🔒 آیا مایل به فعال‌سازی HTTPS رایگان با Certbot هستید؟ (پیشنهاد می‌شود) (y/n): " ENABLE_SSL
+# پیکربندی Supervisor برای صف‌ها
+sudo tee /etc/supervisor/conf.d/vpnmarket-worker.conf >/dev/null <<EOF
+[program:vpnmarket-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php $PROJECT_PATH/artisan queue:work redis --sleep=3 --tries=3
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=2
+redirect_stderr=true
+stdout_logfile=/var/log/supervisor/vpnmarket-worker.log
+stopwaitsecs=3600
+EOF
+
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start vpnmarket-worker:*
+
+# --- مرحله ۱۱: نصب SSL و بهینه‌سازی نهایی ---
+echo -e "${YELLOW}🔒 مرحله ۱۱ از ۱۱: نصب گواهی SSL و بهینه‌سازی نهایی...${NC}"
+read -p "آیا مایل به فعال‌سازی HTTPS رایگان با Certbot هستید؟ (پیشنهاد می‌شود) (y/n): " ENABLE_SSL
 if [[ "$ENABLE_SSL" == "y" || "$ENABLE_SSL" == "Y" ]]; then
-    echo -e "${YELLOW}در حال نصب گواهی SSL برای $DOMAIN ...${NC}"
     sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $ADMIN_EMAIL
+    sudo systemctl status certbot.timer # بررسی فعال بودن تمدید خودکار
 fi
 
-# --- بهینه‌سازی نهایی (بدون optimize) ---
-echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت (بدون Caching Config)...${NC}"
+echo -e "${YELLOW}🚀 در حال بهینه‌سازی نهایی برنامه برای حداکثر سرعت...${NC}"
+sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan view:cache
-
 
 # --- پیام نهایی ---
 echo
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "${GREEN}✅ نصب با موفقیت کامل شد!${NC}"
 echo -e "--------------------------------------------------"
-echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}http://$DOMAIN${NC}"
-echo -e "🔑 پنل مدیریت: ${CYAN}http://$DOMAIN/admin${NC}"
+echo -e "🌐 آدرس وب‌سایت شما: ${CYAN}https://$DOMAIN${NC}"
+echo -e "🔑 پنل مدیریت: ${CYAN}https://$DOMAIN/admin${NC}"
 echo
 echo -e "   - ایمیل ورود: ${YELLOW}admin@example.com${NC}"
 echo -e "   - رمز عبور: ${YELLOW}password${NC}"

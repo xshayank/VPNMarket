@@ -99,6 +99,7 @@ class MarzbanService
     public function generateSubscriptionLink(array $userApiResponse): string
     {
         $subscriptionUrl = $userApiResponse['subscription_url'];
-        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n"   . $subscriptionUrl;
+
+        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $this->nodeHostname . $subscriptionUrl;
     }
 }

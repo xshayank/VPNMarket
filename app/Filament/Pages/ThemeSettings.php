@@ -251,6 +251,26 @@ class ThemeSettings extends Page implements HasForms
                         ]),
                     ]),
 
+                    Tabs\Tab::make('سیستم دعوت از دوستان')
+                        ->icon('heroicon-o-gift')
+                        ->schema([
+                            Section::make('تنظیمات پاداش دعوت')
+                                ->description('مبالغ پاداش را به تومان وارد کنید.')
+                                ->schema([
+                                    TextInput::make('referral_welcome_gift')
+                                        ->label('هدیه خوش‌آمدگویی')
+                                        ->numeric()
+                                        ->default(0)
+                                        ->helperText('مبلغی که بلافاصله پس از ثبت‌نام با کد معرف، به کیف پول کاربر جدید اضافه می‌شود.'),
+
+                                    TextInput::make('referral_referrer_reward')
+                                        ->label('پاداش معرف')
+                                        ->numeric()
+                                        ->default(0)
+                                        ->helperText('مبلغی که پس از اولین خرید موفق کاربر جدید، به کیف پول معرف او اضافه می‌شود.'),
+                                ]),
+                        ]),
+
                 ])->columnSpanFull(),
         ])->statePath('data');
     }

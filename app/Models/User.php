@@ -58,6 +58,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->is_admin;
     }
 
+    public function referrals()
+    {
+        return $this->hasMany(User::class, 'referrer_id');
+    }
+
     public function orders()
     {
         return $this->hasMany(Order::class);

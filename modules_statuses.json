@@ -1,4 +1,5 @@
 {
     "Ticketing": true,
-    "TelegramBot": true
+    "TelegramBot": true,
+    "Referral": true
 }

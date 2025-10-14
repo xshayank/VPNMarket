@@ -24,25 +24,36 @@
     <form method="POST" action="{{ route('register') }}">
         @csrf
 
+        @if(request()->has('ref'))
+            <input type="hidden" name="ref" value="{{ request()->query('ref') }}">
+        @endif
+        {{-- ========================================================== --}}
+
         <div class="input-group">
             <input id="name" class="input-field" type="text" name="name" value="{{ old('name') }}" required autofocus placeholder="نام کامل">
-            <x-input-error :messages="$errors->get('name')" class="mt-2 text-danger small" />
+            {{-- Note: x-input-error component might not work here if this isn't a standard blade component view --}}
         </div>
 
         <div class="input-group">
             <input id="email" class="input-field" type="email" name="email" value="{{ old('email') }}" required placeholder="ایمیل">
-            <x-input-error :messages="$errors->get('email')" class="mt-2 text-danger small" />
         </div>
 
         <div class="input-group">
             <input id="password" class="input-field" type="password" name="password" required placeholder="رمز عبور">
-            <x-input-error :messages="$errors->get('password')" class="mt-2 text-danger small" />
         </div>
 
         <div class="input-group">
             <input id="password_confirmation" class="input-field" type="password" name="password_confirmation" required placeholder="تکرار رمز عبور">
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2 text-danger small" />
         </div>
+
+        {{-- Display errors if any --}}
+        @if($errors->any())
+            <div class="mt-2 text-danger small" style="color: #ff7675; font-size: 0.8rem;">
+                @foreach ($errors->all() as $error)
+                    <p>{{ $error }}</p>
+                @endforeach
+            </div>
+        @endif
 
         <div class="input-group mt-4">
             <button type="submit" class="btn-submit">ثبت نام</button>

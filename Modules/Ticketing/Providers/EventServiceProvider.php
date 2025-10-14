@@ -15,7 +15,7 @@ class EventServiceProvider extends ServiceProvider
 
     protected $listen = [
         \Modules\Ticketing\Events\TicketReplied::class => [
-//            \Modules\TelegramBot\Listeners\SendTicketReplyToTelegram::class,
+         \Modules\TelegramBot\Listeners\SendTicketReplyToTelegram::class,
         ],
     ];
 

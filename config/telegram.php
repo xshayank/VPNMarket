@@ -32,9 +32,9 @@ return [
     */
     'bots' => [
         'mybot' => [
-            'token' => function () {
-                return \App\Models\Setting::where('key', 'telegram_bot_token')->value('value');
-            },
+
+            'token' => env('TELEGRAM_BOT_TOKEN', 'YOUR-TELEGRAM-BOT-TOKEN'),
+
             'certificate_path' => env('TELEGRAM_CERTIFICATE_PATH', 'YOUR-CERTIFICATE-PATH'),
             'webhook_url' => env('TELEGRAM_WEBHOOK_URL', 'YOUR-BOT-WEBHOOK-URL'),
             /*
@@ -45,6 +45,7 @@ return [
                 // Acme\Project\Commands\MyTelegramBot\BotCommand::class
             ],
         ],
+
 
         //        'mySecondBot' => [
         //            'token' => '123456:abc',

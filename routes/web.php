@@ -34,13 +34,41 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', function () {
         $user = Auth::user();
-        $orders = $user->orders()->with('plan')->latest()->get();
+
+        if ($user->show_renewal_notification) {
+            session()->flash('renewal_success', 'سرویس شما با موفقیت تمدید شد. لینک اشتراک شما تغییر کرده است، لطفاً لینک جدید را کپی و در نرم‌افزار خود آپدیت کنید.');
+            $user->update(['show_renewal_notification' => false]);
+        }
+
+
+
+        $orders = $user->orders()->with('plan')
+            ->whereNotNull('plan_id') // فقط سفارشاتی که پلن دارند
+            ->whereNull('renews_order_id') // سفارشات تمدیدی را نشان نده
+            ->latest()->get();
+
+
+        $transactions = $user->orders()->with('plan')->latest()->get();
+
         $plans = Plan::where('is_active', true)->orderBy('price')->get();
         $tickets = $user->tickets()->latest()->get();
-        return view('dashboard', compact('orders', 'plans','tickets'));
+
+
+        return view('dashboard', compact('orders', 'plans', 'tickets', 'transactions'));
     })->name('dashboard');
 
 
+    Route::post('/order/{order}/renew', [OrderController::class, 'renew'])->name('order.renew');
+
+    Route::post('/payment/wallet/{order}', [OrderController::class, 'processWalletPayment'])->name('payment.wallet.process');
+
+
+    // in routes/web.php
+
+
+    Route::get('/wallet/charge', [OrderController::class, 'showChargeForm'])->name('wallet.charge.form');
+
+    Route::post('/wallet/charge', [OrderController::class, 'createChargeOrder'])->name('wallet.charge.create');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +21,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+
+        User::creating(function ($user) {
+            do {
+
+                $code = 'REF-' . strtoupper(Str::random(6));
+
+            } while (User::where('referral_code', $code)->exists());
+
+            $user->referral_code = $code;
+        });
+        // ==========================================================
     }
 }

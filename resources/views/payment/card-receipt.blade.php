@@ -1,96 +1,91 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            ثبت رسید کارت به کارت
+            ارسال رسید پرداخت برای سفارش #{{ $order->id }}
         </h2>
     </x-slot>
 
     <div class="py-12">
-        <div class="max-w-2xl mx-auto sm:px-6 lg:px-8 space-y-8">
+        <div class="max-w-xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm overflow-hidden shadow-2xl sm:rounded-2xl p-6 md:p-8 text-right space-y-8">
 
-            <!-- بخش اطلاعات پرداخت -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 md:p-8 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center gap-4">
-                        <div class="flex-shrink-0 bg-primary-500/10 dark:bg-primary-400/10 rounded-lg p-3">
-                            <svg class="h-6 w-6 text-primary-500 dark:text-primary-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15A2.25 2.25 0 002.25 6.75v10.5A2.25 2.25 0 004.5 19.5z" />
-                            </svg>
+                {{-- بخش کارت بانکی --}}
+                <div x-data="{ copied: false }" class="relative p-6 rounded-2xl bg-gradient-to-br from-gray-700 via-gray-800 to-black text-white shadow-lg">
+                    <div class="absolute top-4 right-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50" viewBox="0 0 384 512"><path fill="currentColor" d="M336 0H48C21.5 0 0 21.5 0 48v416c0 26.5 21.5 48 48 48h288c26.5 0 48-21.5 48-48V48c0-26.5-21.5-48-48-48zM192 416c-22.1 0-40-17.9-40-40s17.9-40 40-40 40 17.9 40 40-17.9 40-40 40zm128-204H64v-48h256v48zm0-108H64V64h256v40z"/></svg>
+                    </div>
+                    <div class="space-y-6">
+                        <div>
+                            <p class="text-sm text-gray-400">مبلغ قابل پرداخت</p>
+                            <p class="font-bold text-3xl text-green-400">
+                                {{ number_format($order->plan->price ?? $order->amount) }}
+                                <span class="text-lg font-normal text-gray-300">تومان</span>
+                            </p>
                         </div>
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                اطلاعات واریز
-                            </h3>
-                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                لطفاً مبلغ <strong class="font-mono text-primary-600 dark:text-primary-400">{{ number_format($order->plan->price) }} تومان</strong> را به کارت زیر واریز کنید.
+                            <p class="text-sm text-gray-400">شماره کارت</p>
+                            <div class="flex items-center justify-between">
+                                <p id="card-number" class="font-mono font-semibold text-xl tracking-wider" dir="ltr">
+                                    {{ $settings->get('payment_card_number', '---- ---- ---- ----') }}
+                                </p>
+                                <button @click="navigator.clipboard.writeText(document.getElementById('card-number').innerText); copied = true; setTimeout(() => copied = false, 2000)" class="p-2 rounded-md bg-white/10 hover:bg-white/20 transition">
+                                    <svg x-show="!copied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                    <svg x-show="copied" x-cloak class="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-400">به نام</p>
+                            <p class="font-semibold text-lg">
+                                {{ $settings->get('payment_card_holder_name', 'ثبت نشده') }}
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div class="p-6 md:p-8 space-y-4">
-                    <div class="text-center">
-                        <p class="text-sm text-gray-500 dark:text-gray-400">شماره کارت</p>
-                        <div class="group relative mt-2">
-                            <p id="cardNumber" class="text-2xl font-bold font-mono text-gray-800 dark:text-gray-200 tracking-widest bg-gray-100 dark:bg-gray-700/50 rounded-lg py-3 px-4 inline-block">
-                                {{ $settings->get('payment_card_number') ?: 'شماره کارتی تنظیم نشده است' }}
-                            </p>
-                            <button onclick="copyToClipboard('cardNumber')" class="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-gray-200 dark:bg-gray-600 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500">
-                                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a2.25 2.25 0 01-2.25 2.25h-1.5a2.25 2.25 0 01-2.25-2.25v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
-                            </button>
-                        </div>
-                        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
-                            به نام: <strong>{{ $settings->get('payment_card_holder_name') ?: '-' }}</strong>
-                        </p>
-                    </div>
+                {{-- بخش آپلود رسید --}}
+                <div x-data="{ fileName: '' }">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        مرحله ۲: ارسال تصویر رسید
+                    </h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        پس از واریز، لطفاً از رسید خود اسکرین‌شات گرفته و آن را در فرم زیر بارگذاری کنید.
+                    </p>
 
-                    @if($settings->get('payment_card_instructions'))
-                        <div class="!mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-                            <p class="text-sm text-center text-gray-600 dark:text-gray-400">
-                                {!! nl2br(e($settings->get('payment_card_instructions'))) !!}
-                            </p>
+                    @if ($errors->any())
+                        <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                            <p>{{ $errors->first() }}</p>
                         </div>
                     @endif
-                </div>
-            </div>
 
-            <!-- بخش فرم آپلود رسید -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <form method="POST" action="{{ route('payment.card.submit', $order->id) }}" enctype="multipart/form-data">
-                    @csrf
-                    <div class="p-6 md:p-8">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 text-right">
-                            آپلود تصویر رسید
-                        </h3>
-                        <div class="mt-4">
-                            <label for="receipt" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">فایل رسید را انتخاب کنید</label>
-                            <input id="receipt"
-                                   class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 dark:file:bg-primary-500/10 file:text-primary-700 dark:file:text-primary-400 hover:file:bg-primary-100 dark:hover:file:bg-primary-500/20"
-                                   type="file" name="receipt" required accept="image/*">
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-300">
-                                فرمت‌های مجاز: PNG, JPG (حداکثر حجم: 2MB).
-                            </p>
-                            <x-input-error :messages="$errors->get('receipt')" class="mt-2" />
+                    <form method="POST" action="{{ route('payment.card.submit', $order->id) }}" enctype="multipart/form-data" class="space-y-6">
+                        @csrf {{-- اضافه کردن CSRF Token --}}
+                        <div>
+                            <label for="receipt" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600 transition">
+
+                                <div x-show="fileName === ''" class="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <svg class="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                                    </svg>
+                                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">برای انتخاب فایل کلیک کنید</span></p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">PNG, JPG (حداکثر ۲ مگابایت)</p>
+                                </div>
+                                <div x-show="fileName !== ''" x-cloak class="flex flex-col items-center justify-center">
+                                    <svg class="w-8 h-8 mb-3 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    <p class="text-sm text-gray-700 dark:text-gray-200">
+                                        فایل <span class="font-semibold" x-text="fileName"></span> انتخاب شد.
+                                    </p>
+                                </div>
+                                <input @change="fileName = $event.target.files.length > 0 ? $event.target.files[0].name : ''" id="receipt" name="receipt" type="file" class="hidden" required>
+                            </label>
                         </div>
-                    </div>
-                    <div class="flex items-center justify-end p-6 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
-                        <x-primary-button>
+
+                        <button type="submit" class="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:scale-105 transform transition-transform duration-300">
                             ثبت و ارسال رسید
-                        </x-primary-button>
-                    </div>
-                </form>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-
-    <script>
-        function copyToClipboard(elementId) {
-            const textToCopy = document.getElementById(elementId).innerText.replace(/\s/g, ''); // Remove spaces
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                alert('شماره کارت کپی شد!');
-            }).catch(err => {
-                console.error('Failed to copy text: ', err);
-            });
-        }
-    </script>
 </x-app-layout>

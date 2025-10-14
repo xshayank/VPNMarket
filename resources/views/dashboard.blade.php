@@ -10,6 +10,31 @@
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
+            {{-- نمایش موجودی و دکمه شارژ کیف پول --}}
+            <div class="p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-gray-500">موجودی کیف پول شما:</span>
+                        <span class="font-bold text-lg text-green-500">{{ number_format(auth()->user()->balance) }} تومان</span>
+                    </div>
+                    <a href="{{ route('wallet.charge.form') }}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        شارژ کیف پول
+                    </a>
+                </div>
+            </div>
+
+            {{-- نمایش پیغام‌های اطلاع‌رسانی --}}
+            @if (session('renewal_success'))
+                <div class="mb-4 bg-blue-100 border-t-4 border-blue-500 rounded-b text-blue-900 px-4 py-3 shadow-md text-right" role="alert">
+                    <div class="flex flex-row-reverse items-center">
+                        <div class="py-1"><svg class="fill-current h-6 w-6 text-blue-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/></svg></div>
+                        <div>
+                            <p class="font-bold">اطلاعیه تمدید</p>
+                            <p class="text-sm">{{ session('renewal_success') }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endif
             @if (session('status'))
                 <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative text-right" role="alert">
                     <strong class="font-bold">موفقیت!</strong>
@@ -29,9 +54,18 @@
                         <button @click="tab = 'my_services'" :class="{'border-indigo-500 text-indigo-600 dark:text-indigo-400': tab === 'my_services', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200': tab !== 'my_services'}" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
                             سرویس‌های من
                         </button>
+                        <button @click="tab = 'order_history'" :class="{'border-indigo-500 text-indigo-600 dark:text-indigo-400': tab === 'order_history', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200': tab !== 'order_history'}" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                            تاریخچه سفارشات
+
+                        </button>
                         <button @click="tab = 'new_service'" :class="{'border-indigo-500 text-indigo-600 dark:text-indigo-400': tab === 'new_service', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200': tab !== 'new_service'}" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
                             خرید سرویس جدید
                         </button>
+
+                        <button @click="tab = 'referral'" :class="{'border-indigo-500 text-indigo-600 dark:text-indigo-400': tab === 'referral', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200': tab !== 'referral'}" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                            دعوت از دوستان
+                        </button>
+
                         <button @click="tab = 'tutorials'" :class="{'border-indigo-500 text-indigo-600 dark:text-indigo-400': tab === 'tutorials', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200': tab !== 'tutorials'}" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
                             راهنمای اتصال
                         </button>
@@ -40,12 +74,11 @@
                                 پشتیبانی
                             </button>
                         @endif
-
-
                     </nav>
                 </div>
 
                 <div class="p-2 sm:p-4">
+                    {{-- محتوای تب سرویس‌های من --}}
                     <div x-show="tab === 'my_services'" x-transition.opacity>
                         @if($orders->isNotEmpty())
                             <div class="space-y-4">
@@ -62,29 +95,25 @@
                                             </div>
                                             <div>
                                                 <span class="text-xs text-gray-500">وضعیت</span>
-                                                <p class="font-semibold {{ $order->status == 'paid' ? 'text-green-500' : 'text-yellow-500' }}">{{ $order->status == 'paid' ? 'فعال' : 'در انتظار پرداخت' }}</p>
+                                                <p class="font-semibold text-green-500">فعال</p>
                                             </div>
                                             <div>
                                                 <span class="text-xs text-gray-500">تاریخ انقضا</span>
                                                 <p class="font-mono text-gray-900 dark:text-white" dir="ltr">{{ $order->expires_at ? \Carbon\Carbon::parse($order->expires_at)->format('Y-m-d') : '-' }}</p>
                                             </div>
                                             <div class="text-left">
-                                                @if($order->status == 'paid' && $order->config_details)
-                                                    <div class="flex items-center justify-end space-x-2 space-x-reverse">
-                                                        <form method="POST" action="{{ route('order.renew', $order->id) }}">
-                                                            @csrf
-                                                            <button type="submit" class="px-3 py-2 bg-yellow-500 text-white text-xs rounded-lg hover:bg-yellow-600 focus:outline-none" title="تمدید سرویس">
-                                                                تمدید
-                                                            </button>
-                                                        </form>
-                                                        <button @click="open = !open" class="px-3 py-2 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 focus:outline-none">
-                                                            <span x-show="!open">کانفیگ</span>
-                                                            <span x-show="open">بستن</span>
+                                                <div class="flex items-center justify-end space-x-2 space-x-reverse">
+                                                    <form method="POST" action="{{ route('order.renew', $order->id) }}">
+                                                        @csrf
+                                                        <button type="submit" class="px-3 py-2 bg-yellow-500 text-white text-xs rounded-lg hover:bg-yellow-600 focus:outline-none" title="تمدید سرویس">
+                                                            تمدید
                                                         </button>
-                                                    </div>
-                                                @elseif($order->status == 'pending')
-                                                    <a href="{{ route('order.show', $order->id) }}" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">پرداخت</a>
-                                                @endif
+                                                    </form>
+                                                    <button @click="open = !open" class="px-3 py-2 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 focus:outline-none">
+                                                        <span x-show="!open">کانفیگ</span>
+                                                        <span x-show="open">بستن</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                         <div x-show="open" x-transition x-cloak class="mt-4 pt-4 border-t dark:border-gray-700">
@@ -98,9 +127,62 @@
                                 @endforeach
                             </div>
                         @else
-                            <p class="text-gray-500 dark:text-gray-400 text-center py-10">🚀 شما هنوز هیچ سرویسی خریداری نکرده‌اید.</p>
+                            <p class="text-gray-500 dark:text-gray-400 text-center py-10">🚀 شما هنوز هیچ سرویس فعالی خریداری نکرده‌اید.</p>
                         @endif
                     </div>
+
+                    {{-- محتوای تب تاریخچه سفارشات --}}
+                    <div x-show="tab === 'order_history'" x-transition.opacity x-cloak>
+                        <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white text-right">تاریخچه سفارشات و تراکنش‌ها</h2>
+                        <div class="space-y-3">
+                            @forelse ($transactions as $transaction)
+                                <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-right">
+                                        <div>
+                                            <span class="text-xs text-gray-500">نوع تراکنش</span>
+                                            <p class="font-bold text-gray-900 dark:text-white">
+                                                @if ($transaction->plan)
+                                                    {{ $transaction->renews_order_id ? 'تمدید سرویس' : 'خرید سرویس' }}
+                                                @else
+                                                    شارژ کیف پول
+                                                @endif
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs text-gray-500">مبلغ</span>
+                                            <p class="font-bold text-gray-900 dark:text-white">
+                                                {{ number_format($transaction->plan->price ?? $transaction->amount) }} تومان
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs text-gray-500">تاریخ</span>
+                                            <p class="font-mono text-gray-900 dark:text-white" dir="ltr">
+                                                {{ $transaction->created_at->format('Y-m-d') }}
+                                            </p>
+                                        </div>
+                                        <div class="text-left">
+                                            @if ($transaction->status == 'paid')
+                                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                    موفق
+                                                </span>
+                                            @elseif ($transaction->status == 'pending')
+                                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                    در انتظار تایید
+                                                </span>
+                                            @else
+                                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                                    ناموفق/منقضی
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-10">هیچ تراکنشی یافت نشد.</p>
+                            @endforelse
+                        </div>
+                    </div>
+
                     {{-- تب خرید سرویس جدید --}}
                     <div x-show="tab === 'new_service'" x-transition.opacity x-cloak>
                         <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white text-right">خرید سرویس جدید</h2>
@@ -171,6 +253,39 @@
                         </div>
                     </div>
 
+                    {{-- ========================================================== --}}
+                    <div x-show="tab === 'referral'" x-transition.opacity x-cloak>
+                        <h2 class="text-xl font-bold mb-6 text-gray-900 dark:text-white text-right">کسب درآمد با دعوت از دوستان</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+
+                            {{-- کارت لینک دعوت --}}
+                            <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/50 space-y-4 shadow-lg">
+                                <p class="text-gray-600 dark:text-gray-300">با اشتراک‌گذاری لینک زیر، دوستان خود را به ما معرفی کنید. پس از اولین خرید موفق آن‌ها، <span class="font-bold text-green-500">{{ number_format((int)\App\Models\Setting::where('key', 'referral_referrer_reward')->first()?->value ?? 0) }} تومان</span> به کیف پول شما اضافه خواهد شد!</p>
+
+                                <div x-data="{ copied: false }">
+                                    <label class="block text-sm font-medium text-gray-500">لینک دعوت اختصاصی شما:</label>
+                                    <div class="mt-1 flex rounded-md shadow-sm">
+                                        <input type="text" readonly id="referral-link" value="{{ route('register') }}?ref={{ auth()->user()->referral_code }}" class="flex-1 block w-full rounded-none rounded-r-md sm:text-sm border-gray-300 dark:bg-gray-900 dark:border-gray-600" dir="ltr">
+                                        <button @click="navigator.clipboard.writeText(document.getElementById('referral-link').value); copied = true; setTimeout(() => copied = false, 2000)" type="button" class="relative -ml-px inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-l-md text-gray-700 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                                            <span x-show="!copied">کپی</span>
+                                            <span x-show="copied" x-cloak class="text-green-500 font-bold">کپی شد!</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- کارت آمار --}}
+                            <div class="p-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex flex-col justify-center items-center shadow-lg">
+                                <p class="opacity-80">تعداد دعوت‌های موفق شما</p>
+                                <p class="font-bold text-6xl mt-2">{{ auth()->user()->referrals()->count() }}</p>
+                                <p class="text-sm opacity-80 mt-1">نفر</p>
+                            </div>
+
+                        </div>
+                    </div>
+                    {{-- ========================================================== --}}
+
+
                     {{-- تب پشتیبانی --}}
                     @if (Module::isEnabled('Ticketing'))
                         <div x-show="tab === 'support'" x-transition.opacity x-cloak>
@@ -209,3 +324,4 @@
         </div>
     </div>
 </x-app-layout>
+

@@ -14,7 +14,7 @@
                 </a>
 
                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    نسخه 1.0.0 - پنل مدیریت هوشمند VPN
+                    نسخه 1.1.0 - پنل مدیریت هوشمند VPN
                 </p>
             </div>
 
