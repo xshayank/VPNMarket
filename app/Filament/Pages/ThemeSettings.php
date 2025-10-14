@@ -39,26 +39,23 @@ class ThemeSettings extends Page implements HasForms
 
     public function mount(): void
     {
-        // دریافت تنظیمات موجود از دیتابیس
+
         $settings = Setting::all()->pluck('value', 'key')->toArray();
 
-        // تعریف مقادیر پیش‌فرض برای فیلدهایی که باید حتماً مقداری داشته باشند
-        // و یا برای جلوگیری از خطای "Field is required" هنگام اولین بارگذاری
+
         $defaultData = [
-            'panel_type' => 'marzban', // یا 'xui'، هر کدام که پیش‌فرض مدنظر شماست
+            'panel_type' => 'marzban',
             'xui_host' => null,
             'xui_user' => null,
             'xui_pass' => null,
-            'xui_default_inbound_id' => null, // این خط کلیدی است
+            'xui_default_inbound_id' => null,
             'xui_link_type' => 'single',
         ];
 
-        // ادغام داده‌های دیتابیس با داده‌های پیش‌فرض
-        // (داده‌های دیتابیس جایگزین پیش‌فرض‌ها می‌شوند)
+
         $this->data = array_merge($defaultData, $settings);
 
-        // اگر در جدول تنظیمات، `xui_default_inbound_id` موجود نباشد، این فیلد
-        // در فرم شما null خواهد بود و شما را از خطای اعتبارسنجی نجات می‌دهد.
+
     }
     public function form(Form $form): Form
     {
@@ -83,7 +80,8 @@ class ThemeSettings extends Page implements HasForms
                                 'cyberpunk' => 'قالب سایبرپانک',
                                 'dragon' => 'قالب اژدها',
                             ])->default('cyberpunk')->live(),
-                            FileUpload::make('site_logo')->label('لوگوی سایت')->image()->directory('logos')->visibility('public'),
+//                            FileUpload::make('site_logo')->label('لوگوی سایت')->image()->directory('logos')->visibility('public'),
+
                         ]),
 
                     Tabs\Tab::make('محتوای قالب اژدها')->icon('heroicon-o-fire')->visible(fn(Get $get) => $get('active_theme') === 'dragon')->schema([
