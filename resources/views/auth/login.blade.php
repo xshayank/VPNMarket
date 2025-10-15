@@ -18,7 +18,9 @@
 </div>
 
 <div class="auth-card">
-    <div class="auth-logo">ARV</div>
+
+    <div class="auth-logo">{{ $settings->get('auth_brand_name', 'ARV') }}</div>
+
     <h2 class="auth-title">ورود به حساب کاربری</h2>
 
     <x-auth-session-status class="mb-4" :status="session('status')" />

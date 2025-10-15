@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Events\OrderPaid;
+use App\Models\Inbound;
 use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Services\MarzbanService;
+use App\Services\XUIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class OrderController extends Controller
         $order = Auth::user()->orders()->create([
             'plan_id' => $plan->id,
             'status' => 'pending',
+            'source' => 'web',
         ]);
 
         return redirect()->route('order.show', $order->id);
@@ -71,16 +74,13 @@ class OrderController extends Controller
      */
     public function createChargeOrder(Request $request)
     {
-        $request->validate([
-            'amount' => 'required|numeric|min:10000',
-        ]);
-
+        $request->validate(['amount' => 'required|numeric|min:10000']);
         $order = Auth::user()->orders()->create([
             'plan_id' => null,
             'amount' => $request->amount,
             'status' => 'pending',
+            'source' => 'web',
         ]);
-
         return redirect()->route('order.show', $order->id);
     }
 
@@ -96,6 +96,7 @@ class OrderController extends Controller
         $newOrder = $order->replicate();
         $newOrder->created_at = now();
         $newOrder->status = 'pending';
+        $newOrder->source = 'web';
         $newOrder->config_details = null;
         $newOrder->expires_at = null;
         $newOrder->renews_order_id = $order->id;
@@ -109,13 +110,9 @@ class OrderController extends Controller
      */
     public function submitCardReceipt(Request $request, Order $order)
     {
-        $request->validate([
-            'receipt' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-
+        $request->validate(['receipt' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048']);
         $path = $request->file('receipt')->store('receipts', 'public');
         $order->update(['card_payment_receipt' => $path]);
-
         return redirect()->route('dashboard')->with('status', 'رسید شما با موفقیت ارسال شد. پس از تایید توسط مدیر، سرویس شما فعال خواهد شد.');
     }
 
@@ -140,64 +137,98 @@ class OrderController extends Controller
                 $user->decrement('balance', $price);
 
                 $settings = Setting::all()->pluck('value', 'key');
-                $marzbanService = new MarzbanService(
-                    $settings->get('marzban_host'), $settings->get('marzban_sudo_username'),
-                    $settings->get('marzban_sudo_password'), $settings->get('marzban_node_hostname')
-                );
-
                 $success = false;
+                $finalConfig = '';
+                $panelType = $settings->get('panel_type');
+                $isRenewal = (bool)$order->renews_order_id;
 
-                if ($order->renews_order_id) {
-                    $originalOrder = Order::find($order->renews_order_id);
-                    $username = "user-{$originalOrder->user_id}-order-{$originalOrder->id}";
-                    $newExpiresAt = (new \DateTime($originalOrder->expires_at))->modify("+{$plan->duration_days} days");
+                $uniqueUsername = "user-{$user->id}-order-" . ($isRenewal ? $order->renews_order_id : $order->id);
+                $newExpiresAt = $isRenewal
+                    ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
+                    : now()->addDays($plan->duration_days);
+
+                if ($panelType === 'marzban') {
+                    $marzbanService = new MarzbanService($settings->get('marzban_host'), $settings->get('marzban_sudo_username'), $settings->get('marzban_sudo_password'), $settings->get('marzban_node_hostname'));
                     $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
-                    $response = $marzbanService->updateUser($username, $userData);
 
-                    if ($response && isset($response['subscription_url'])) {
-                        $config = $marzbanService->generateSubscriptionLink($response);
-                        $originalOrder->update(['config_details' => $config, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
-                        $user->update(['show_renewal_notification' => true]);
+                    $response = $isRenewal
+                        ? $marzbanService->updateUser($uniqueUsername, $userData)
+                        : $marzbanService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
+
+                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
+                        $finalConfig = $marzbanService->generateSubscriptionLink($response);
                         $success = true;
                     }
-                } else {
-                    $uniqueUsername = "user-{$user->id}-order-{$order->id}";
-                    $userData = ['username' => $uniqueUsername, 'data_limit' => $plan->volume_gb * 1073741824, 'expire' => now()->addDays($plan->duration_days)->timestamp];
-                    $response = $marzbanService->createUser($userData);
+                } elseif ($panelType === 'xui') {
+                    if ($isRenewal) {
+                        throw new \Exception('تمدید خودکار برای پنل سنایی هنوز پیاده‌سازی نشده است.');
+                    }
+                    $xuiService = new XUIService($settings->get('xui_host'), $settings->get('xui_user'), $settings->get('xui_pass'));
+                    $inbound = Inbound::find($settings->get('xui_default_inbound_id'));
+                    if (!$inbound || !$inbound->inbound_data) {
+                        throw new \Exception('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.');
+                    }
+                    if (!$xuiService->login()) {
+                        throw new \Exception('خطا در لاگین به پنل X-UI.');
+                    }
 
-                    if ($response && isset($response['username'])) {
-                        $config = $marzbanService->generateSubscriptionLink($response);
-                        $order->update(['config_details' => $config, 'expires_at' => now()->addDays($plan->duration_days)]);
-                        $success = true;
+                    $inboundData = json_decode($inbound->inbound_data, true);
+                    $clientData = ['email' => $uniqueUsername, 'total' => $plan->volume_gb * 1073741824, 'expiryTime' => $newExpiresAt->timestamp * 1000];
+                    $response = $xuiService->addClient($inboundData['id'], $clientData);
+
+                    if ($response && isset($response['success']) && $response['success']) {
+                        $linkType = $settings->get('xui_link_type', 'single');
+                        if ($linkType === 'subscription') {
+                            $subId = $response['generated_subId'];
+                            $subBaseUrl = rtrim($settings->get('xui_subscription_url_base'), '/');
+                            if ($subBaseUrl) {
+                                $finalConfig = $subBaseUrl . '/sub/' . $subId;
+                                $success = true;
+                            }
+                        } else {
+                            $uuid = $response['generated_uuid'];
+                            $streamSettings = json_decode($inboundData['streamSettings'], true);
+                            $parsedUrl = parse_url($settings->get('xui_host'));
+                            $serverIpOrDomain = !empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
+                            $port = $inboundData['port'];
+                            $remark = $inboundData['remark'];
+                            $paramsArray = ['type' => $streamSettings['network'] ?? null, 'security' => $streamSettings['security'] ?? null, 'path' => $streamSettings['wsSettings']['path'] ?? ($streamSettings['grpcSettings']['serviceName'] ?? null), 'sni' => $streamSettings['tlsSettings']['serverName'] ?? null, 'host' => $streamSettings['wsSettings']['headers']['Host'] ?? null];
+                            $params = http_build_query(array_filter($paramsArray));
+                            $fullRemark = $uniqueUsername . '|' . $remark;
+                            $finalConfig = "vless://{$uuid}@{$serverIpOrDomain}:{$port}?{$params}#" . urlencode($fullRemark);
+                            $success = true;
+                        }
+                    } else {
+                        throw new \Exception('خطا در ساخت کاربر در پنل سنایی: ' . ($response['msg'] ?? 'پاسخ نامعتبر'));
                     }
                 }
 
                 if (!$success) { throw new \Exception('خطا در ارتباط با سرور برای فعال‌سازی سرویس.'); }
 
-                $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
-                Transaction::create([
-                    'user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price,
-                    'type' => Transaction::TYPE_PURCHASE, 'status' => Transaction::STATUS_COMPLETED,
-                    'description' => ($order->renews_order_id ? "تمدید سرویس" : "خرید سرویس") . " {$plan->name} از کیف پول",
-                ]);
+                // آپدیت سفارش اصلی یا سفارش جدید
+                if($isRenewal) {
+                    $originalOrder = Order::find($order->renews_order_id);
+                    $originalOrder->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
+                    $user->update(['show_renewal_notification' => true]);
+                } else {
+                    $order->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt]);
+                }
 
-                // این خط رویداد پرداخت موفق را برای سیستم دعوت از دوستان منتشر می‌کند
+                $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
+                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price, 'type' => 'purchase', 'status' => 'completed', 'description' => ($isRenewal ? "تمدید سرویس" : "خرید سرویس") . " {$plan->name} از کیف پول"]);
                 OrderPaid::dispatch($order);
             });
         } catch (\Exception $e) {
-            Log::error('Wallet Payment Failed: ' . $e->getMessage());
-            return redirect()->route('dashboard')->with('error', 'پرداخت با خطا مواجه شد. لطفاً با پشتیبانی تماس بگیرید.');
+            Log::error('Wallet Payment Failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return redirect()->route('dashboard')->with('error', 'پرداخت با خطا مواجه شد: ' . $e->getMessage());
         }
-
         return redirect()->route('dashboard')->with('status', 'سرویس شما با موفقیت فعال شد.');
     }
 
     public function processCryptoPayment(Order $order)
     {
         $order->update(['payment_method' => 'crypto']);
-        return redirect()
-            ->back()
-            ->with('status', '💡 پرداخت با ارز دیجیتال به زودی فعال می‌شود. لطفاً از روش کارت به کارت استفاده کنید.');
+        return redirect()->back()->with('status', '💡 پرداخت با ارز دیجیتال به زودی فعال می‌شود. لطفاً از روش کارت به کارت استفاده کنید.');
     }
 }
 

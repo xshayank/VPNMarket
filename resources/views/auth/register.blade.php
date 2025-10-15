@@ -18,7 +18,8 @@
 </div>
 
 <div class="auth-card">
-    <div class="auth-logo">ARV</div>
+
+    <div class="auth-logo">{{ $settings->get('auth_brand_name', 'ARV') }}</div>
     <h2 class="auth-title">ایجاد حساب کاربری جدید</h2>
 
     <form method="POST" action="{{ route('register') }}">
