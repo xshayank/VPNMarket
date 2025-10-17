@@ -61,7 +61,7 @@
                         <div class="flex justify-between items-center">
                             <span class="text-gray-500 dark:text-gray-400">مبلغ قابل پرداخت:</span>
                             <span class="font-bold text-lg text-green-500">
-                                {{ number_format($order->amount ?? ($order->plan->price ?? $order->amount)) }} تومان
+                                {{ number_format($order->amount ?? $order->plan->price) }} تومان
                             </span>
                         </div>
                     </div>
