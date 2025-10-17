@@ -116,7 +116,7 @@ class CouponService
         }
 
         $promoCode = $validation['promo_code'];
-        $price = $order->plan ? $order->plan->price : $order->amount;
+        $price = $order->plan->price ?? $order->amount;
         
         $discountCalculation = $this->calculateDiscount($promoCode, $price);
 
