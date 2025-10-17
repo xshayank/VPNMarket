@@ -148,7 +148,7 @@ class CouponService
             $order->update([
                 'promo_code_id' => null,
                 'discount_amount' => null,
-                'amount' => $order->original_amount ?? $order->amount,
+                'amount' => $order->original_amount ?? ($order->plan ? $order->plan->price : $order->amount),
                 'original_amount' => null,
             ]);
         }
