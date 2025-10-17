@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::table('orders', function (Blueprint $table) {
             $table->foreignId('promo_code_id')->nullable()->after('amount')->constrained('promo_codes')->onDelete('set null');
-            $table->decimal('discount_amount', 15, 0)->nullable()->after('promo_code_id');
-            $table->decimal('original_amount', 15, 0)->nullable()->after('discount_amount');
+            $table->decimal('discount_amount', 15, 2)->nullable()->after('promo_code_id');
+            $table->decimal('original_amount', 15, 2)->nullable()->after('discount_amount');
         });
     }
 
