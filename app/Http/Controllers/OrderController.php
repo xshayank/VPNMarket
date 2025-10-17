@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Services\MarzbanService;
 use App\Services\XUIService;
+use App\Services\CouponService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -126,7 +127,8 @@ class OrderController extends Controller
 
         $user = auth()->user();
         $plan = $order->plan;
-        $price = $plan->price;
+        // Use the order's amount if a coupon was applied, otherwise use the plan's price
+        $price = $order->amount ?? $plan->price;
 
         if ($user->balance < $price) {
             return redirect()->back()->with('error', 'موجودی کیف پول شما برای انجام این عملیات کافی نیست.');
@@ -216,6 +218,13 @@ class OrderController extends Controller
 
                 $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
                 Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price, 'type' => 'purchase', 'status' => 'completed', 'description' => ($isRenewal ? "تمدید سرویس" : "خرید سرویس") . " {$plan->name} از کیف پول"]);
+                
+                // Increment promo code usage if applied
+                if ($order->promo_code_id) {
+                    $couponService = new CouponService();
+                    $couponService->incrementUsage($order->promoCode);
+                }
+                
                 OrderPaid::dispatch($order);
             });
         } catch (\Exception $e) {
@@ -229,6 +238,44 @@ class OrderController extends Controller
     {
         $order->update(['payment_method' => 'crypto']);
         return redirect()->back()->with('status', '💡 پرداخت با ارز دیجیتال به زودی فعال می‌شود. لطفاً از روش کارت به کارت استفاده کنید.');
+    }
+
+    /**
+     * Apply a coupon code to an order.
+     */
+    public function applyCoupon(Request $request, Order $order)
+    {
+        if (Auth::id() !== $order->user_id) {
+            abort(403);
+        }
+
+        $request->validate([
+            'coupon_code' => 'required|string|max:50',
+        ]);
+
+        $couponService = new CouponService();
+        $result = $couponService->applyToOrder($order, $request->coupon_code);
+
+        if (!$result['valid']) {
+            return redirect()->back()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', $result['message']);
+    }
+
+    /**
+     * Remove a coupon code from an order.
+     */
+    public function removeCoupon(Order $order)
+    {
+        if (Auth::id() !== $order->user_id) {
+            abort(403);
+        }
+
+        $couponService = new CouponService();
+        $couponService->removeFromOrder($order);
+
+        return redirect()->back()->with('status', 'کد تخفیف حذف شد.');
     }
 }
 
