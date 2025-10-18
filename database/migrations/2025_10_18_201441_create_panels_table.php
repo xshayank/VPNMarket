@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('url');
             $table->enum('type', ['marzban', 'marzneshin', 'xui'])->default('marzban');
-            $table->text('credentials')->nullable(); // JSON field for credentials
+            $table->json('credentials')->nullable(); // JSON field for credentials
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
