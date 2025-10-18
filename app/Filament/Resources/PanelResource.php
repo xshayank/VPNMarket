@@ -41,15 +41,34 @@ class PanelResource extends Resource
                     ->url()
                     ->maxLength(255)
                     ->helperText('مثال: https://panel.example.com'),
-                Forms\Components\Select::make('type')
+                Forms\Components\Select::make('panel_type')
                     ->label('نوع پنل')
                     ->options([
                         'marzban' => 'مرزبان',
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
+                        'v2ray' => 'V2Ray',
+                        'other' => 'سایر',
                     ])
                     ->required()
                     ->default('marzban'),
+                Forms\Components\TextInput::make('username')
+                    ->label('نام کاربری')
+                    ->maxLength(255)
+                    ->helperText('نام کاربری ادمین پنل'),
+                Forms\Components\TextInput::make('password')
+                    ->label('رمز عبور')
+                    ->password()
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->helperText('رمز عبور به صورت رمزنگاری شده ذخیره می‌شود'),
+                Forms\Components\TextInput::make('api_token')
+                    ->label('توکن API')
+                    ->password()
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->helperText('در صورت نیاز، توکن API پنل را وارد کنید'),
+                Forms\Components\KeyValue::make('extra')
+                    ->label('تنظیمات اضافی')
+                    ->helperText('تنظیمات خاص پنل (مثل node_hostname، default_inbound_id و...)'),
                 Forms\Components\Toggle::make('is_active')
                     ->label('فعال')
                     ->default(true),
@@ -68,19 +87,23 @@ class PanelResource extends Resource
                     ->label('آدرس URL')
                     ->searchable()
                     ->limit(50),
-                Tables\Columns\TextColumn::make('type')
+                Tables\Columns\TextColumn::make('panel_type')
                     ->label('نوع پنل')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'marzban' => 'success',
                         'marzneshin' => 'info',
                         'xui' => 'warning',
+                        'v2ray' => 'primary',
+                        'other' => 'gray',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'marzban' => 'مرزبان',
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
+                        'v2ray' => 'V2Ray',
+                        'other' => 'سایر',
                         default => $state,
                     }),
                 Tables\Columns\IconColumn::make('is_active')

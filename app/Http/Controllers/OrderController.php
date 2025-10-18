@@ -145,11 +145,18 @@ class OrderController extends Controller
             DB::transaction(function () use ($order, $user, $plan, $price) {
                 $user->decrement('balance', $price);
 
-                $settings = Setting::all()->pluck('value', 'key');
                 $success = false;
                 $finalConfig = '';
-                $panelType = $settings->get('panel_type');
                 $isRenewal = (bool) $order->renews_order_id;
+
+                // Get panel from plan
+                $panel = $plan->panel;
+                if (!$panel) {
+                    throw new \Exception('هیچ پنلی به این پلن مرتبط نیست. لطفاً از طریق پنل ادمین یک پنل را به این پلن اختصاص دهید.');
+                }
+
+                $panelType = $panel->panel_type;
+                $credentials = $panel->getCredentials();
 
                 $uniqueUsername = "user_{$user->id}_order_".($isRenewal ? $order->renews_order_id : $order->id);
                 $newExpiresAt = $isRenewal
@@ -157,7 +164,13 @@ class OrderController extends Controller
                     : now()->addDays($plan->duration_days);
 
                 if ($panelType === 'marzban') {
-                    $marzbanService = new MarzbanService($settings->get('marzban_host'), $settings->get('marzban_sudo_username'), $settings->get('marzban_sudo_password'), $settings->get('marzban_node_hostname'));
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $marzbanService = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
                     $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
 
                     $response = $isRenewal
@@ -169,7 +182,13 @@ class OrderController extends Controller
                         $success = true;
                     }
                 } elseif ($panelType === 'marzneshin') {
-                    $marzneshinService = new MarzneshinService($settings->get('marzneshin_host'), $settings->get('marzneshin_sudo_username'), $settings->get('marzneshin_sudo_password'), $settings->get('marzneshin_node_hostname'));
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $marzneshinService = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
                     $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
 
                     // Add plan-specific service_ids if available
@@ -189,8 +208,15 @@ class OrderController extends Controller
                     if ($isRenewal) {
                         throw new \Exception('تمدید خودکار برای پنل سنایی هنوز پیاده‌سازی نشده است.');
                     }
-                    $xuiService = new XUIService($settings->get('xui_host'), $settings->get('xui_user'), $settings->get('xui_pass'));
-                    $inbound = Inbound::find($settings->get('xui_default_inbound_id'));
+                    $xuiService = new XUIService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    
+                    $defaultInboundId = $credentials['extra']['default_inbound_id'] ?? null;
+                    $inbound = $defaultInboundId ? Inbound::find($defaultInboundId) : null;
+                    
                     if (! $inbound || ! $inbound->inbound_data) {
                         throw new \Exception('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.');
                     }
@@ -203,10 +229,10 @@ class OrderController extends Controller
                     $response = $xuiService->addClient($inboundData['id'], $clientData);
 
                     if ($response && isset($response['success']) && $response['success']) {
-                        $linkType = $settings->get('xui_link_type', 'single');
+                        $linkType = $credentials['extra']['link_type'] ?? 'single';
                         if ($linkType === 'subscription') {
                             $subId = $response['generated_subId'];
-                            $subBaseUrl = rtrim($settings->get('xui_subscription_url_base'), '/');
+                            $subBaseUrl = rtrim($credentials['extra']['subscription_url_base'] ?? '', '/');
                             if ($subBaseUrl) {
                                 $finalConfig = $subBaseUrl.'/sub/'.$subId;
                                 $success = true;
@@ -214,7 +240,7 @@ class OrderController extends Controller
                         } else {
                             $uuid = $response['generated_uuid'];
                             $streamSettings = json_decode($inboundData['streamSettings'], true);
-                            $parsedUrl = parse_url($settings->get('xui_host'));
+                            $parsedUrl = parse_url($credentials['url']);
                             $serverIpOrDomain = ! empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
                             $port = $inboundData['port'];
                             $remark = $inboundData['remark'];
