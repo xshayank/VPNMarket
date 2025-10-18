@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Services\XUIService;
 use App\Models\User;
 use App\Services\MarzbanService;
+use App\Services\MarzneshinService;
 use App\Models\Inbound;
 use Modules\Ticketing\Models\Ticket;
 use Illuminate\Routing\Controller;
@@ -203,6 +204,34 @@ class WebhookController extends Controller
                     Log::error('Marzban user creation failed.', $response);
                 }
 
+            } elseif (($settings['panel_type'] ?? 'marzban') === 'marzneshin') {
+                // ----------- اتصال به مرزنشین -----------
+                $marzneshin = new MarzneshinService(
+                    $settings['marzneshin_host'] ?? '',
+                    $settings['marzneshin_sudo_username'] ?? '',
+                    $settings['marzneshin_sudo_password'] ?? '',
+                    $settings['marzneshin_node_hostname'] ?? null
+                );
+
+                $userData = [
+                    'username'   => $uniqueUsername,
+                    'expire'     => $expireTimestamp,
+                    'data_limit' => $dataLimitBytes,
+                ];
+
+                // Add plan-specific service_ids if available
+                if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
+                    $userData['service_ids'] = $plan->marzneshin_service_ids;
+                }
+
+                $response = $marzneshin->createUser($userData);
+
+                if (!empty($response['subscription_url'])) {
+                    $configLink = $marzneshin->generateSubscriptionLink($response);
+                } else {
+                    Log::error('Marzneshin user creation failed.', $response);
+                }
+
             } elseif (($settings['panel_type'] ?? 'marzban') === 'xui') {
                 // ----------- اتصال به سنایی/X-UI -----------
 
@@ -376,6 +405,30 @@ class WebhookController extends Controller
                     $config = $marzbanService->generateSubscriptionLink($response);
                 } else {
                     Log::error('Telegram Wallet Payment - Marzban Error', ['response' => $response]);
+                }
+
+            } elseif ($panelType === 'marzneshin') {
+                $trafficInBytes = $plan->volume_gb * 1073741824;
+                $marzneshinService = new MarzneshinService(
+                    $settings->get('marzneshin_host'),
+                    $settings->get('marzneshin_sudo_username'),
+                    $settings->get('marzneshin_sudo_password'),
+                    $settings->get('marzneshin_node_hostname')
+                );
+                $expireTimestamp = $order->expires_at->timestamp;
+                $userData = ['username' => $uniqueUsername, 'data_limit' => $trafficInBytes, 'expire' => $expireTimestamp];
+                
+                // Add plan-specific service_ids if available
+                if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
+                    $userData['service_ids'] = $plan->marzneshin_service_ids;
+                }
+
+                $response = $marzneshinService->createUser($userData);
+
+                if ($response && isset($response['username'])) {
+                    $config = $marzneshinService->generateSubscriptionLink($response);
+                } else {
+                    Log::error('Telegram Wallet Payment - Marzneshin Error', ['response' => $response]);
                 }
 
             } elseif ($panelType === 'xui') {

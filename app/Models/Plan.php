@@ -17,7 +17,12 @@ class Plan extends Model
         'is_popular',
         'is_active',
         'volume_gb',
-        'duration_days'
+        'duration_days',
+        'marzneshin_service_ids'
+    ];
+
+    protected $casts = [
+        'marzneshin_service_ids' => 'array',
     ];
 
     public function orders()

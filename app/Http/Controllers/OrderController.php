@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Services\MarzbanService;
+use App\Services\MarzneshinService;
 use App\Services\XUIService;
 use App\Services\CouponService;
 use Illuminate\Http\Request;
@@ -159,6 +160,23 @@ class OrderController extends Controller
 
                     if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
                         $finalConfig = $marzbanService->generateSubscriptionLink($response);
+                        $success = true;
+                    }
+                } elseif ($panelType === 'marzneshin') {
+                    $marzneshinService = new MarzneshinService($settings->get('marzneshin_host'), $settings->get('marzneshin_sudo_username'), $settings->get('marzneshin_sudo_password'), $settings->get('marzneshin_node_hostname'));
+                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
+                    
+                    // Add plan-specific service_ids if available
+                    if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
+                        $userData['service_ids'] = $plan->marzneshin_service_ids;
+                    }
+
+                    $response = $isRenewal
+                        ? $marzneshinService->updateUser($uniqueUsername, $userData)
+                        : $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
+
+                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
+                        $finalConfig = $marzneshinService->generateSubscriptionLink($response);
                         $success = true;
                     }
                 } elseif ($panelType === 'xui') {

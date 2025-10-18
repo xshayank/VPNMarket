@@ -50,6 +50,10 @@ class ThemeSettings extends Page implements HasForms
             'xui_pass' => null,
             'xui_default_inbound_id' => null,
             'xui_link_type' => 'single',
+            'marzneshin_host' => null,
+            'marzneshin_sudo_username' => null,
+            'marzneshin_sudo_password' => null,
+            'marzneshin_node_hostname' => null,
         ];
 
 
@@ -201,12 +205,18 @@ class ThemeSettings extends Page implements HasForms
 
                     Tabs\Tab::make('تنظیمات پنل V2Ray')->icon('heroicon-o-server-stack')->schema([
 
-                        Radio::make('panel_type')->label('نوع پنل')->options(['marzban' => 'مرزبان', 'xui' => 'سنایی / X-UI'])->live()->required(),
+                        Radio::make('panel_type')->label('نوع پنل')->options(['marzban' => 'مرزبان', 'marzneshin' => 'مرزنشین', 'xui' => 'سنایی / X-UI'])->live()->required(),
                         Section::make('تنظیمات پنل مرزبان')->visible(fn (Get $get) => $get('panel_type') === 'marzban')->schema([
                             TextInput::make('marzban_host')->label('آدرس پنل مرزبان')->required(),
                             TextInput::make('marzban_sudo_username')->label('نام کاربری ادمین')->required(),
                             TextInput::make('marzban_sudo_password')->label('رمز عبور ادمین')->password()->required(),
                             TextInput::make('marzban_node_hostname')->label('آدرس دامنه/سرور برای کانفیگ')->required(),
+                        ]),
+                        Section::make('تنظیمات پنل مرزنشین')->visible(fn (Get $get) => $get('panel_type') === 'marzneshin')->schema([
+                            TextInput::make('marzneshin_host')->label('آدرس پنل مرزنشین')->required(fn(Get $get): bool => $get('panel_type') === 'marzneshin'),
+                            TextInput::make('marzneshin_sudo_username')->label('نام کاربری ادمین')->required(fn(Get $get): bool => $get('panel_type') === 'marzneshin'),
+                            TextInput::make('marzneshin_sudo_password')->label('رمز عبور ادمین')->password()->required(fn(Get $get): bool => $get('panel_type') === 'marzneshin'),
+                            TextInput::make('marzneshin_node_hostname')->label('آدرس دامنه/سرور برای کانفیگ')->required(fn(Get $get): bool => $get('panel_type') === 'marzneshin'),
                         ]),
                         Section::make('تنظیمات پنل سنایی / X-UI')
                             ->visible(fn(Get $get) => $get('panel_type') === 'xui')
