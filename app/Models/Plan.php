@@ -18,7 +18,7 @@ class Plan extends Model
         'is_active',
         'volume_gb',
         'duration_days',
-        'marzneshin_service_ids'
+        'marzneshin_service_ids',
     ];
 
     protected $casts = [

@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PlanResource\Pages;
-use App\Filament\Resources\PlanResource\RelationManagers;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Services\MarzneshinService;
@@ -12,8 +11,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Log;
 
 class PlanResource extends Resource
@@ -25,7 +22,9 @@ class PlanResource extends Resource
     protected static ?string $navigationGroup = 'مدیریت پلن‌ها';
 
     protected static ?string $navigationLabel = 'پلن‌های سرویس';
+
     protected static ?string $pluralModelLabel = 'پلن‌های سرویس';
+
     protected static ?string $modelLabel = 'پلن سرویس';
 
     public static function form(Form $form): Form
@@ -47,7 +46,6 @@ class PlanResource extends Resource
                     ->required()
                     ->helperText('هر ویژگی را در یک خط جدید بنویسید.'),
 
-
                 Forms\Components\TextInput::make('volume_gb')
                     ->label('حجم (GB)')
                     ->numeric()
@@ -61,7 +59,7 @@ class PlanResource extends Resource
                     ->required()
                     ->default(30)
                     ->helperText('مدت زمان اعتبار سرویس را به روز وارد کنید.'),
-                //========================================================
+                // ========================================================
 
                 Forms\Components\Toggle::make('is_popular')
                     ->label('پلن محبوب است؟')
@@ -74,6 +72,7 @@ class PlanResource extends Resource
                     ->description('سرویسهای مرزنشین را که این پلن باید به آنها دسترسی داشته باشد انتخاب کنید.')
                     ->visible(function () {
                         $settings = Setting::pluck('value', 'key');
+
                         return $settings->get('panel_type') === 'marzneshin';
                     })
                     ->schema([
@@ -81,7 +80,7 @@ class PlanResource extends Resource
                             ->label('انتخاب سرویسها')
                             ->options(function () {
                                 $settings = Setting::pluck('value', 'key');
-                                
+
                                 // Only try to load services if panel type is marzneshin
                                 if ($settings->get('panel_type') !== 'marzneshin') {
                                     return [];
@@ -93,7 +92,7 @@ class PlanResource extends Resource
                                     $marzneshinPassword = $settings->get('marzneshin_sudo_password');
                                     $marzneshinNodeHostname = $settings->get('marzneshin_node_hostname');
 
-                                    if (!$marzneshinHost || !$marzneshinUsername || !$marzneshinPassword) {
+                                    if (! $marzneshinHost || ! $marzneshinUsername || ! $marzneshinPassword) {
                                         return [];
                                     }
 
@@ -106,14 +105,15 @@ class PlanResource extends Resource
 
                                     $services = $marzneshinService->listServices();
                                     $options = [];
-                                    
+
                                     foreach ($services as $service) {
                                         $options[$service['id']] = $service['name'];
                                     }
 
                                     return $options;
                                 } catch (\Exception $e) {
-                                    Log::error('Failed to load Marzneshin services: ' . $e->getMessage());
+                                    Log::error('Failed to load Marzneshin services: '.$e->getMessage());
+
                                     return [];
                                 }
                             })

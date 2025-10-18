@@ -131,12 +131,13 @@ class MarzneshinService
 
         // If the subscription URL is already absolute, return as is
         if (preg_match('#^https?://#i', $subscriptionUrl)) {
-            return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $subscriptionUrl;
+            return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$subscriptionUrl;
         }
 
         // Ensure exactly one slash between hostname and path
-        $link = rtrim($this->nodeHostname, '/') . '/' . ltrim($subscriptionUrl, '/');
-        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $link;
+        $link = rtrim($this->nodeHostname, '/').'/'.ltrim($subscriptionUrl, '/');
+
+        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$link;
     }
 
     public function listServices(): array
