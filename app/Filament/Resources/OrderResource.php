@@ -129,7 +129,7 @@ class OrderResource extends Resource
 
                                 return;
                             }
-                            $uniqueUsername = "user-{$user->id}-order-".($isRenewal ? $originalOrder->id : $order->id);
+                            $uniqueUsername = "user_{$user->id}_order_".($isRenewal ? $originalOrder->id : $order->id);
                             $newExpiresAt = $isRenewal
                                 ? (new \DateTime($originalOrder->expires_at))->modify("+{$plan->duration_days} days")
                                 : now()->addDays($plan->duration_days);
