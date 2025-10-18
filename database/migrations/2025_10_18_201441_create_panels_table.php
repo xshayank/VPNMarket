@@ -15,8 +15,11 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('url');
-            $table->enum('type', ['marzban', 'marzneshin', 'xui'])->default('marzban');
-            $table->json('credentials')->nullable(); // JSON field for credentials
+            $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])->default('marzban');
+            $table->string('username')->nullable();
+            $table->text('password')->nullable(); // Encrypted
+            $table->text('api_token')->nullable(); // Encrypted
+            $table->json('extra')->nullable(); // Additional panel-specific configuration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

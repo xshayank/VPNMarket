@@ -65,6 +65,7 @@ class PlanResource extends Resource
                     ->relationship('panel', 'name')
                     ->searchable()
                     ->preload()
+                    ->live()
                     ->helperText('پنل مرتبط با این پلن را انتخاب کنید.')
                     ->createOptionForm([
                         Forms\Components\TextInput::make('name')
@@ -74,7 +75,7 @@ class PlanResource extends Resource
                             ->label('آدرس URL')
                             ->required()
                             ->url(),
-                        Forms\Components\Select::make('type')
+                        Forms\Components\Select::make('panel_type')
                             ->label('نوع پنل')
                             ->options([
                                 'marzban' => 'مرزبان',
@@ -96,37 +97,38 @@ class PlanResource extends Resource
                 Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
                     ->description('سرویسهای مرزنشین را که این پلن باید به آنها دسترسی داشته باشد انتخاب کنید.')
                     ->collapsed()
-                    ->visible(function () {
-                        $settings = Setting::pluck('value', 'key');
-
-                        return $settings->get('panel_type') === 'marzneshin';
+                    ->visible(function (Forms\Get $get) {
+                        $panelId = $get('panel_id');
+                        if (!$panelId) {
+                            return false;
+                        }
+                        
+                        $panel = \App\Models\Panel::find($panelId);
+                        return $panel && $panel->panel_type === 'marzneshin';
                     })
                     ->schema([
                         Forms\Components\CheckboxList::make('marzneshin_service_ids')
                             ->label('انتخاب سرویس‌ها')
-                            ->options(function () {
-                                $settings = Setting::pluck('value', 'key');
+                            ->options(function (Forms\Get $get) {
+                                $panelId = $get('panel_id');
+                                if (!$panelId) {
+                                    return [];
+                                }
 
-                                // Only try to load services if panel type is marzneshin
-                                if ($settings->get('panel_type') !== 'marzneshin') {
+                                $panel = \App\Models\Panel::find($panelId);
+                                if (!$panel || $panel->panel_type !== 'marzneshin') {
                                     return [];
                                 }
 
                                 try {
-                                    $marzneshinHost = $settings->get('marzneshin_host');
-                                    $marzneshinUsername = $settings->get('marzneshin_sudo_username');
-                                    $marzneshinPassword = $settings->get('marzneshin_sudo_password');
-                                    $marzneshinNodeHostname = $settings->get('marzneshin_node_hostname');
-
-                                    if (! $marzneshinHost || ! $marzneshinUsername || ! $marzneshinPassword) {
-                                        return [];
-                                    }
+                                    $credentials = $panel->getCredentials();
+                                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
 
                                     $marzneshinService = new MarzneshinService(
-                                        $marzneshinHost,
-                                        $marzneshinUsername,
-                                        $marzneshinPassword,
-                                        $marzneshinNodeHostname ?? ''
+                                        $credentials['url'],
+                                        $credentials['username'],
+                                        $credentials['password'],
+                                        $nodeHostname
                                     );
 
                                     $services = $marzneshinService->listServices();
@@ -143,7 +145,7 @@ class PlanResource extends Resource
                                     return [];
                                 }
                             })
-                            ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال مرزنشین در تنظیمات به درستی وارد شده است.')
+                            ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
                             ->columns(2),
                     ]),
 
