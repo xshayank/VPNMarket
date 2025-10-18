@@ -151,7 +151,7 @@ class OrderController extends Controller
                 $panelType = $settings->get('panel_type');
                 $isRenewal = (bool) $order->renews_order_id;
 
-                $uniqueUsername = "user-{$user->id}-order-".($isRenewal ? $order->renews_order_id : $order->id);
+                $uniqueUsername = "user_{$user->id}_order_".($isRenewal ? $order->renews_order_id : $order->id);
                 $newExpiresAt = $isRenewal
                     ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
                     : now()->addDays($plan->duration_days);

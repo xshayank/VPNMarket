@@ -192,7 +192,7 @@ class WebhookController extends Controller
 
         $expireTimestamp = $order->expires_at->timestamp;
         $dataLimitBytes = $plan->data_limit_gb * 1073741824;
-        $uniqueUsername = "user-{$order->user_id}-order-{$order->id}";
+        $uniqueUsername = "user_{$order->user_id}_order_{$order->id}";
 
         try {
             if (($settings['panel_type'] ?? 'marzban') === 'marzban') {
@@ -404,7 +404,7 @@ class WebhookController extends Controller
             $settings = Setting::all()->pluck('value', 'key');
             $panelType = $settings->get('panel_type');
             $config = null;
-            $uniqueUsername = "user-{$user->id}-order-{$order->id}";
+            $uniqueUsername = "user_{$user->id}_order_{$order->id}";
 
             if ($panelType === 'marzban') {
                 $trafficInBytes = $plan->volume_gb * 1073741824;

@@ -516,3 +516,31 @@ test('listServices handles exceptions gracefully', function () {
     expect($result)->toBeArray()
         ->and($result)->toBeEmpty();
 });
+
+test('username with underscores matches Marzneshin pattern requirements', function () {
+    // Marzneshin requires usernames to match ^\w{3,32}$
+    // which means: word characters only (letters, digits, underscores), 3-32 chars
+    
+    $validUsernames = [
+        'user_1_order_5',
+        'user_123_order_456',
+        'testuser',
+        'user_1_order_1',
+    ];
+    
+    $invalidUsernames = [
+        'user-1-order-5',  // contains hyphens
+        'us',              // too short (less than 3 chars)
+        'user_with_a_very_long_name_exceeding_32_chars_limit', // too long
+        'user@name',       // contains special character
+    ];
+    
+    foreach ($validUsernames as $username) {
+        expect(preg_match('/^\w{3,32}$/', $username))->toBe(1, "Username '{$username}' should be valid");
+    }
+    
+    foreach ($invalidUsernames as $username) {
+        expect(preg_match('/^\w{3,32}$/', $username))->toBe(0, "Username '{$username}' should be invalid");
+    }
+});
+
