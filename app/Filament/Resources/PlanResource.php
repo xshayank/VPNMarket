@@ -77,7 +77,7 @@ class PlanResource extends Resource
                     })
                     ->schema([
                         Forms\Components\CheckboxList::make('marzneshin_service_ids')
-                            ->label('انتخاب سرویسها')
+                            ->label('انتخاب سرویس‌ها')
                             ->options(function () {
                                 $settings = Setting::pluck('value', 'key');
 
