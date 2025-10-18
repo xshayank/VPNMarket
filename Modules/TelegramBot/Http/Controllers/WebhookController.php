@@ -954,7 +954,7 @@ class WebhookController extends Controller
         foreach ($plans as $plan) {
             $message .= "--------------------------------------\n";
             $message .= "💎 *{$plan->name}*\n";
-            $message .= "📊 حجم: *{$plan->data_limit_gb} گیگ*\n";
+            $message .= "📊 حجم: *{$plan->volume_gb} گیگ*\n";
             $message .= "🗓️ مدت: *{$plan->duration_days} روز*\n";
             $message .= '💰 قیمت: *'.number_format($plan->price)." تومان*\n";
             $message .= "--------------------------------------\n";
