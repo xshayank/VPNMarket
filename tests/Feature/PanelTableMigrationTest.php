@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Tests\TestCase;
 
 class PanelTableMigrationTest extends TestCase
@@ -43,7 +43,7 @@ class PanelTableMigrationTest extends TestCase
     {
         // Drop the table if it exists
         Schema::dropIfExists('panels');
-        
+
         // Verify table doesn't exist
         $this->assertFalse(Schema::hasTable('panels'));
 
