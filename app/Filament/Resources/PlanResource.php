@@ -59,6 +59,31 @@ class PlanResource extends Resource
                     ->required()
                     ->default(30)
                     ->helperText('مدت زمان اعتبار سرویس را به روز وارد کنید.'),
+
+                Forms\Components\Select::make('panel_id')
+                    ->label('پنل')
+                    ->relationship('panel', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('پنل مرتبط با این پلن را انتخاب کنید.')
+                    ->createOptionForm([
+                        Forms\Components\TextInput::make('name')
+                            ->label('نام پنل')
+                            ->required(),
+                        Forms\Components\TextInput::make('url')
+                            ->label('آدرس URL')
+                            ->required()
+                            ->url(),
+                        Forms\Components\Select::make('type')
+                            ->label('نوع پنل')
+                            ->options([
+                                'marzban' => 'مرزبان',
+                                'marzneshin' => 'مرزنشین',
+                                'xui' => 'سنایی / X-UI',
+                            ])
+                            ->required()
+                            ->default('marzban'),
+                    ]),
                 // ========================================================
 
                 Forms\Components\Toggle::make('is_popular')
@@ -70,6 +95,7 @@ class PlanResource extends Resource
 
                 Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
                     ->description('سرویسهای مرزنشین را که این پلن باید به آنها دسترسی داشته باشد انتخاب کنید.')
+                    ->collapsed()
                     ->visible(function () {
                         $settings = Setting::pluck('value', 'key');
 
