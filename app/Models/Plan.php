@@ -18,6 +18,7 @@ class Plan extends Model
         'is_active',
         'volume_gb',
         'duration_days',
+        'panel_id',
         'marzneshin_service_ids',
     ];
 
@@ -28,5 +29,10 @@ class Plan extends Model
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function panel()
+    {
+        return $this->belongsTo(Panel::class);
     }
 }
