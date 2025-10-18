@@ -151,6 +151,8 @@ class MarzneshinService
         try {
             $response = Http::withToken($this->accessToken)
                 ->withHeaders(['Accept' => 'application/json'])
+                ->timeout(10)
+                ->connectTimeout(5)
                 ->get($this->baseUrl.'/api/services');
 
             if ($response->successful()) {
