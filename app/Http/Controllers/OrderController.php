@@ -8,9 +8,10 @@ use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Transaction;
-use App\Services\MarzbanService;
-use App\Services\XUIService;
 use App\Services\CouponService;
+use App\Services\MarzbanService;
+use App\Services\MarzneshinService;
+use App\Services\XUIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,7 @@ class OrderController extends Controller
             'status' => 'pending',
             'source' => 'web',
         ]);
+
         return redirect()->route('order.show', $order->id);
     }
 
@@ -114,6 +116,7 @@ class OrderController extends Controller
         $request->validate(['receipt' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048']);
         $path = $request->file('receipt')->store('receipts', 'public');
         $order->update(['card_payment_receipt' => $path]);
+
         return redirect()->route('dashboard')->with('status', 'رسید شما با موفقیت ارسال شد. پس از تایید توسط مدیر، سرویس شما فعال خواهد شد.');
     }
 
@@ -122,8 +125,12 @@ class OrderController extends Controller
      */
     public function processWalletPayment(Order $order)
     {
-        if (auth()->id() !== $order->user_id) { abort(403); }
-        if (!$order->plan) { return redirect()->back()->with('error', 'این عملیات برای شارژ کیف پول مجاز نیست.'); }
+        if (auth()->id() !== $order->user_id) {
+            abort(403);
+        }
+        if (! $order->plan) {
+            return redirect()->back()->with('error', 'این عملیات برای شارژ کیف پول مجاز نیست.');
+        }
 
         $user = auth()->user();
         $plan = $order->plan;
@@ -142,9 +149,9 @@ class OrderController extends Controller
                 $success = false;
                 $finalConfig = '';
                 $panelType = $settings->get('panel_type');
-                $isRenewal = (bool)$order->renews_order_id;
+                $isRenewal = (bool) $order->renews_order_id;
 
-                $uniqueUsername = "user-{$user->id}-order-" . ($isRenewal ? $order->renews_order_id : $order->id);
+                $uniqueUsername = "user-{$user->id}-order-".($isRenewal ? $order->renews_order_id : $order->id);
                 $newExpiresAt = $isRenewal
                     ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
                     : now()->addDays($plan->duration_days);
@@ -161,16 +168,33 @@ class OrderController extends Controller
                         $finalConfig = $marzbanService->generateSubscriptionLink($response);
                         $success = true;
                     }
+                } elseif ($panelType === 'marzneshin') {
+                    $marzneshinService = new MarzneshinService($settings->get('marzneshin_host'), $settings->get('marzneshin_sudo_username'), $settings->get('marzneshin_sudo_password'), $settings->get('marzneshin_node_hostname'));
+                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
+
+                    // Add plan-specific service_ids if available
+                    if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
+                        $userData['service_ids'] = $plan->marzneshin_service_ids;
+                    }
+
+                    $response = $isRenewal
+                        ? $marzneshinService->updateUser($uniqueUsername, $userData)
+                        : $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
+
+                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
+                        $finalConfig = $marzneshinService->generateSubscriptionLink($response);
+                        $success = true;
+                    }
                 } elseif ($panelType === 'xui') {
                     if ($isRenewal) {
                         throw new \Exception('تمدید خودکار برای پنل سنایی هنوز پیاده‌سازی نشده است.');
                     }
                     $xuiService = new XUIService($settings->get('xui_host'), $settings->get('xui_user'), $settings->get('xui_pass'));
                     $inbound = Inbound::find($settings->get('xui_default_inbound_id'));
-                    if (!$inbound || !$inbound->inbound_data) {
+                    if (! $inbound || ! $inbound->inbound_data) {
                         throw new \Exception('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.');
                     }
-                    if (!$xuiService->login()) {
+                    if (! $xuiService->login()) {
                         throw new \Exception('خطا در لاگین به پنل X-UI.');
                     }
 
@@ -184,31 +208,33 @@ class OrderController extends Controller
                             $subId = $response['generated_subId'];
                             $subBaseUrl = rtrim($settings->get('xui_subscription_url_base'), '/');
                             if ($subBaseUrl) {
-                                $finalConfig = $subBaseUrl . '/sub/' . $subId;
+                                $finalConfig = $subBaseUrl.'/sub/'.$subId;
                                 $success = true;
                             }
                         } else {
                             $uuid = $response['generated_uuid'];
                             $streamSettings = json_decode($inboundData['streamSettings'], true);
                             $parsedUrl = parse_url($settings->get('xui_host'));
-                            $serverIpOrDomain = !empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
+                            $serverIpOrDomain = ! empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
                             $port = $inboundData['port'];
                             $remark = $inboundData['remark'];
                             $paramsArray = ['type' => $streamSettings['network'] ?? null, 'security' => $streamSettings['security'] ?? null, 'path' => $streamSettings['wsSettings']['path'] ?? ($streamSettings['grpcSettings']['serviceName'] ?? null), 'sni' => $streamSettings['tlsSettings']['serverName'] ?? null, 'host' => $streamSettings['wsSettings']['headers']['Host'] ?? null];
                             $params = http_build_query(array_filter($paramsArray));
-                            $fullRemark = $uniqueUsername . '|' . $remark;
-                            $finalConfig = "vless://{$uuid}@{$serverIpOrDomain}:{$port}?{$params}#" . urlencode($fullRemark);
+                            $fullRemark = $uniqueUsername.'|'.$remark;
+                            $finalConfig = "vless://{$uuid}@{$serverIpOrDomain}:{$port}?{$params}#".urlencode($fullRemark);
                             $success = true;
                         }
                     } else {
-                        throw new \Exception('خطا در ساخت کاربر در پنل سنایی: ' . ($response['msg'] ?? 'پاسخ نامعتبر'));
+                        throw new \Exception('خطا در ساخت کاربر در پنل سنایی: '.($response['msg'] ?? 'پاسخ نامعتبر'));
                     }
                 }
 
-                if (!$success) { throw new \Exception('خطا در ارتباط با سرور برای فعال‌سازی سرویس.'); }
+                if (! $success) {
+                    throw new \Exception('خطا در ارتباط با سرور برای فعال‌سازی سرویس.');
+                }
 
                 // آپدیت سفارش اصلی یا سفارش جدید
-                if($isRenewal) {
+                if ($isRenewal) {
                     $originalOrder = Order::find($order->renews_order_id);
                     $originalOrder->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
                     $user->update(['show_renewal_notification' => true]);
@@ -217,26 +243,29 @@ class OrderController extends Controller
                 }
 
                 $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
-                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price, 'type' => 'purchase', 'status' => 'completed', 'description' => ($isRenewal ? "تمدید سرویس" : "خرید سرویس") . " {$plan->name} از کیف پول"]);
-                
+                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price, 'type' => 'purchase', 'status' => 'completed', 'description' => ($isRenewal ? 'تمدید سرویس' : 'خرید سرویس')." {$plan->name} از کیف پول"]);
+
                 // Increment promo code usage if applied
                 if ($order->promo_code_id) {
-                    $couponService = new CouponService();
+                    $couponService = new CouponService;
                     $couponService->incrementUsage($order->promoCode);
                 }
-                
+
                 OrderPaid::dispatch($order);
             });
         } catch (\Exception $e) {
-            Log::error('Wallet Payment Failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return redirect()->route('dashboard')->with('error', 'پرداخت با خطا مواجه شد: ' . $e->getMessage());
+            Log::error('Wallet Payment Failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return redirect()->route('dashboard')->with('error', 'پرداخت با خطا مواجه شد: '.$e->getMessage());
         }
+
         return redirect()->route('dashboard')->with('status', 'سرویس شما با موفقیت فعال شد.');
     }
 
     public function processCryptoPayment(Order $order)
     {
         $order->update(['payment_method' => 'crypto']);
+
         return redirect()->back()->with('status', '💡 پرداخت با ارز دیجیتال به زودی فعال می‌شود. لطفاً از روش کارت به کارت استفاده کنید.');
     }
 
@@ -253,10 +282,10 @@ class OrderController extends Controller
             'coupon_code' => 'required|string|max:50',
         ]);
 
-        $couponService = new CouponService();
+        $couponService = new CouponService;
         $result = $couponService->applyToOrder($order, $request->coupon_code);
 
-        if (!$result['valid']) {
+        if (! $result['valid']) {
             return redirect()->back()->with('error', $result['message']);
         }
 
@@ -272,10 +301,9 @@ class OrderController extends Controller
             abort(403);
         }
 
-        $couponService = new CouponService();
+        $couponService = new CouponService;
         $couponService->removeFromOrder($order);
 
         return redirect()->back()->with('status', 'کد تخفیف حذف شد.');
     }
 }
-

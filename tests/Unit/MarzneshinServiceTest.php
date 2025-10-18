@@ -408,3 +408,111 @@ test('ISO 8601 conversion works correctly for various timestamps', function () {
             && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', $body['expire_date']);
     });
 });
+
+test('listServices returns array of services with id and name', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/services' => Http::response([
+            'items' => [
+                ['id' => 1, 'name' => 'Service A', 'inbound_ids' => [1, 2]],
+                ['id' => 2, 'name' => 'Service B', 'inbound_ids' => [3]],
+                ['id' => 3, 'name' => 'Service C', 'inbound_ids' => []],
+            ],
+        ], 200),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->listServices();
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(3)
+        ->and($result[0])->toBe(['id' => 1, 'name' => 'Service A'])
+        ->and($result[1])->toBe(['id' => 2, 'name' => 'Service B'])
+        ->and($result[2])->toBe(['id' => 3, 'name' => 'Service C']);
+});
+
+test('listServices handles direct array response without items key', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/services' => Http::response([
+            ['id' => 1, 'name' => 'Service X'],
+            ['id' => 2, 'name' => 'Service Y'],
+        ], 200),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->listServices();
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(2)
+        ->and($result[0])->toBe(['id' => 1, 'name' => 'Service X'])
+        ->and($result[1])->toBe(['id' => 2, 'name' => 'Service Y']);
+});
+
+test('listServices returns empty array on authentication failure', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['detail' => 'Invalid credentials'], 401),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'wrong-password',
+        'https://node.example.com'
+    );
+
+    $result = $service->listServices();
+
+    expect($result)->toBeArray()
+        ->and($result)->toBeEmpty();
+});
+
+test('listServices returns empty array on API error', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/services' => Http::response(['error' => 'Internal server error'], 500),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->listServices();
+
+    expect($result)->toBeArray()
+        ->and($result)->toBeEmpty();
+});
+
+test('listServices handles exceptions gracefully', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/services' => fn () => throw new \Exception('Network error'),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->listServices();
+
+    expect($result)->toBeArray()
+        ->and($result)->toBeEmpty();
+});
