@@ -59,6 +59,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/order/{order}', [OrderController::class, 'show'])->name('order.show');
     Route::post('/order/{order}/renew', [OrderController::class, 'renew'])->name('order.renew');
 
+    // Subscription Extension
+    Route::get('/subscription/{order}/extend', [\App\Http\Controllers\SubscriptionExtensionController::class, 'show'])->name('subscription.extend.show');
+    Route::post('/subscription/{order}/extend', [\App\Http\Controllers\SubscriptionExtensionController::class, 'store'])->name('subscription.extend');
+
     Route::post('/payment/card/{order}/submit', [OrderController::class, 'submitCardReceipt'])->name('payment.card.submit');
     Route::post('/payment/card/{order}', [OrderController::class, 'processCardPayment'])->name('payment.card.process');
 

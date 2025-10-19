@@ -103,12 +103,9 @@
                                             </div>
                                             <div class="text-left">
                                                 <div class="flex items-center justify-end space-x-2 space-x-reverse">
-                                                    <form method="POST" action="{{ route('order.renew', $order->id) }}">
-                                                        @csrf
-                                                        <button type="submit" class="px-3 py-2 bg-yellow-500 text-white text-xs rounded-lg hover:bg-yellow-600 focus:outline-none" title="تمدید سرویس">
-                                                            تمدید
-                                                        </button>
-                                                    </form>
+                                                    <a href="{{ route('subscription.extend.show', $order->id) }}" class="px-3 py-2 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 focus:outline-none" title="تمدید سرویس">
+                                                        تمدید
+                                                    </a>
                                                     <button @click="open = !open" class="px-3 py-2 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-600 focus:outline-none">
                                                         <span x-show="!open">کانفیگ</span>
                                                         <span x-show="open">بستن</span>

@@ -18,6 +18,14 @@ class Order extends Model
         'promo_code_id',
         'discount_amount',
         'original_amount',
+        'traffic_limit_bytes',
+        'usage_bytes',
+        'panel_user_id',
+    ];
+
+    protected $casts = [
+        'traffic_limit_bytes' => 'integer',
+        'usage_bytes' => 'integer',
     ];
 
     public function user()
