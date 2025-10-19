@@ -17,6 +17,7 @@ class Reseller extends Model
         'type',
         'status',
         'username_prefix',
+        'panel_id',
         'traffic_total_bytes',
         'traffic_used_bytes',
         'window_starts_at',
@@ -37,6 +38,11 @@ class Reseller extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function panel(): BelongsTo
+    {
+        return $this->belongsTo(Panel::class);
     }
 
     public function allowedPlans(): BelongsToMany

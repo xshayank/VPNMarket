@@ -26,11 +26,27 @@ class ResellerResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Select::make('user_id')
-                    ->relationship('user', 'email')
+                    ->relationship('user', 'name')
                     ->label('کاربر')
                     ->searchable()
                     ->required()
-                    ->unique(ignoreRecord: true),
+                    ->unique(ignoreRecord: true)
+                    ->getSearchResultsUsing(fn (string $search) => \App\Models\User::query()
+                        ->where('name', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
+                        ->orWhere('email', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
+                        ->limit(50)
+                        ->get()
+                        ->mapWithKeys(fn ($user) => [
+                            $user->id => ($user->name ?? 'بدون نام') . ' (' . $user->email . ')'
+                        ])
+                    )
+                    ->getOptionLabelFromRecordUsing(fn ($record) => 
+                        ($record->name ?? 'بدون نام') . ' (' . $record->email . ')'
+                    )
+                    ->preload()
+                    ->loadingMessage('در حال بارگذاری کاربران...')
+                    ->noSearchResultsMessage('کاربری یافت نشد')
+                    ->searchPrompt('جستجو بر اساس نام یا ایمیل'),
 
                 Forms\Components\Select::make('type')
                     ->label('نوع ریسلر')
@@ -58,6 +74,15 @@ class ResellerResource extends Resource
                 Forms\Components\Section::make('تنظیمات ترافیک‌محور')
                     ->visible(fn (Forms\Get $get) => $get('type') === 'traffic')
                     ->schema([
+                        Forms\Components\Select::make('panel_id')
+                            ->label('پنل')
+                            ->relationship('panel', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->required()
+                            ->helperText('پنل V2Ray که این ریسلر از آن استفاده می‌کند'),
+
                         Forms\Components\TextInput::make('traffic_total_bytes')
                             ->label('ترافیک کل (GB)')
                             ->numeric()
@@ -74,9 +99,60 @@ class ResellerResource extends Resource
                         Forms\Components\DateTimePicker::make('window_ends_at')
                             ->label('تاریخ پایان'),
 
-                        Forms\Components\TagsInput::make('marzneshin_allowed_service_ids')
-                            ->label('سرویس‌های مجاز Marzneshin')
-                            ->helperText('شناسه سرویس‌های مجاز (فقط برای Marzneshin)'),
+                        Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
+                            ->description('سرویسهای مرزنشین مجاز برای این ریسلر')
+                            ->collapsed()
+                            ->visible(function (Forms\Get $get) {
+                                $panelId = $get('panel_id');
+                                if (!$panelId) {
+                                    return false;
+                                }
+                                
+                                $panel = \App\Models\Panel::find($panelId);
+                                return $panel && $panel->panel_type === 'marzneshin';
+                            })
+                            ->schema([
+                                Forms\Components\CheckboxList::make('marzneshin_allowed_service_ids')
+                                    ->label('انتخاب سرویس‌ها')
+                                    ->options(function (Forms\Get $get) {
+                                        $panelId = $get('panel_id');
+                                        if (!$panelId) {
+                                            return [];
+                                        }
+
+                                        $panel = \App\Models\Panel::find($panelId);
+                                        if (!$panel || $panel->panel_type !== 'marzneshin') {
+                                            return [];
+                                        }
+
+                                        try {
+                                            $credentials = $panel->getCredentials();
+                                            $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+
+                                            $marzneshinService = new \App\Services\MarzneshinService(
+                                                $credentials['url'],
+                                                $credentials['username'],
+                                                $credentials['password'],
+                                                $nodeHostname
+                                            );
+
+                                            $services = $marzneshinService->listServices();
+                                            $options = [];
+
+                                            foreach ($services as $service) {
+                                                $options[$service['id']] = $service['name'];
+                                            }
+
+                                            return $options;
+                                        } catch (\Exception $e) {
+                                            \Illuminate\Support\Facades\Log::error('Failed to load Marzneshin services: '.$e->getMessage());
+
+                                            return [];
+                                        }
+                                    })
+                                    ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
+                                    ->columns(2),
+                            ]),
                     ]),
 
                 Forms\Components\Section::make('پلن‌های مجاز')
@@ -86,12 +162,23 @@ class ResellerResource extends Resource
                             ->relationship('allowedPlans')
                             ->label('پلن‌های مجاز')
                             ->schema([
-                                Forms\Components\Select::make('id')
+                                Forms\Components\Select::make('plan_id')
                                     ->label('پلن')
                                     ->options(Plan::where('reseller_visible', true)->pluck('name', 'id'))
-                                    ->required(),
+                                    ->searchable()
+                                    ->preload()
+                                    ->required()
+                                    ->distinct()
+                                    ->disableOptionWhen(function ($value, $state, Forms\Get $get) {
+                                        // Disable options that are already selected in other items
+                                        $selectedPlans = collect($get('../../allowedPlans'))
+                                            ->pluck('plan_id')
+                                            ->filter()
+                                            ->toArray();
+                                        return in_array($value, $selectedPlans) && $value != $state;
+                                    }),
                                 
-                                Forms\Components\Select::make('pivot.override_type')
+                                Forms\Components\Select::make('override_type')
                                     ->label('نوع تخفیف')
                                     ->options([
                                         'price' => 'قیمت ثابت',
@@ -99,16 +186,23 @@ class ResellerResource extends Resource
                                     ])
                                     ->live(),
                                 
-                                Forms\Components\TextInput::make('pivot.override_value')
+                                Forms\Components\TextInput::make('override_value')
                                     ->label('مقدار')
-                                    ->numeric(),
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(fn (Forms\Get $get) => $get('override_type') === 'percent' ? 100 : null),
                                 
-                                Forms\Components\Toggle::make('pivot.active')
+                                Forms\Components\Toggle::make('active')
                                     ->label('فعال')
                                     ->default(true),
                             ])
                             ->columns(4)
-                            ->collapsible(),
+                            ->collapsible()
+                            ->itemLabel(fn (array $state): ?string => 
+                                Plan::find($state['plan_id'] ?? null)?->name ?? 'پلن جدید'
+                            )
+                            ->defaultItems(0)
+                            ->addActionLabel('افزودن پلن'),
                     ]),
             ]);
     }

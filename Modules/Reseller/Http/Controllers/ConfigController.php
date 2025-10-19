@@ -43,7 +43,13 @@ class ConfigController extends Controller
         $maxActiveConfigs = Setting::where('key', 'reseller.configs_max_active')->value('value') ?? 50;
         $activeConfigsCount = $reseller->configs()->where('status', 'active')->count();
 
-        $panels = Panel::where('is_active', true)->get();
+        // If reseller has a specific panel assigned, use only that panel
+        if ($reseller->panel_id) {
+            $panels = Panel::where('id', $reseller->panel_id)->where('is_active', true)->get();
+        } else {
+            $panels = Panel::where('is_active', true)->get();
+        }
+
         $marzneshinServices = [];
 
         // If reseller has Marzneshin service whitelist, fetch available services
@@ -86,6 +92,11 @@ class ConfigController extends Controller
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
+        }
+
+        // Validate reseller can use the selected panel
+        if ($reseller->panel_id && $request->panel_id != $reseller->panel_id) {
+            return back()->with('error', 'You can only use the panel assigned to your account.');
         }
 
         $panel = Panel::findOrFail($request->panel_id);
