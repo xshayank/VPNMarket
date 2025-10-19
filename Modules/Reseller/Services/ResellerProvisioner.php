@@ -65,6 +65,10 @@ class ResellerProvisioner
     protected function provisionMarzban(array $credentials, Plan $plan, string $username, array $options): ?array
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        if (empty($nodeHostname)) {
+            Log::error("Missing or empty node_hostname in panel credentials for Marzban provisioning.");
+            return null;
+        }
         
         $service = new MarzbanService(
             $credentials['url'],
