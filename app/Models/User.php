@@ -8,6 +8,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Modules\Reseller\Models\Reseller;
 use Modules\Ticketing\Models\Ticket;
 
 class User extends Authenticatable implements FilamentUser
@@ -70,5 +71,10 @@ class User extends Authenticatable implements FilamentUser
     public function tickets()
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    public function reseller()
+    {
+        return $this->hasOne(Reseller::class);
     }
 }
