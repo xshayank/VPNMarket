@@ -119,9 +119,9 @@ class ResellerProvisioner
         // Prepare user data array for MarzneshinService::createUser()
         $userData = [
             'username' => $username,
-            'expire_date' => $expiresAt->getTimestamp(),
+            'expire' => $expiresAt->getTimestamp(),
             'data_limit' => $trafficLimit,
-            'service_ids' => $serviceIds,
+            'service_ids' => (array) $serviceIds,
         ];
 
         $result = $service->createUser($userData);
