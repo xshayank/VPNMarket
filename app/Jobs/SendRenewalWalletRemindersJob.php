@@ -11,7 +11,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -21,16 +20,15 @@ class SendRenewalWalletRemindersJob implements ShouldQueue
 
     public $timeout = 300;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public function handle(): void
     {
         $autoRemindEnabled = Setting::where('key', 'email.auto_remind_renewal_wallet')->first()?->value === 'true';
-        
-        if (!$autoRemindEnabled) {
+
+        if (! $autoRemindEnabled) {
             Log::info('SendRenewalWalletRemindersJob skipped: auto_remind_renewal_wallet is disabled');
+
             return;
         }
 
@@ -70,7 +68,7 @@ class SendRenewalWalletRemindersJob implements ShouldQueue
                             ->where('expires_at', '>', $expiringOrder->expires_at)
                             ->exists();
 
-                        if (!$hasLongerOrder) {
+                        if (! $hasLongerOrder) {
                             Mail::to($user->email)->queue(new RenewalReminderMail(
                                 $user,
                                 $expiringOrder->plan->name ?? 'VPN Plan',

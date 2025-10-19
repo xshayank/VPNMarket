@@ -19,16 +19,15 @@ class SendResellerTrafficTimeRemindersJob implements ShouldQueue
 
     public $timeout = 300;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public function handle(): void
     {
         $autoRemindEnabled = Setting::where('key', 'email.auto_remind_reseller_traffic_time')->first()?->value === 'true';
-        
-        if (!$autoRemindEnabled) {
+
+        if (! $autoRemindEnabled) {
             Log::info('SendResellerTrafficTimeRemindersJob skipped: auto_remind_reseller_traffic_time is disabled');
+
             return;
         }
 
@@ -43,7 +42,7 @@ class SendResellerTrafficTimeRemindersJob implements ShouldQueue
             ->with('user')
             ->chunkById(100, function ($resellers) use (&$count, $resellerDaysBefore, $trafficThresholdPercent) {
                 foreach ($resellers as $reseller) {
-                    if (!$reseller->user || !$reseller->user->email) {
+                    if (! $reseller->user || ! $reseller->user->email) {
                         continue;
                     }
 
@@ -61,7 +60,7 @@ class SendResellerTrafficTimeRemindersJob implements ShouldQueue
                     if ($reseller->traffic_total_bytes > 0) {
                         $trafficUsedPercent = ($reseller->traffic_used_bytes / $reseller->traffic_total_bytes) * 100;
                         $trafficRemainingPercent = 100 - $trafficUsedPercent;
-                        
+
                         if ($trafficRemainingPercent <= $trafficThresholdPercent && $trafficRemainingPercent >= 0) {
                             $shouldSendEmail = true;
                         }

@@ -24,9 +24,13 @@ class EmailCenter extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-envelope';
+
     protected static string $view = 'filament.pages.email-center';
+
     protected static ?string $navigationLabel = 'ایمیل';
+
     protected static ?string $title = 'مرکز مدیریت ایمیل';
+
     protected static ?string $navigationGroup = 'ایمیل';
 
     public ?array $data = [];
@@ -125,6 +129,7 @@ class EmailCenter extends Page implements HasForms
                 ->modalHeading('ارسال ایمیل به کاربران منقضی شده')
                 ->modalDescription(function () {
                     $count = $this->getExpiredNormalUsersCount();
+
                     return "آیا مطمئن هستید که می‌خواهید به {$count} کاربر منقضی شده ایمیل ارسال کنید؟";
                 })
                 ->action(function () {
@@ -144,6 +149,7 @@ class EmailCenter extends Page implements HasForms
                 ->modalHeading('ارسال ایمیل به ریسلرهای منقضی شده')
                 ->modalDescription(function () {
                     $count = $this->getExpiredResellersCount();
+
                     return "آیا مطمئن هستید که می‌خواهید به {$count} ریسلر منقضی شده ایمیل ارسال کنید؟";
                 })
                 ->action(function () {
@@ -186,10 +192,10 @@ class EmailCenter extends Page implements HasForms
         $formData = $this->form->getState();
         foreach ($formData as $key => $value) {
             // Skip non-setting keys
-            if (!str_starts_with($key, 'email.')) {
+            if (! str_starts_with($key, 'email.')) {
                 continue;
             }
-            
+
             if (is_bool($value)) {
                 $value = $value ? 'true' : 'false';
             } elseif (is_array($value)) {
