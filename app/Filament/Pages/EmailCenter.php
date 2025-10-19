@@ -58,9 +58,7 @@ class EmailCenter extends Page implements HasForms
             Section::make('ارسال دستی ایمیل')
                 ->description('ارسال ایمیل به کاربران منقضی شده')
                 ->schema([
-                    \Filament\Forms\Components\Placeholder::make('manual_send_info')
-                        ->content('از دکمه‌های زیر برای ارسال ایمیل به کاربران منقضی شده استفاده کنید.')
-                        ->columnSpanFull(),
+                    // Manual send actions are in header actions
                 ]),
 
             Section::make('تنظیمات یادآوری خودکار')
@@ -187,8 +185,15 @@ class EmailCenter extends Page implements HasForms
 
         $formData = $this->form->getState();
         foreach ($formData as $key => $value) {
+            // Skip non-setting keys
+            if (!str_starts_with($key, 'email.')) {
+                continue;
+            }
+            
             if (is_bool($value)) {
                 $value = $value ? 'true' : 'false';
+            } elseif (is_array($value)) {
+                $value = json_encode($value);
             }
             Setting::updateOrCreate(['key' => $key], ['value' => (string) $value]);
         }
@@ -199,7 +204,7 @@ class EmailCenter extends Page implements HasForms
             ->send();
     }
 
-    protected function getExpiredNormalUsersCount(): int
+    public function getExpiredNormalUsersCount(): int
     {
         $expiredUserIds = Order::where('status', 'paid')
             ->whereNotNull('plan_id')
@@ -216,7 +221,7 @@ class EmailCenter extends Page implements HasForms
         return $expiredUserIds->diff($activeUserIds)->count();
     }
 
-    protected function getExpiredResellersCount(): int
+    public function getExpiredResellersCount(): int
     {
         return Reseller::where('type', 'traffic')
             ->where(function ($query) {
