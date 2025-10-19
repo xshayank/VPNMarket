@@ -43,6 +43,7 @@ class ProvisionResellerOrderJob implements ShouldQueue
             if (!$panel) {
                 Log::error("Plan {$plan->id} has no panel assigned");
                 $this->order->update(['status' => 'failed']);
+                $this->refundOrder();
                 return;
             }
 
@@ -65,11 +66,18 @@ class ProvisionResellerOrderJob implements ShouldQueue
                 }
             }
 
+            $orderStatus = $failedCount === 0 ? 'fulfilled' : 'failed';
+            
             $this->order->update([
-                'status' => $failedCount === 0 ? 'fulfilled' : 'failed',
+                'status' => $orderStatus,
                 'fulfilled_at' => now(),
                 'artifacts' => $artifacts,
             ]);
+
+            // Refund if order failed
+            if ($orderStatus === 'failed') {
+                $this->refundOrder();
+            }
 
             Log::info("Provisioning completed for order {$this->order->id}. Success: {$successCount}, Failed: {$failedCount}");
         });
@@ -79,8 +87,25 @@ class ProvisionResellerOrderJob implements ShouldQueue
     {
         Log::error("Provisioning job failed for order {$this->order->id}: " . $exception->getMessage());
         
-        $this->order->update([
-            'status' => 'failed',
-        ]);
+        DB::transaction(function () {
+            $this->order->update([
+                'status' => 'failed',
+            ]);
+            
+            $this->refundOrder();
+        });
+    }
+
+    /**
+     * Refund the order amount to the reseller's user account
+     */
+    protected function refundOrder(): void
+    {
+        $user = $this->order->reseller->user;
+        $amount = $this->order->total_price;
+        
+        $user->increment('balance', $amount);
+        
+        Log::info("Refunded {$amount} to user {$user->id} for failed order {$this->order->id}");
     }
 }
