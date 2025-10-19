@@ -43,18 +43,16 @@ class TicketController extends Controller
 
         $ticket = Auth::user()->tickets()->create($ticketData);
 
-        $replyData = [
-            'user_id' => Auth::id(),
-            'message' => $request->message,
-        ];
-
+        // Only create a reply if there is an attachment
         if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('ticket_attachments', 'public');
-            $replyData['attachment_path'] = $path;
+            $replyData = [
+                'user_id' => Auth::id(),
+                // Do not duplicate the message; only store the attachment
+                'message' => null,
+                'attachment_path' => $request->file('attachment')->store('ticket_attachments', 'public'),
+            ];
+            $ticket->replies()->create($replyData);
         }
-
-        $ticket->replies()->create($replyData);
-
         return redirect()->route('reseller.tickets.show', $ticket->id)
             ->with('success', 'تیکت شما با موفقیت ارسال شد.');
     }
