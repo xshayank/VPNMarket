@@ -116,15 +116,18 @@ class ResellerProvisioner
         $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
         $serviceIds = $options['service_ids'] ?? $plan->marzneshin_service_ids ?? [];
 
-        $result = $service->createUser(
-            $username,
-            $trafficLimit,
-            $expiresAt,
-            $serviceIds
-        );
+        // Prepare user data array for MarzneshinService::createUser()
+        $userData = [
+            'username' => $username,
+            'expire' => $expiresAt->getTimestamp(),
+            'data_limit' => $trafficLimit,
+            'service_ids' => $serviceIds,
+        ];
+
+        $result = $service->createUser($userData);
 
         if ($result) {
-            $subscriptionUrl = $service->generateSubscriptionLink($username);
+            $subscriptionUrl = $service->generateSubscriptionLink($result);
             return [
                 'username' => $username,
                 'subscription_url' => $subscriptionUrl,
