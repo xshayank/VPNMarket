@@ -32,8 +32,8 @@ class ResellerResource extends Resource
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->getSearchResultsUsing(fn (string $search) => \App\Models\User::query()
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
+                        ->where('name', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
+                        ->orWhere('email', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
                         ->limit(50)
                         ->get()
                         ->mapWithKeys(fn ($user) => [
