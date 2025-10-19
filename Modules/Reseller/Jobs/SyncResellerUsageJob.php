@@ -163,7 +163,7 @@ class SyncResellerUsageJob implements ShouldQueue
         }
 
         $user = $service->getUser($username);
-        return $user['up'] + $user['down'] ?? null;
+        return ($user['up'] + $user['down']) ?? null;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void
