@@ -192,7 +192,10 @@ All panel operations (create, update, delete, disable, enable) are handled unifo
 
 ### 4. Usage Sync Strategy
 
-- Runs every N minutes (configurable)
+- Runs every N minutes (configurable via 'reseller.usage_sync_interval_minutes' setting)
+- **Minimum guaranteed interval: 15 minutes** (enforced by scheduler)
+- Supports dynamic intervals without requiring deployment
+- Job is dispatched to the queue for background processing
 - Fetches usage from all panels
 - Updates per-config usage
 - Aggregates total reseller usage
