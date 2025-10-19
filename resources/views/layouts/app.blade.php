@@ -21,6 +21,9 @@
 
     <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
             @include('layouts.navigation')
+            
+            {{-- Reseller Navigation --}}
+            @include('partials.reseller-nav')
 
             <!-- Page Heading -->
             @isset($header)
