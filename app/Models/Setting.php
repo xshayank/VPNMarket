@@ -23,4 +23,42 @@ class Setting extends Model
     {
         return $this->hasMany(\App\Models\Inbound::class);
     }
+
+    /**
+     * Get a setting value by key
+     */
+    public static function getValue(string $key, $default = null)
+    {
+        $setting = self::where('key', $key)->first();
+        return $setting ? $setting->value : $default;
+    }
+
+    /**
+     * Set a setting value by key
+     */
+    public static function setValue(string $key, $value): void
+    {
+        self::updateOrCreate(['key' => $key], ['value' => $value]);
+    }
+
+    /**
+     * Get a boolean setting value
+     */
+    public static function getBool(string $key, bool $default = false): bool
+    {
+        $value = self::getValue($key);
+        if ($value === null) {
+            return $default;
+        }
+        return $value === 'true' || $value === '1' || $value === true;
+    }
+
+    /**
+     * Get an integer setting value
+     */
+    public static function getInt(string $key, int $default = 0): int
+    {
+        $value = self::getValue($key);
+        return $value !== null ? (int) $value : $default;
+    }
 }
