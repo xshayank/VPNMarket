@@ -117,10 +117,13 @@ class SyncResellerUsageJob implements ShouldQueue
 
     protected function fetchMarzbanUsage(array $credentials, string $username): ?int
     {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+        
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
-            $credentials['password']
+            $credentials['password'],
+            $nodeHostname
         );
 
         if (!$service->login()) {
