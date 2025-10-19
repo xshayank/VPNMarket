@@ -135,7 +135,13 @@ class TicketResource extends Resource
             ])
             ->defaultSort('updated_at', 'desc')
             ->filters([
-                // می‌توانید فیلترها را اینجا اضافه کنید
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('منبع')
+                    ->options([
+                        'web' => 'وب',
+                        'telegram' => 'تلگرام',
+                        'reseller' => 'ریسلر',
+                    ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
