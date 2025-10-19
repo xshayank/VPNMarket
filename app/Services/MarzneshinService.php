@@ -92,23 +92,29 @@ class MarzneshinService
         return date('c', $timestamp);
     }
 
-    public function updateUser(string $username, array $userData): ?array
+    public function updateUser(string $username, array $userData): bool
     {
         if (! $this->accessToken) {
             if (! $this->login()) {
-                return null;
+                return false;
             }
         }
 
         try {
-            $apiData = [
-                'expire_strategy' => 'fixed_date',
-                'expire_date' => $this->convertTimestampToIso8601($userData['expire']),
-                'data_limit' => $userData['data_limit'],
-            ];
+            $apiData = [];
+            
+            // Only add fields that are provided
+            if (isset($userData['expire'])) {
+                $apiData['expire_strategy'] = 'fixed_date';
+                $apiData['expire_date'] = $this->convertTimestampToIso8601($userData['expire']);
+            }
+            
+            if (isset($userData['data_limit'])) {
+                $apiData['data_limit'] = $userData['data_limit'];
+            }
 
             if (isset($userData['service_ids'])) {
-                $apiData['service_ids'] = $userData['service_ids'];
+                $apiData['service_ids'] = (array) $userData['service_ids'];
             }
 
             $response = Http::withToken($this->accessToken)
@@ -117,11 +123,11 @@ class MarzneshinService
 
             Log::info('Marzneshin Update User Response:', $response->json() ?? ['raw' => $response->body()]);
 
-            return $response->json();
+            return $response->successful();
         } catch (\Exception $e) {
             Log::error('Marzneshin Update User Exception:', ['message' => $e->getMessage()]);
 
-            return null;
+            return false;
         }
     }
 
@@ -186,11 +192,11 @@ class MarzneshinService
         }
     }
 
-    public function enableUser(string $username): ?array
+    public function enableUser(string $username): bool
     {
         if (! $this->accessToken) {
             if (! $this->login()) {
-                return null;
+                return false;
             }
         }
 
@@ -201,19 +207,19 @@ class MarzneshinService
 
             Log::info('Marzneshin Enable User Response:', $response->json() ?? ['raw' => $response->body()]);
 
-            return $response->json();
+            return $response->successful();
         } catch (\Exception $e) {
             Log::error('Marzneshin Enable User Exception:', ['message' => $e->getMessage()]);
 
-            return null;
+            return false;
         }
     }
 
-    public function disableUser(string $username): ?array
+    public function disableUser(string $username): bool
     {
         if (! $this->accessToken) {
             if (! $this->login()) {
-                return null;
+                return false;
             }
         }
 
@@ -224,19 +230,19 @@ class MarzneshinService
 
             Log::info('Marzneshin Disable User Response:', $response->json() ?? ['raw' => $response->body()]);
 
-            return $response->json();
+            return $response->successful();
         } catch (\Exception $e) {
             Log::error('Marzneshin Disable User Exception:', ['message' => $e->getMessage()]);
 
-            return null;
+            return false;
         }
     }
 
-    public function resetUser(string $username): ?array
+    public function resetUser(string $username): bool
     {
         if (! $this->accessToken) {
             if (! $this->login()) {
-                return null;
+                return false;
             }
         }
 
@@ -247,11 +253,11 @@ class MarzneshinService
 
             Log::info('Marzneshin Reset User Response:', $response->json() ?? ['raw' => $response->body()]);
 
-            return $response->json();
+            return $response->successful();
         } catch (\Exception $e) {
             Log::error('Marzneshin Reset User Exception:', ['message' => $e->getMessage()]);
 
-            return null;
+            return false;
         }
     }
 }

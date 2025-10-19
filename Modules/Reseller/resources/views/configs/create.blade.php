@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-100 leading-tight">
             {{ __('ایجاد کانفیگ جدید') }}
         </h2>
     </x-slot>
@@ -36,8 +36,8 @@
                     @csrf
 
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">انتخاب پنل</label>
-                        <select name="panel_id" required class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700">
+                        <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">انتخاب پنل</label>
+                        <select name="panel_id" required class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
                             <option value="">-- انتخاب کنید --</option>
                             @foreach ($panels as $panel)
                                 <option value="{{ $panel->id }}">{{ $panel->name }} ({{ $panel->panel_type }})</option>
@@ -46,25 +46,25 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">محدودیت ترافیک (GB)</label>
+                        <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">محدودیت ترافیک (GB)</label>
                         <input type="number" name="traffic_limit_gb" step="0.1" min="0.1" required 
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                             placeholder="مثال: 10">
                     </div>
 
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">مدت اعتبار (روز)</label>
+                        <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">مدت اعتبار (روز)</label>
                         <input type="number" name="expires_days" min="1" required 
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                             placeholder="مثال: 30">
                     </div>
 
                     @if (count($marzneshin_services) > 0)
                         <div class="mb-4">
-                            <label class="block text-sm font-medium mb-2">سرویس‌های Marzneshin (اختیاری)</label>
+                            <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">سرویس‌های Marzneshin (اختیاری)</label>
                             <div class="space-y-2">
                                 @foreach ($marzneshin_services as $serviceId)
-                                    <label class="flex items-center">
+                                    <label class="flex items-center text-gray-900 dark:text-gray-100">
                                         <input type="checkbox" name="service_ids[]" value="{{ $serviceId }}" 
                                             class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 ml-2">
                                         <span>Service ID: {{ $serviceId }}</span>

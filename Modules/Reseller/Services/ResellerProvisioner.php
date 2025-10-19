@@ -206,7 +206,9 @@ class ResellerProvisioner
                         $nodeHostname
                     );
                     if ($service->login()) {
-                        return $service->updateUser($panelUserId, ['status' => 'disabled']);
+                        // For Marzneshin, use the dedicated disable endpoint
+                        $result = $service->disableUser($panelUserId);
+                        return $result;
                     }
                     break;
 
@@ -255,7 +257,9 @@ class ResellerProvisioner
                         $nodeHostname
                     );
                     if ($service->login()) {
-                        return $service->updateUser($panelUserId, ['status' => 'active']);
+                        // For Marzneshin, use the dedicated enable endpoint
+                        $result = $service->enableUser($panelUserId);
+                        return $result;
                     }
                     break;
 

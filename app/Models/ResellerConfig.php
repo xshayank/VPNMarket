@@ -21,6 +21,8 @@ class ResellerConfig extends Model
         'status',
         'panel_type',
         'panel_user_id',
+        'subscription_url',
+        'panel_id',
         'created_by',
         'disabled_at',
     ];
@@ -35,6 +37,11 @@ class ResellerConfig extends Model
     public function reseller(): BelongsTo
     {
         return $this->belongsTo(Reseller::class);
+    }
+
+    public function panel(): BelongsTo
+    {
+        return $this->belongsTo(Panel::class);
     }
 
     public function creator(): BelongsTo
