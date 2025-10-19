@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Services\CouponService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
+use App\Services\ProvisioningService;
 use App\Services\XUIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -145,136 +146,41 @@ class OrderController extends Controller
             DB::transaction(function () use ($order, $user, $plan, $price) {
                 $user->decrement('balance', $price);
 
-                $success = false;
-                $finalConfig = '';
                 $isRenewal = (bool) $order->renews_order_id;
 
-                // Get panel from plan
-                $panel = $plan->panel;
-                if (!$panel) {
-                    throw new \Exception('هیچ پنلی به این پلن مرتبط نیست. لطفاً از طریق پنل ادمین یک پنل را به این پلن اختصاص دهید.');
+                // Use ProvisioningService to handle provisioning or extension
+                $provisioningService = new ProvisioningService();
+                $result = $provisioningService->provisionOrExtend($user, $plan, $order, $isRenewal);
+
+                if (!$result['success']) {
+                    throw new \Exception($result['message'] ?? 'خطا در ارتباط با سرور برای فعال‌سازی سرویس.');
                 }
 
-                $panelType = $panel->panel_type;
-                $credentials = $panel->getCredentials();
+                // Update order status and payment method
+                $order->update([
+                    'status' => 'paid',
+                    'payment_method' => 'wallet',
+                ]);
 
-                $uniqueUsername = "user_{$user->id}_order_".($isRenewal ? $order->renews_order_id : $order->id);
-                $newExpiresAt = $isRenewal
-                    ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
-                    : now()->addDays($plan->duration_days);
-
-                if ($panelType === 'marzban') {
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-                    $marzbanService = new MarzbanService(
-                        $credentials['url'],
-                        $credentials['username'],
-                        $credentials['password'],
-                        $nodeHostname
-                    );
-                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
-
-                    $response = $isRenewal
-                        ? $marzbanService->updateUser($uniqueUsername, $userData)
-                        : $marzbanService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
-
-                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
-                        $finalConfig = $marzbanService->generateSubscriptionLink($response);
-                        $success = true;
-                    }
-                } elseif ($panelType === 'marzneshin') {
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-                    $marzneshinService = new MarzneshinService(
-                        $credentials['url'],
-                        $credentials['username'],
-                        $credentials['password'],
-                        $nodeHostname
-                    );
-                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
-
-                    // Add plan-specific service_ids if available
-                    if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
-                        $userData['service_ids'] = $plan->marzneshin_service_ids;
-                    }
-
-                    $response = $isRenewal
-                        ? $marzneshinService->updateUser($uniqueUsername, $userData)
-                        : $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
-
-                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
-                        $finalConfig = $marzneshinService->generateSubscriptionLink($response);
-                        $success = true;
-                    }
-                } elseif ($panelType === 'xui') {
-                    if ($isRenewal) {
-                        throw new \Exception('تمدید خودکار برای پنل سنایی هنوز پیاده‌سازی نشده است.');
-                    }
-                    $xuiService = new XUIService(
-                        $credentials['url'],
-                        $credentials['username'],
-                        $credentials['password']
-                    );
-                    
-                    $defaultInboundId = $credentials['extra']['default_inbound_id'] ?? null;
-                    $inbound = $defaultInboundId ? Inbound::find($defaultInboundId) : null;
-                    
-                    if (! $inbound || ! $inbound->inbound_data) {
-                        throw new \Exception('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.');
-                    }
-                    if (! $xuiService->login()) {
-                        throw new \Exception('خطا در لاگین به پنل X-UI.');
-                    }
-
-                    $inboundData = json_decode($inbound->inbound_data, true);
-                    $clientData = ['email' => $uniqueUsername, 'total' => $plan->volume_gb * 1073741824, 'expiryTime' => $newExpiresAt->timestamp * 1000];
-                    $response = $xuiService->addClient($inboundData['id'], $clientData);
-
-                    if ($response && isset($response['success']) && $response['success']) {
-                        $linkType = $credentials['extra']['link_type'] ?? 'single';
-                        if ($linkType === 'subscription') {
-                            $subId = $response['generated_subId'];
-                            $subBaseUrl = rtrim($credentials['extra']['subscription_url_base'] ?? '', '/');
-                            if ($subBaseUrl) {
-                                $finalConfig = $subBaseUrl.'/sub/'.$subId;
-                                $success = true;
-                            }
-                        } else {
-                            $uuid = $response['generated_uuid'];
-                            $streamSettings = json_decode($inboundData['streamSettings'], true);
-                            $parsedUrl = parse_url($credentials['url']);
-                            $serverIpOrDomain = ! empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
-                            $port = $inboundData['port'];
-                            $remark = $inboundData['remark'];
-                            $paramsArray = ['type' => $streamSettings['network'] ?? null, 'security' => $streamSettings['security'] ?? null, 'path' => $streamSettings['wsSettings']['path'] ?? ($streamSettings['grpcSettings']['serviceName'] ?? null), 'sni' => $streamSettings['tlsSettings']['serverName'] ?? null, 'host' => $streamSettings['wsSettings']['headers']['Host'] ?? null];
-                            $params = http_build_query(array_filter($paramsArray));
-                            $fullRemark = $uniqueUsername.'|'.$remark;
-                            $finalConfig = "vless://{$uuid}@{$serverIpOrDomain}:{$port}?{$params}#".urlencode($fullRemark);
-                            $success = true;
-                        }
-                    } else {
-                        throw new \Exception('خطا در ساخت کاربر در پنل سنایی: '.($response['msg'] ?? 'پاسخ نامعتبر'));
-                    }
-                }
-
-                if (! $success) {
-                    throw new \Exception('خطا در ارتباط با سرور برای فعال‌سازی سرویس.');
-                }
-
-                // آپدیت سفارش اصلی یا سفارش جدید
-                if ($isRenewal) {
-                    $originalOrder = Order::find($order->renews_order_id);
-                    $originalOrder->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
-                    $user->update(['show_renewal_notification' => true]);
-                } else {
-                    $order->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt]);
-                }
-
-                $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
-                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $price, 'type' => 'purchase', 'status' => 'completed', 'description' => ($isRenewal ? 'تمدید سرویس' : 'خرید سرویس')." {$plan->name} از کیف پول"]);
+                // Create transaction record
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'order_id' => $order->id,
+                    'amount' => $price,
+                    'type' => 'purchase',
+                    'status' => 'completed',
+                    'description' => ($isRenewal ? 'تمدید سرویس' : 'خرید سرویس') . " {$plan->name} از کیف پول"
+                ]);
 
                 // Increment promo code usage if applied
                 if ($order->promo_code_id) {
                     $couponService = new CouponService;
                     $couponService->incrementUsage($order->promoCode);
+                }
+
+                // Set renewal notification if this was a renewal
+                if ($isRenewal) {
+                    $user->update(['show_renewal_notification' => true]);
                 }
 
                 OrderPaid::dispatch($order);

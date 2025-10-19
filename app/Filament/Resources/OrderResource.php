@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
+use App\Services\ProvisioningService;
 use App\Services\XUIService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -118,161 +119,44 @@ class OrderResource extends Resource
                                 return;
                             }
 
-                            // Get panel from plan
-                            $panel = $plan->panel;
-                            if (!$panel) {
-                                Notification::make()->title('خطا')->body('هیچ پنلی به این پلن مرتبط نیست.')->danger()->send();
-                                return;
-                            }
-
-                            $panelType = $panel->panel_type;
-                            $credentials = $panel->getCredentials();
-                            $success = false;
-                            $finalConfig = '';
+                            // Use ProvisioningService for plan orders
                             $isRenewal = (bool) $order->renews_order_id;
+                            $provisioningService = new ProvisioningService();
+                            $result = $provisioningService->provisionOrExtend($user, $plan, $order, $isRenewal);
 
-                            $originalOrder = $isRenewal ? Order::find($order->renews_order_id) : null;
-                            if ($isRenewal && ! $originalOrder) {
-                                Notification::make()->title('خطا')->body('سفارش اصلی جهت تمدید یافت نشد.')->danger()->send();
-
-                                return;
-                            }
-                            $uniqueUsername = "user_{$user->id}_order_".($isRenewal ? $originalOrder->id : $order->id);
-                            $newExpiresAt = $isRenewal
-                                ? (new \DateTime($originalOrder->expires_at))->modify("+{$plan->duration_days} days")
-                                : now()->addDays($plan->duration_days);
-
-                            if ($panelType === 'marzban') {
-                                $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-                                $marzbanService = new MarzbanService(
-                                    $credentials['url'],
-                                    $credentials['username'],
-                                    $credentials['password'],
-                                    $nodeHostname
-                                );
-                                $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
-                                $response = $isRenewal ? $marzbanService->updateUser($uniqueUsername, $userData) : $marzbanService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
-
-                                if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
-                                    $finalConfig = $marzbanService->generateSubscriptionLink($response);
-                                    $success = true;
-                                } else {
-                                    Notification::make()->title('خطا در ارتباط با مرزبان')->body($response['detail'] ?? 'پاسخ نامعتبر.')->danger()->send();
-
-                                    return;
-                                }
-                            } elseif ($panelType === 'marzneshin') {
-                                $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-                                $marzneshinService = new MarzneshinService(
-                                    $credentials['url'],
-                                    $credentials['username'],
-                                    $credentials['password'],
-                                    $nodeHostname
-                                );
-                                $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
-
-                                // Add plan-specific service_ids if available
-                                if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
-                                    $userData['service_ids'] = $plan->marzneshin_service_ids;
-                                }
-
-                                $response = $isRenewal ? $marzneshinService->updateUser($uniqueUsername, $userData) : $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
-
-                                if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
-                                    $finalConfig = $marzneshinService->generateSubscriptionLink($response);
-                                    $success = true;
-                                } else {
-                                    Notification::make()->title('خطا در ارتباط با مرزنشین')->body($response['detail'] ?? 'پاسخ نامعتبر.')->danger()->send();
-
-                                    return;
-                                }
-                            } elseif ($panelType === 'xui') {
-                                if ($isRenewal) {
-                                    Notification::make()->title('خطا')->body('تمدید خودکار برای پنل سنایی هنوز پیاده‌سازی نشده است.')->danger()->send();
-
-                                    return;
-                                }
-                                $xuiService = new XUIService(
-                                    $credentials['url'],
-                                    $credentials['username'],
-                                    $credentials['password']
-                                );
-                                
-                                $defaultInboundId = $credentials['extra']['default_inbound_id'] ?? null;
-                                $inbound = $defaultInboundId ? Inbound::find($defaultInboundId) : null;
-                                
-                                if (! $inbound || ! $inbound->inbound_data) {
-                                    Notification::make()->title('خطا')->body('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.')->danger()->send();
-
-                                    return;
-                                }
-                                if (! $xuiService->login()) {
-                                    Notification::make()->title('خطا')->body('خطا در لاگین به پنل X-UI.')->danger()->send();
-
-                                    return;
-                                }
-
-                                $inboundData = json_decode($inbound->inbound_data, true);
-                                $clientData = ['email' => $uniqueUsername, 'total' => $plan->volume_gb * 1073741824, 'expiryTime' => $newExpiresAt->timestamp * 1000];
-                                $response = $xuiService->addClient($inboundData['id'], $clientData);
-
-                                if ($response && isset($response['success']) && $response['success']) {
-                                    $linkType = $credentials['extra']['link_type'] ?? 'single';
-                                    if ($linkType === 'subscription') {
-                                        $subId = $response['generated_subId'];
-                                        $subBaseUrl = rtrim($credentials['extra']['subscription_url_base'] ?? '', '/');
-                                        if ($subBaseUrl && $subId) {
-                                            $finalConfig = $subBaseUrl.'/sub/'.$subId;
-                                            $success = true;
-                                        }
-                                    } else {
-                                        $uuid = $response['generated_uuid'];
-                                        $streamSettings = json_decode($inboundData['streamSettings'], true);
-                                        $parsedUrl = parse_url($credentials['url']);
-                                        $serverIpOrDomain = ! empty($inboundData['listen']) ? $inboundData['listen'] : $parsedUrl['host'];
-                                        $port = $inboundData['port'];
-                                        $remark = $inboundData['remark'];
-                                        $paramsArray = ['type' => $streamSettings['network'] ?? null, 'security' => $streamSettings['security'] ?? null, 'path' => $streamSettings['wsSettings']['path'] ?? ($streamSettings['grpcSettings']['serviceName'] ?? null), 'sni' => $streamSettings['tlsSettings']['serverName'] ?? null, 'host' => $streamSettings['wsSettings']['headers']['Host'] ?? null];
-                                        $params = http_build_query(array_filter($paramsArray));
-                                        $fullRemark = $uniqueUsername.'|'.$remark;
-                                        $finalConfig = "vless://{$uuid}@{$serverIpOrDomain}:{$port}?{$params}#".urlencode($fullRemark);
-                                        $success = true;
-                                    }
-                                } else {
-                                    Notification::make()->title('خطا در ساخت کاربر در پنل سنایی')->body($response['msg'] ?? 'پاسخ نامعتبر')->danger()->send();
-
-                                    return;
-                                }
-                            } else {
-                                Notification::make()->title('خطا')->body('نوع پنل نامشخص است.')->danger()->send();
-
+                            if (!$result['success']) {
+                                Notification::make()
+                                    ->title('خطا در فعال‌سازی سرویس')
+                                    ->body($result['message'] ?? 'خطای نامشخص')
+                                    ->danger()
+                                    ->send();
                                 return;
                             }
 
-                            if ($success) {
-                                if ($isRenewal) {
-                                    $originalOrder->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
-                                    $user->update(['show_renewal_notification' => true]);
-                                } else {
-                                    $order->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt]);
-                                }
+                            $order->update(['status' => 'paid']);
+                            $description = ($isRenewal ? 'تمدید سرویس' : 'خرید سرویس') . " {$plan->name}";
+                            Transaction::create([
+                                'user_id' => $user->id,
+                                'order_id' => $order->id,
+                                'amount' => $plan->price,
+                                'type' => 'purchase',
+                                'status' => 'completed',
+                                'description' => $description
+                            ]);
+                            
+                            OrderPaid::dispatch($order);
+                            Notification::make()->title('عملیات با موفقیت انجام شد.')->success()->send();
 
-                                $order->update(['status' => 'paid']);
-                                $description = ($isRenewal ? 'تمدید سرویس' : 'خرید سرویس')." {$plan->name}";
-                                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $plan->price, 'type' => 'purchase', 'status' => 'completed', 'description' => $description]);
-                                OrderPaid::dispatch($order);
-                                Notification::make()->title('عملیات با موفقیت انجام شد.')->success()->send();
-
-                                if ($user->telegram_chat_id) {
-                                    try {
-                                        $telegramMessage = $isRenewal
-                                            ? "✅ سرویس شما (*{$plan->name}*) با موفقیت تمدید شد.\n\n❗️*نکته مهم:* لینک اشتراک شما تغییر کرده است. لطفاً لینک جدید زیر را کپی و در نرم‌افزار خود آپدیت کنید:\n\n`".$finalConfig.'`'
-                                            : "✅ سرویس شما (*{$plan->name}*) با موفقیت فعال شد.\n\nاطلاعات کانفیگ شما:\n`".$finalConfig."`\n\nمی‌توانید لینک بالا را کپی کرده و در نرم‌افزار خود import کنید.";
-                                        Telegram::setAccessToken($settings->get('telegram_bot_token'));
-                                        Telegram::sendMessage(['chat_id' => $user->telegram_chat_id, 'text' => $telegramMessage, 'parse_mode' => 'Markdown']);
-                                    } catch (\Exception $e) {
-                                        Log::error('Failed to send Telegram notification: '.$e->getMessage());
-                                    }
+                            if ($user->telegram_chat_id) {
+                                try {
+                                    $finalConfig = $result['config'] ?? $order->fresh()->config_details;
+                                    $telegramMessage = $isRenewal
+                                        ? "✅ سرویس شما (*{$plan->name}*) با موفقیت تمدید شد.\n\n❗️*نکته مهم:* لینک اشتراک شما تغییر کرده است. لطفاً لینک جدید زیر را کپی و در نرم‌افزار خود آپدیت کنید:\n\n`".$finalConfig.'`'
+                                        : "✅ سرویس شما (*{$plan->name}*) با موفقیت فعال شد.\n\nاطلاعات کانفیگ شما:\n`".$finalConfig."`\n\nمی‌توانید لینک بالا را کپی کرده و در نرم‌افزار خود import کنید.";
+                                    Telegram::setAccessToken($settings->get('telegram_bot_token'));
+                                    Telegram::sendMessage(['chat_id' => $user->telegram_chat_id, 'text' => $telegramMessage, 'parse_mode' => 'Markdown']);
+                                } catch (\Exception $e) {
+                                    Log::error('Failed to send Telegram notification: '.$e->getMessage());
                                 }
                             }
                         });
