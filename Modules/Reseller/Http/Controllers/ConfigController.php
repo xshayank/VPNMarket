@@ -10,6 +10,7 @@ use App\Models\ResellerConfigEvent;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Modules\Reseller\Services\ResellerProvisioner;
 
@@ -140,6 +141,7 @@ class ConfigController extends Controller
                 'expires_at' => $expiresAt,
                 'status' => 'active',
                 'panel_type' => $panel->panel_type,
+                'panel_id' => $panel->id,
                 'created_by' => $request->user()->id,
             ]);
 
@@ -159,7 +161,10 @@ class ConfigController extends Controller
             ]);
 
             if ($result) {
-                $config->update(['panel_user_id' => $result['panel_user_id']]);
+                $config->update([
+                    'panel_user_id' => $result['panel_user_id'],
+                    'subscription_url' => $result['subscription_url'] ?? null,
+                ]);
 
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
@@ -190,22 +195,42 @@ class ConfigController extends Controller
             return back()->with('error', 'Config is not active.');
         }
 
-        $panel = Panel::where('panel_type', $config->panel_type)->first();
-        if ($panel) {
-            $provisioner = new ResellerProvisioner;
-            $provisioner->disableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
-        }
-
+        // Update local state first
         $config->update([
             'status' => 'disabled',
             'disabled_at' => now(),
         ]);
 
+        // Try to disable on remote panel
+        $remoteFailed = false;
+        if ($config->panel_id) {
+            try {
+                $panel = Panel::findOrFail($config->panel_id);
+                $provisioner = new ResellerProvisioner;
+                $success = $provisioner->disableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
+                
+                if (!$success) {
+                    $remoteFailed = true;
+                    Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id}");
+                }
+            } catch (\Exception $e) {
+                $remoteFailed = true;
+                Log::error("Exception disabling config {$config->id} on panel: " . $e->getMessage());
+            }
+        }
+
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'manually_disabled',
-            'meta' => ['user_id' => $request->user()->id],
+            'meta' => [
+                'user_id' => $request->user()->id,
+                'remote_failed' => $remoteFailed,
+            ],
         ]);
+
+        if ($remoteFailed) {
+            return back()->with('warning', 'Config disabled locally, but remote panel update failed.');
+        }
 
         return back()->with('success', 'Config disabled successfully.');
     }
@@ -227,12 +252,25 @@ class ConfigController extends Controller
             return back()->with('error', 'Cannot enable config: reseller quota exceeded or window expired.');
         }
 
-        $panel = Panel::where('panel_type', $config->panel_type)->first();
-        if ($panel) {
-            $provisioner = new ResellerProvisioner;
-            $provisioner->enableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
+        // Try to enable on remote panel first
+        $remoteFailed = false;
+        if ($config->panel_id) {
+            try {
+                $panel = Panel::findOrFail($config->panel_id);
+                $provisioner = new ResellerProvisioner;
+                $success = $provisioner->enableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
+                
+                if (!$success) {
+                    $remoteFailed = true;
+                    Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id}");
+                }
+            } catch (\Exception $e) {
+                $remoteFailed = true;
+                Log::error("Exception enabling config {$config->id} on panel: " . $e->getMessage());
+            }
         }
 
+        // Update local state
         $config->update([
             'status' => 'active',
             'disabled_at' => null,
@@ -241,8 +279,15 @@ class ConfigController extends Controller
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'manually_enabled',
-            'meta' => ['user_id' => $request->user()->id],
+            'meta' => [
+                'user_id' => $request->user()->id,
+                'remote_failed' => $remoteFailed,
+            ],
         ]);
+
+        if ($remoteFailed) {
+            return back()->with('warning', 'Config enabled locally, but remote panel update failed.');
+        }
 
         return back()->with('success', 'Config enabled successfully.');
     }
@@ -255,20 +300,40 @@ class ConfigController extends Controller
             abort(403);
         }
 
-        $panel = Panel::where('panel_type', $config->panel_type)->first();
-        if ($panel) {
-            $provisioner = new ResellerProvisioner;
-            $provisioner->deleteUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
+        // Try to delete on remote panel
+        $remoteFailed = false;
+        if ($config->panel_id) {
+            try {
+                $panel = Panel::findOrFail($config->panel_id);
+                $provisioner = new ResellerProvisioner;
+                $success = $provisioner->deleteUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
+                
+                if (!$success) {
+                    $remoteFailed = true;
+                    Log::warning("Failed to delete config {$config->id} on remote panel {$panel->id}");
+                }
+            } catch (\Exception $e) {
+                $remoteFailed = true;
+                Log::error("Exception deleting config {$config->id} on panel: " . $e->getMessage());
+            }
         }
 
+        // Update local state regardless of remote result
         $config->update(['status' => 'deleted']);
         $config->delete();
 
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'deleted',
-            'meta' => ['user_id' => $request->user()->id],
+            'meta' => [
+                'user_id' => $request->user()->id,
+                'remote_failed' => $remoteFailed,
+            ],
         ]);
+
+        if ($remoteFailed) {
+            return back()->with('warning', 'Config deleted locally, but remote panel deletion failed.');
+        }
 
         return back()->with('success', 'Config deleted successfully.');
     }
