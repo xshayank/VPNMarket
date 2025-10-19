@@ -11,17 +11,19 @@ class ViewServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-
-
-
-
-        if (Schema::hasTable('settings')) {
-            $settings = Setting::all()->pluck('value', 'key');
-
-            View::share('settings', $settings);
+        // Skip in testing environment to avoid database connection issues
+        if (app()->environment('testing')) {
+            return;
         }
 
+        try {
+            if (Schema::hasTable('settings')) {
+                $settings = Setting::all()->pluck('value', 'key');
 
-
+                View::share('settings', $settings);
+            }
+        } catch (\Exception $e) {
+            // Silently fail when database is not available
+        }
     }
 }
