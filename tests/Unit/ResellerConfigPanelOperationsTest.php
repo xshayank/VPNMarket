@@ -185,3 +185,81 @@ test('Marzneshin updateUser includes service_ids as array', function () {
             && count($body['service_ids']) === 3;
     });
 });
+
+test('Marzban provisioner stores clean absolute subscription URL', function () {
+    Http::fake([
+        '*/api/admin/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/user' => Http::response([
+            'username' => 'testuser',
+            'subscription_url' => '/sub/abc123',
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'traffic_total_bytes' => 10737418240, // 10GB
+        'traffic_used_bytes' => 0,
+        'window_starts_at' => now(),
+        'window_ends_at' => now()->addDays(30),
+    ]);
+
+    $panel = Panel::factory()->marzban()->create([
+        'extra' => ['node_hostname' => 'https://node.example.com'],
+    ]);
+    $plan = new \App\Models\Plan();
+    $plan->volume_gb = 1;
+    $plan->duration_days = 30;
+
+    $provisioner = new ResellerProvisioner();
+    $result = $provisioner->provisionUser($panel, $plan, 'test_user_1', [
+        'traffic_limit_bytes' => 1073741824,
+        'expires_at' => now()->addDays(30),
+    ]);
+
+    expect($result)->toBeArray()
+        ->and($result['subscription_url'])->toBe('https://node.example.com/sub/abc123')
+        ->and($result['subscription_url'])->not->toContain('لینک سابسکریپشن شما')
+        ->and($result['subscription_url'])->not->toContain("\n");
+});
+
+test('Marzneshin provisioner stores clean absolute subscription URL', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users' => Http::response([
+            'username' => 'testuser',
+            'subscription_url' => '/sub/xyz789',
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'traffic_total_bytes' => 10737418240, // 10GB
+        'traffic_used_bytes' => 0,
+        'window_starts_at' => now(),
+        'window_ends_at' => now()->addDays(30),
+    ]);
+
+    $panel = Panel::factory()->marzneshin()->create([
+        'extra' => ['node_hostname' => 'https://node.example.com'],
+    ]);
+    $plan = new \App\Models\Plan();
+    $plan->volume_gb = 1;
+    $plan->duration_days = 30;
+    $plan->marzneshin_service_ids = [1, 2];
+
+    $provisioner = new ResellerProvisioner();
+    $result = $provisioner->provisionUser($panel, $plan, 'test_user_2', [
+        'traffic_limit_bytes' => 1073741824,
+        'expires_at' => now()->addDays(30),
+        'service_ids' => [1, 2],
+    ]);
+
+    expect($result)->toBeArray()
+        ->and($result['subscription_url'])->toBe('https://node.example.com/sub/xyz789')
+        ->and($result['subscription_url'])->not->toContain('لینک سابسکریپشن شما')
+        ->and($result['subscription_url'])->not->toContain("\n");
+});

@@ -359,7 +359,79 @@ test('updateUser handles exceptions gracefully', function () {
     expect($result)->toBeNull();
 });
 
-test('generateSubscriptionLink formats link correctly', function () {
+test('buildAbsoluteSubscriptionUrl returns absolute URL for relative path', function () {
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => '/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://node.example.com/sub/abc123xyz');
+});
+
+test('buildAbsoluteSubscriptionUrl handles trailing slash on hostname', function () {
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com/'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => '/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://node.example.com/sub/abc123xyz');
+});
+
+test('buildAbsoluteSubscriptionUrl handles leading slash on path', function () {
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => 'sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://node.example.com/sub/abc123xyz');
+});
+
+test('buildAbsoluteSubscriptionUrl returns absolute URL as-is', function () {
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => 'https://panel.example.com/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://panel.example.com/sub/abc123xyz');
+});
+
+test('generateSubscriptionLink formats link correctly with Persian label', function () {
     $service = new MarzneshinService(
         'https://example.com',
         'admin',
@@ -377,6 +449,27 @@ test('generateSubscriptionLink formats link correctly', function () {
     expect($result)->toBeString()
         ->and($result)->toContain('https://node.example.com/sub/abc123xyz')
         ->and($result)->toContain('لینک سابسکریپشن شما');
+});
+
+test('generateSubscriptionLink uses buildAbsoluteSubscriptionUrl internally', function () {
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com/'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => '/sub/test',
+    ];
+
+    $absoluteUrl = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+    $labeledMessage = $service->generateSubscriptionLink($userApiResponse);
+
+    // The labeled message should contain the same absolute URL
+    expect($labeledMessage)->toContain($absoluteUrl)
+        ->and($absoluteUrl)->toBe('https://node.example.com/sub/test');
 });
 
 test('ISO 8601 conversion works correctly for various timestamps', function () {
