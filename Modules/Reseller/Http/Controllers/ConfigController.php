@@ -100,11 +100,12 @@ class ConfigController extends Controller
         }
 
         $panel = Panel::findOrFail($request->panel_id);
-        $trafficLimitBytes = $request->traffic_limit_gb * 1024 * 1024 * 1024;
-        $expiresAt = now()->addDays($request->expires_days);
+        $expiresDays = $request->integer('expires_days');
+        $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
+        $expiresAt = now()->addDays($expiresDays);
 
         // Validate expiry is within reseller window
-        if ($expiresAt > $reseller->window_ends_at) {
+        if ($reseller->window_ends_at && $expiresAt->gt($reseller->window_ends_at)) {
             return back()->with('error', 'Config expiry cannot exceed your reseller window end date.');
         }
 
@@ -126,7 +127,7 @@ class ConfigController extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt) {
+        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
             $provisioner = new ResellerProvisioner();
             
             // Create config record first
@@ -146,8 +147,8 @@ class ConfigController extends Controller
 
             // Provision on panel
             $plan = new \stdClass();
-            $plan->volume_gb = $request->traffic_limit_gb;
-            $plan->duration_days = $request->expires_days;
+            $plan->volume_gb = (float) $request->input('traffic_limit_gb');
+            $plan->duration_days = $expiresDays;
             $plan->marzneshin_service_ids = $request->service_ids ?? [];
 
             $result = $provisioner->provisionUser($panel, $plan, $username, [
