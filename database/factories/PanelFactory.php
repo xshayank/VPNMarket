@@ -39,7 +39,7 @@ class PanelFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'panel_type' => 'marzneshin',
             'extra' => [
-                'node_hostname' => fake()->url(),
+                'node_hostname' => 'https://node.example.com',
             ],
         ]);
     }
@@ -51,6 +51,9 @@ class PanelFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'panel_type' => 'marzban',
+            'extra' => [
+                'node_hostname' => 'https://node.example.com',
+            ],
         ]);
     }
 
