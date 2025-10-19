@@ -208,7 +208,7 @@ class ResellerProvisioner
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated disable endpoint
                         $result = $service->disableUser($panelUserId);
-                        return $result !== null;
+                        return $result;
                     }
                     break;
 
