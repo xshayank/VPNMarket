@@ -42,11 +42,6 @@ test('ResellerProvisioner accepts non-persisted Plan instance', function () {
     ]);
 
     $user = User::factory()->create();
-    $reseller = Reseller::factory()->create([
-        'user_id' => $user->id,
-        'type' => 'traffic',
-        'username_prefix' => 'test',
-    ]);
 
     $panel = Panel::factory()->marzneshin()->create();
 
