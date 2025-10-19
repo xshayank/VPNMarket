@@ -71,4 +71,14 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->hasMany(Ticket::class);
     }
+
+    public function reseller()
+    {
+        return $this->hasOne(Reseller::class);
+    }
+
+    public function isReseller(): bool
+    {
+        return $this->reseller()->exists();
+    }
 }

@@ -20,10 +20,16 @@ class Plan extends Model
         'duration_days',
         'panel_id',
         'marzneshin_service_ids',
+        'reseller_visible',
+        'reseller_price',
+        'reseller_discount_percent',
     ];
 
     protected $casts = [
         'marzneshin_service_ids' => 'array',
+        'reseller_visible' => 'boolean',
+        'reseller_price' => 'decimal:2',
+        'reseller_discount_percent' => 'decimal:2',
     ];
 
     public function orders()
@@ -34,5 +40,12 @@ class Plan extends Model
     public function panel()
     {
         return $this->belongsTo(Panel::class);
+    }
+
+    public function resellers()
+    {
+        return $this->belongsToMany(Reseller::class, 'reseller_allowed_plans')
+            ->withPivot('override_type', 'override_value', 'active')
+            ->withTimestamps();
     }
 }

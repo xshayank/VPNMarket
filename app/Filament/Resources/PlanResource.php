@@ -94,6 +94,33 @@ class PlanResource extends Resource
                     ->label('فعال')
                     ->default(true),
 
+                Forms\Components\Section::make('تنظیمات ریسلری')
+                    ->description('تنظیمات مربوط به نمایش و قیمت‌گذاری پلن برای ریسلرها')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('reseller_visible')
+                            ->label('قابل مشاهده برای ریسلرها')
+                            ->helperText('این پلن برای ریسلرها نمایش داده شود؟'),
+                        
+                        Forms\Components\TextInput::make('reseller_price')
+                            ->label('قیمت ریسلری ثابت')
+                            ->numeric()
+                            ->helperText('قیمت ثابت برای ریسلرها (اختیاری)'),
+                        
+                        Forms\Components\TextInput::make('reseller_discount_percent')
+                            ->label('درصد تخفیف ریسلری')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->helperText('درصد تخفیف نسبت به قیمت اصلی (اختیاری)'),
+                        
+                        Forms\Components\Placeholder::make('reseller_note')
+                            ->label('یادداشت')
+                            ->content('پلن فقط در صورتی برای ریسلر نمایش داده می‌شود که reseller_visible فعال بوده و یکی از موارد زیر برقرار باشد:
+                            1. قیمت یا درصد تخفیف در سطح پلن تنظیم شده باشد
+                            2. یا در سطح ریسلر خاص، override قیمت/درصد تنظیم شده باشد'),
+                    ]),
+
                 Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
                     ->description('سرویسهای مرزنشین را که این پلن باید به آنها دسترسی داشته باشد انتخاب کنید.')
                     ->collapsed()
