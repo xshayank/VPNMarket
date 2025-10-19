@@ -162,6 +162,8 @@ class OrderController extends Controller
                 $newExpiresAt = $isRenewal
                     ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
                     : now()->addDays($plan->duration_days);
+                
+                $trafficLimitBytes = $plan->volume_gb * 1073741824;
 
                 if ($panelType === 'marzban') {
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
@@ -171,7 +173,7 @@ class OrderController extends Controller
                         $credentials['password'],
                         $nodeHostname
                     );
-                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
+                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $trafficLimitBytes];
 
                     $response = $isRenewal
                         ? $marzbanService->updateUser($uniqueUsername, $userData)
@@ -189,7 +191,7 @@ class OrderController extends Controller
                         $credentials['password'],
                         $nodeHostname
                     );
-                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
+                    $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $trafficLimitBytes];
 
                     // Add plan-specific service_ids if available
                     if ($plan->marzneshin_service_ids && is_array($plan->marzneshin_service_ids) && count($plan->marzneshin_service_ids) > 0) {
@@ -225,7 +227,7 @@ class OrderController extends Controller
                     }
 
                     $inboundData = json_decode($inbound->inbound_data, true);
-                    $clientData = ['email' => $uniqueUsername, 'total' => $plan->volume_gb * 1073741824, 'expiryTime' => $newExpiresAt->timestamp * 1000];
+                    $clientData = ['email' => $uniqueUsername, 'total' => $trafficLimitBytes, 'expiryTime' => $newExpiresAt->timestamp * 1000];
                     $response = $xuiService->addClient($inboundData['id'], $clientData);
 
                     if ($response && isset($response['success']) && $response['success']) {
@@ -262,10 +264,22 @@ class OrderController extends Controller
                 // آپدیت سفارش اصلی یا سفارش جدید
                 if ($isRenewal) {
                     $originalOrder = Order::find($order->renews_order_id);
-                    $originalOrder->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt->format('Y-m-d H:i:s')]);
+                    $originalOrder->update([
+                        'config_details' => $finalConfig, 
+                        'expires_at' => $newExpiresAt->format('Y-m-d H:i:s'),
+                        'traffic_limit_bytes' => $trafficLimitBytes,
+                        'usage_bytes' => 0,
+                        'panel_user_id' => $uniqueUsername,
+                    ]);
                     $user->update(['show_renewal_notification' => true]);
                 } else {
-                    $order->update(['config_details' => $finalConfig, 'expires_at' => $newExpiresAt]);
+                    $order->update([
+                        'config_details' => $finalConfig, 
+                        'expires_at' => $newExpiresAt,
+                        'traffic_limit_bytes' => $trafficLimitBytes,
+                        'usage_bytes' => 0,
+                        'panel_user_id' => $uniqueUsername,
+                    ]);
                 }
 
                 $order->update(['status' => 'paid', 'payment_method' => 'wallet']);
