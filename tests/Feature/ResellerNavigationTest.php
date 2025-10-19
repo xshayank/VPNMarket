@@ -45,7 +45,7 @@ test('normal user does not see reseller navigation', function () {
     // The reseller nav should not be present - checking for specific reseller nav elements
     // We can't easily check for absence of entire navigation, but we can verify
     // the page renders successfully without errors
-    $response->assertDontSee('route(\'reseller.dashboard\')', false);
+    $response->assertDontSee('داشبورد', false);
 });
 
 test('guest user does not see reseller navigation', function () {
