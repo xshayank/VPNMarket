@@ -19,13 +19,13 @@ class ResellerProvisioner
     public function generateUsername(Reseller $reseller, string $type, int $id, ?int $index = null): string
     {
         $prefix = $reseller->username_prefix ?? Setting::where('key', 'reseller.username_prefix')->value('value') ?? 'resell';
-        
+
         if ($type === 'order') {
             return "{$prefix}_{$reseller->id}_order_{$id}_{$index}";
         } elseif ($type === 'config') {
             return "{$prefix}_{$reseller->id}_cfg_{$id}";
         }
-        
+
         return "{$prefix}_{$reseller->id}_{$type}_{$id}";
     }
 
@@ -36,23 +36,25 @@ class ResellerProvisioner
     {
         try {
             $credentials = $panel->getCredentials();
-            
+
             switch ($panel->panel_type) {
                 case 'marzban':
                     return $this->provisionMarzban($credentials, $plan, $username, $options);
-                    
+
                 case 'marzneshin':
                     return $this->provisionMarzneshin($credentials, $plan, $username, $options);
-                    
+
                 case 'xui':
                     return $this->provisionXUI($credentials, $plan, $username, $options);
-                    
+
                 default:
                     Log::error("Unknown panel type: {$panel->panel_type}");
+
                     return null;
             }
         } catch (\Exception $e) {
-            Log::error("Failed to provision user on panel {$panel->id}: " . $e->getMessage());
+            Log::error("Failed to provision user on panel {$panel->id}: ".$e->getMessage());
+
             return null;
         }
     }
@@ -68,7 +70,7 @@ class ResellerProvisioner
             $credentials['password']
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
@@ -83,6 +85,7 @@ class ResellerProvisioner
 
         if ($result) {
             $subscriptionUrl = $service->generateSubscriptionLink($username);
+
             return [
                 'username' => $username,
                 'subscription_url' => $subscriptionUrl,
@@ -100,7 +103,7 @@ class ResellerProvisioner
     protected function provisionMarzneshin(array $credentials, Plan $plan, string $username, array $options): ?array
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
-        
+
         $service = new MarzneshinService(
             $credentials['url'],
             $credentials['username'],
@@ -108,7 +111,7 @@ class ResellerProvisioner
             $nodeHostname
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
@@ -119,15 +122,16 @@ class ResellerProvisioner
         // Prepare user data array for MarzneshinService::createUser()
         $userData = [
             'username' => $username,
-            'expire_date' => $expiresAt->getTimestamp(),
+            'expire' => $expiresAt->getTimestamp(),
             'data_limit' => $trafficLimit,
-            'service_ids' => $serviceIds,
+            'service_ids' => (array) $serviceIds,
         ];
 
         $result = $service->createUser($userData);
 
         if ($result) {
             $subscriptionUrl = $service->generateSubscriptionLink($result);
+
             return [
                 'username' => $username,
                 'subscription_url' => $subscriptionUrl,
@@ -150,7 +154,7 @@ class ResellerProvisioner
             $credentials['password']
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
@@ -192,7 +196,7 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['status' => 'disabled']);
                     }
                     break;
-                    
+
                 case 'marzneshin':
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzneshinService(
@@ -205,7 +209,7 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['status' => 'disabled']);
                     }
                     break;
-                    
+
                 case 'xui':
                     $service = new XUIService(
                         $credentials['url'],
@@ -218,7 +222,7 @@ class ResellerProvisioner
                     break;
             }
         } catch (\Exception $e) {
-            Log::error("Failed to disable user {$panelUserId}: " . $e->getMessage());
+            Log::error("Failed to disable user {$panelUserId}: ".$e->getMessage());
         }
 
         return false;
@@ -241,7 +245,7 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['status' => 'active']);
                     }
                     break;
-                    
+
                 case 'marzneshin':
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
                     $service = new MarzneshinService(
@@ -254,7 +258,7 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['status' => 'active']);
                     }
                     break;
-                    
+
                 case 'xui':
                     $service = new XUIService(
                         $credentials['url'],
@@ -267,7 +271,7 @@ class ResellerProvisioner
                     break;
             }
         } catch (\Exception $e) {
-            Log::error("Failed to enable user {$panelUserId}: " . $e->getMessage());
+            Log::error("Failed to enable user {$panelUserId}: ".$e->getMessage());
         }
 
         return false;
@@ -290,7 +294,7 @@ class ResellerProvisioner
                         return $service->deleteUser($panelUserId);
                     }
                     break;
-                    
+
                 case 'marzneshin':
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
                     $service = new MarzneshinService(
@@ -303,7 +307,7 @@ class ResellerProvisioner
                         return $service->deleteUser($panelUserId);
                     }
                     break;
-                    
+
                 case 'xui':
                     $service = new XUIService(
                         $credentials['url'],
@@ -316,7 +320,7 @@ class ResellerProvisioner
                     break;
             }
         } catch (\Exception $e) {
-            Log::error("Failed to delete user {$panelUserId}: " . $e->getMessage());
+            Log::error("Failed to delete user {$panelUserId}: ".$e->getMessage());
         }
 
         return false;
