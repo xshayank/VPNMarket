@@ -9,6 +9,15 @@ use Modules\Ticketing\Models\Ticket;
 
 class TicketController extends Controller
 {
+    public function index()
+    {
+        $tickets = Ticket::where('user_id', Auth::id())
+            ->latest('updated_at')
+            ->paginate(10);
+
+        return view('ticketing::index', compact('tickets'));
+    }
+
     public function create()
     {
         return view('ticketing::tickets.create');

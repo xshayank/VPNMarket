@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-100 leading-tight">
-                {{ __('تیکت‌های پشتیبانی') }}
+                {{ __('تیکت‌های ریسلر') }}
             </h2>
         </div>
     </x-slot>
@@ -10,17 +10,26 @@
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             
-            @if (session('status'))
+            <x-reseller-back-button :fallbackRoute="route('reseller.dashboard')" label="بازگشت به داشبورد ریسلر" />
+            
+            @if (session('success'))
                 <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative text-right" role="alert">
                     <strong class="font-bold">موفقیت!</strong>
-                    <span class="block sm:inline">{{ session('status') }}</span>
+                    <span class="block sm:inline">{{ session('success') }}</span>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative text-right" role="alert">
+                    <strong class="font-bold">خطا!</strong>
+                    <span class="block sm:inline">{{ session('error') }}</span>
                 </div>
             @endif
 
             <div class="p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">تیکت‌های پشتیبانی</h3>
-                    <a href="{{ route('tickets.create') }}" 
+                    <a href="{{ route('reseller.tickets.create') }}" 
                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
                         تیکت جدید
                     </a>
@@ -42,7 +51,7 @@
                                 @foreach ($tickets as $ticket)
                                     <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                         <td class="py-4 text-gray-900 dark:text-gray-100">
-                                            <a href="{{ route('tickets.show', $ticket->id) }}" 
+                                            <a href="{{ route('reseller.tickets.show', $ticket->id) }}" 
                                                class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                                                 {{ $ticket->subject }}
                                             </a>
@@ -71,7 +80,7 @@
                                             {{ $ticket->updated_at->diffForHumans() }}
                                         </td>
                                         <td class="py-4">
-                                            <a href="{{ route('tickets.show', $ticket->id) }}" 
+                                            <a href="{{ route('reseller.tickets.show', $ticket->id) }}" 
                                                class="text-blue-600 dark:text-blue-400 hover:underline">
                                                 مشاهده
                                             </a>
@@ -94,7 +103,7 @@
                         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">هیچ تیکتی وجود ندارد</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">برای شروع یک تیکت جدید ایجاد کنید.</p>
                         <div class="mt-6">
-                            <a href="{{ route('tickets.create') }}" 
+                            <a href="{{ route('reseller.tickets.create') }}" 
                                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
                                 <svg class="ml-2 -mr-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -108,4 +117,3 @@
         </div>
     </div>
 </x-app-layout>
-
