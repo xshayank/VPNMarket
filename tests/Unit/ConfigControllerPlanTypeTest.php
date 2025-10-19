@@ -96,10 +96,6 @@ test('ResellerProvisioner handles Plan with empty service_ids', function () {
     ]);
 
     $user = User::factory()->create();
-    $reseller = Reseller::factory()->create([
-        'user_id' => $user->id,
-        'type' => 'traffic',
-    ]);
 
     $panel = Panel::factory()->marzneshin()->create();
 
