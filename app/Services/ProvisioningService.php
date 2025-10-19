@@ -275,7 +275,8 @@ class ProvisioningService
                         'data_limit' => $trafficLimit,
                     ]);
                     
-                    return ['success' => $result !== null, 'message' => null];
+                    // Marzneshin updateUser returns boolean
+                    return ['success' => $result, 'message' => null];
 
                 case 'xui':
                     // XUI doesn't support update well, return failure to trigger fallback
