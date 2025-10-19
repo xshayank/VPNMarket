@@ -104,11 +104,13 @@ class TicketResource extends Resource
                     ->icon(fn (string $state): string => match ($state) {
                         'web' => 'heroicon-o-globe-alt',
                         'telegram' => 'heroicon-o-paper-airplane',
+                        'reseller' => 'heroicon-o-building-storefront',
                         default => 'heroicon-o-question-mark-circle',
                     })
                     ->color(fn (string $state): string => match ($state) {
                         'web' => 'primary',
                         'telegram' => 'info',
+                        'reseller' => 'warning',
                         default => 'gray',
                     }),
 
@@ -135,7 +137,13 @@ class TicketResource extends Resource
             ])
             ->defaultSort('updated_at', 'desc')
             ->filters([
-                // می‌توانید فیلترها را اینجا اضافه کنید
+                Tables\Filters\SelectFilter::make('source')
+                    ->label('منبع')
+                    ->options([
+                        'web' => 'وب',
+                        'telegram' => 'تلگرام',
+                        'reseller' => 'ریسلر',
+                    ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

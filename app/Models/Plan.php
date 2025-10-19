@@ -20,10 +20,16 @@ class Plan extends Model
         'duration_days',
         'panel_id',
         'marzneshin_service_ids',
+        'reseller_visible',
+        'reseller_price',
+        'reseller_discount_percent',
     ];
 
     protected $casts = [
         'marzneshin_service_ids' => 'array',
+        'reseller_visible' => 'boolean',
+        'reseller_price' => 'float',
+        'reseller_discount_percent' => 'float',
     ];
 
     public function orders()

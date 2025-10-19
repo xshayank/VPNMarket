@@ -9,7 +9,9 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Modules\Reseller\Models\Reseller;
 
 class UserResource extends Resource
 {
@@ -64,6 +66,58 @@ class UserResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('convert-to-reseller')
+                    ->label('تبدیل به ریسلر')
+                    ->visible(fn (User $record): bool => $record->reseller === null)
+                    ->form([
+                        Forms\Components\Select::make('type')
+                            ->label('نوع ریسلر')
+                            ->options([
+                                'plan' => 'پلن',
+                                'traffic' => 'ترافیک',
+                            ])
+                            ->required()
+                            ->reactive(),
+                        Forms\Components\TextInput::make('username_prefix')
+                            ->label('پیشوند نام کاربری')
+                            ->maxLength(50),
+                        Forms\Components\TextInput::make('traffic_total_gb')
+                            ->label('سهمیه ترافیک (GB)')
+                            ->numeric()
+                            ->minValue(1)
+                            ->visible(fn (callable $get) => $get('type') === 'traffic'),
+                        Forms\Components\DateTimePicker::make('window_starts_at')
+                            ->label('شروع پنجره')
+                            ->seconds(false)
+                            ->visible(fn (callable $get) => $get('type') === 'traffic'),
+                        Forms\Components\DateTimePicker::make('window_ends_at')
+                            ->label('پایان پنجره')
+                            ->seconds(false)
+                            ->visible(fn (callable $get) => $get('type') === 'traffic'),
+                    ])
+                    ->action(function (User $record, array $data): void {
+                        DB::transaction(function () use ($record, $data): void {
+                            $payload = [
+                                'type' => $data['type'],
+                                'status' => 'active',
+                                'username_prefix' => $data['username_prefix'] ?? null,
+                            ];
+
+                            if ($data['type'] === 'traffic') {
+                                $payload['traffic_total_bytes'] = isset($data['traffic_total_gb'])
+                                    ? (int) $data['traffic_total_gb'] * 1024 * 1024 * 1024
+                                    : null;
+                                $payload['window_starts_at'] = $data['window_starts_at'] ?? null;
+                                $payload['window_ends_at'] = $data['window_ends_at'] ?? null;
+                            }
+
+                            Reseller::updateOrCreate(
+                                ['user_id' => $record->getKey()],
+                                $payload
+                            );
+                        });
+                    })
+                    ->successNotificationTitle('کاربر با موفقیت به ریسلر تبدیل شد'),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
