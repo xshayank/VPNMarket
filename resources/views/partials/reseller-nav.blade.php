@@ -17,7 +17,7 @@
                         <span>داشبورد</span>
                     </a>
 
-                    @if(Auth::user()->reseller->isPlanBased())
+                    @if(Auth::user()->reseller && method_exists(Auth::user()->reseller, 'isPlanBased') && Auth::user()->reseller->isPlanBased())
                         {{-- Plans (Plan-based resellers) --}}
                         <a href="{{ route('reseller.plans.index') }}" 
                            class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150
