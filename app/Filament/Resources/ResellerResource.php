@@ -83,15 +83,13 @@ class ResellerResource extends Resource
                             ->required()
                             ->helperText('پنل V2Ray که این ریسلر از آن استفاده می‌کند'),
 
-                        Forms\Components\TextInput::make('traffic_total_bytes')
+                        Forms\Components\TextInput::make('traffic_total_gb')
                             ->label('ترافیک کل (GB)')
                             ->numeric()
-                            ->helperText('مقدار را به گیگابایت وارد کنید')
-                            ->afterStateUpdated(function (Forms\Set $set, $state) {
-                                if ($state) {
-                                    $set('traffic_total_bytes', $state * 1024 * 1024 * 1024);
-                                }
-                            }),
+                            ->minValue(1)
+                            ->step(1)
+                            ->maxValue(10000000)
+                            ->helperText('مقدار را به گیگابایت وارد کنید (حداکثر: 10,000,000 GB)'),
 
                         Forms\Components\DateTimePicker::make('window_starts_at')
                             ->label('تاریخ شروع'),

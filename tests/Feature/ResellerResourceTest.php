@@ -87,3 +87,46 @@ test('traffic reseller with panel_id filters panels correctly', function () {
     // When reseller has panel_id, only that panel should be available
     expect($reseller->panel_id)->toBe($panel1->id);
 });
+
+test('reseller can store large traffic limits without overflow', function () {
+    $user = User::factory()->create();
+    
+    // Test with 1,000,000 GB (1 PB) - should not overflow
+    $largeTrafficGB = 1000000;
+    $largeTrafficBytes = $largeTrafficGB * 1024 * 1024 * 1024;
+    
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'status' => 'active',
+        'traffic_total_bytes' => $largeTrafficBytes,
+        'traffic_used_bytes' => 0,
+    ]);
+
+    expect($reseller->traffic_total_bytes)->toBe($largeTrafficBytes);
+    expect($reseller->traffic_used_bytes)->toBe(0);
+    
+    // Verify it can be retrieved correctly
+    $reseller->refresh();
+    expect($reseller->traffic_total_bytes)->toBe($largeTrafficBytes);
+});
+
+test('reseller traffic limits stay within unsigned bigint bounds', function () {
+    $user = User::factory()->create();
+    
+    // Maximum safe value for unsigned BIGINT: 18,446,744,073,709,551,615
+    // With our max of 10,000,000 GB: 10,000,000 * 1024^3 = 10,737,418,240,000,000,000
+    // This is well within the unsigned BIGINT limit
+    $maxAllowedGB = 10000000;
+    $maxAllowedBytes = $maxAllowedGB * 1024 * 1024 * 1024;
+    
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'status' => 'active',
+        'traffic_total_bytes' => $maxAllowedBytes,
+    ]);
+
+    expect($reseller->traffic_total_bytes)->toBe($maxAllowedBytes);
+    expect($reseller->traffic_total_bytes)->toBeLessThan(PHP_INT_MAX);
+});
