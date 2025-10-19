@@ -99,7 +99,7 @@ class ResellerProvisioner
      */
     protected function provisionMarzneshin(array $credentials, Plan $plan, string $username, array $options): ?array
     {
-        $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
         
         $service = new MarzneshinService(
             $credentials['url'],
