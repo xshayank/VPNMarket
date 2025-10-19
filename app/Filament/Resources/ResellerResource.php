@@ -16,9 +16,13 @@ class ResellerResource extends Resource
     protected static ?string $model = Reseller::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
+
     protected static ?string $navigationGroup = 'مدیریت کاربران';
+
     protected static ?string $navigationLabel = 'ریسلرها';
+
     protected static ?string $pluralModelLabel = 'ریسلرها';
+
     protected static ?string $modelLabel = 'ریسلر';
 
     public static function form(Form $form): Form
@@ -32,16 +36,15 @@ class ResellerResource extends Resource
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->getSearchResultsUsing(fn (string $search) => \App\Models\User::query()
-                        ->where('name', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
-                        ->orWhere('email', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%')
+                        ->where('name', 'like', '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%')
+                        ->orWhere('email', 'like', '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%')
                         ->limit(50)
                         ->get()
                         ->mapWithKeys(fn ($user) => [
-                            $user->id => ($user->name ?? 'بدون نام') . ' (' . $user->email . ')'
+                            $user->id => ($user->name ?? 'بدون نام').' ('.$user->email.')',
                         ])
                     )
-                    ->getOptionLabelFromRecordUsing(fn ($record) => 
-                        ($record->name ?? 'بدون نام') . ' (' . $record->email . ')'
+                    ->getOptionLabelFromRecordUsing(fn ($record) => ($record->name ?? 'بدون نام').' ('.$record->email.')'
                     )
                     ->preload()
                     ->loadingMessage('در حال بارگذاری کاربران...')
@@ -102,11 +105,12 @@ class ResellerResource extends Resource
                             ->collapsed()
                             ->visible(function (Forms\Get $get) {
                                 $panelId = $get('panel_id');
-                                if (!$panelId) {
+                                if (! $panelId) {
                                     return false;
                                 }
-                                
+
                                 $panel = \App\Models\Panel::find($panelId);
+
                                 return $panel && $panel->panel_type === 'marzneshin';
                             })
                             ->schema([
@@ -114,12 +118,12 @@ class ResellerResource extends Resource
                                     ->label('انتخاب سرویس‌ها')
                                     ->options(function (Forms\Get $get) {
                                         $panelId = $get('panel_id');
-                                        if (!$panelId) {
+                                        if (! $panelId) {
                                             return [];
                                         }
 
                                         $panel = \App\Models\Panel::find($panelId);
-                                        if (!$panel || $panel->panel_type !== 'marzneshin') {
+                                        if (! $panel || $panel->panel_type !== 'marzneshin') {
                                             return [];
                                         }
 
@@ -173,9 +177,10 @@ class ResellerResource extends Resource
                                             ->pluck('plan_id')
                                             ->filter()
                                             ->toArray();
+
                                         return in_array($value, $selectedPlans) && $value != $state;
                                     }),
-                                
+
                                 Forms\Components\Select::make('override_type')
                                     ->label('نوع تخفیف')
                                     ->options([
@@ -183,21 +188,20 @@ class ResellerResource extends Resource
                                         'percent' => 'درصد تخفیف',
                                     ])
                                     ->live(),
-                                
+
                                 Forms\Components\TextInput::make('override_value')
                                     ->label('مقدار')
                                     ->numeric()
                                     ->minValue(0)
                                     ->maxValue(fn (Forms\Get $get) => $get('override_type') === 'percent' ? 100 : null),
-                                
+
                                 Forms\Components\Toggle::make('active')
                                     ->label('فعال')
                                     ->default(true),
                             ])
                             ->columns(4)
                             ->collapsible()
-                            ->itemLabel(fn (array $state): ?string => 
-                                Plan::find($state['plan_id'] ?? null)?->name ?? 'پلن جدید'
+                            ->itemLabel(fn (array $state): ?string => Plan::find($state['plan_id'] ?? null)?->name ?? 'پلن جدید'
                             )
                             ->defaultItems(0)
                             ->addActionLabel('افزودن پلن'),
@@ -249,7 +253,7 @@ class ResellerResource extends Resource
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
                     ]),
-                
+
                 Tables\Filters\SelectFilter::make('status')
                     ->label('وضعیت')
                     ->options([
