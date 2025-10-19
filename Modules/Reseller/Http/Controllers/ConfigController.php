@@ -4,6 +4,7 @@ namespace Modules\Reseller\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Panel;
+use App\Models\Plan;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use App\Models\Setting;
@@ -18,7 +19,7 @@ class ConfigController extends Controller
     {
         $reseller = $request->user()->reseller;
 
-        if (!$reseller->isTrafficBased()) {
+        if (! $reseller->isTrafficBased()) {
             return redirect()->route('reseller.dashboard')
                 ->with('error', 'This feature is only available for traffic-based resellers.');
         }
@@ -35,7 +36,7 @@ class ConfigController extends Controller
     {
         $reseller = $request->user()->reseller;
 
-        if (!$reseller->isTrafficBased()) {
+        if (! $reseller->isTrafficBased()) {
             return redirect()->route('reseller.dashboard')
                 ->with('error', 'This feature is only available for traffic-based resellers.');
         }
@@ -71,7 +72,7 @@ class ConfigController extends Controller
     {
         $reseller = $request->user()->reseller;
 
-        if (!$reseller->isTrafficBased()) {
+        if (! $reseller->isTrafficBased()) {
             return back()->with('error', 'This feature is only available for traffic-based resellers.');
         }
 
@@ -119,17 +120,17 @@ class ConfigController extends Controller
         if ($panel->panel_type === 'marzneshin' && $reseller->marzneshin_allowed_service_ids) {
             $serviceIds = $request->service_ids ?? [];
             $allowedServiceIds = $reseller->marzneshin_allowed_service_ids;
-            
+
             foreach ($serviceIds as $serviceId) {
-                if (!in_array($serviceId, $allowedServiceIds)) {
+                if (! in_array($serviceId, $allowedServiceIds)) {
                     return back()->with('error', 'One or more selected services are not allowed for your account.');
                 }
             }
         }
 
         DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
-            $provisioner = new ResellerProvisioner();
-            
+            $provisioner = new ResellerProvisioner;
+
             // Create config record first
             $config = ResellerConfig::create([
                 'reseller_id' => $reseller->id,
@@ -145,11 +146,11 @@ class ConfigController extends Controller
             $username = $provisioner->generateUsername($reseller, 'config', $config->id);
             $config->update(['external_username' => $username]);
 
-            // Provision on panel
-            $plan = new \stdClass();
+            // Provision on panel - use a non-persisted Plan model instance
+            $plan = new Plan;
             $plan->volume_gb = (float) $request->input('traffic_limit_gb');
             $plan->duration_days = $expiresDays;
-            $plan->marzneshin_service_ids = $request->service_ids ?? [];
+            $plan->marzneshin_service_ids = $request->input('service_ids', []);
 
             $result = $provisioner->provisionUser($panel, $plan, $username, [
                 'traffic_limit_bytes' => $trafficLimitBytes,
@@ -159,7 +160,7 @@ class ConfigController extends Controller
 
             if ($result) {
                 $config->update(['panel_user_id' => $result['panel_user_id']]);
-                
+
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
                     'type' => 'created',
@@ -185,13 +186,13 @@ class ConfigController extends Controller
             abort(403);
         }
 
-        if (!$config->isActive()) {
+        if (! $config->isActive()) {
             return back()->with('error', 'Config is not active.');
         }
 
         $panel = Panel::where('panel_type', $config->panel_type)->first();
         if ($panel) {
-            $provisioner = new ResellerProvisioner();
+            $provisioner = new ResellerProvisioner;
             $provisioner->disableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
         }
 
@@ -217,18 +218,18 @@ class ConfigController extends Controller
             abort(403);
         }
 
-        if (!$config->isDisabled()) {
+        if (! $config->isDisabled()) {
             return back()->with('error', 'Config is not disabled.');
         }
 
         // Validate reseller can enable configs
-        if (!$reseller->hasTrafficRemaining() || !$reseller->isWindowValid()) {
+        if (! $reseller->hasTrafficRemaining() || ! $reseller->isWindowValid()) {
             return back()->with('error', 'Cannot enable config: reseller quota exceeded or window expired.');
         }
 
         $panel = Panel::where('panel_type', $config->panel_type)->first();
         if ($panel) {
-            $provisioner = new ResellerProvisioner();
+            $provisioner = new ResellerProvisioner;
             $provisioner->enableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
         }
 
@@ -256,7 +257,7 @@ class ConfigController extends Controller
 
         $panel = Panel::where('panel_type', $config->panel_type)->first();
         if ($panel) {
-            $provisioner = new ResellerProvisioner();
+            $provisioner = new ResellerProvisioner;
             $provisioner->deleteUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
         }
 
