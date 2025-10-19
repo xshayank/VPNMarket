@@ -164,12 +164,12 @@ class OrderController extends Controller
                     : now()->addDays($plan->duration_days);
 
                 if ($panelType === 'marzban') {
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $configUrl = $panel->config_url ?: ($credentials['extra']['node_hostname'] ?? '');
                     $marzbanService = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
                         $credentials['password'],
-                        $nodeHostname
+                        $configUrl
                     );
                     $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
 
@@ -182,12 +182,12 @@ class OrderController extends Controller
                         $success = true;
                     }
                 } elseif ($panelType === 'marzneshin') {
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $configUrl = $panel->config_url ?: ($credentials['extra']['node_hostname'] ?? '');
                     $marzneshinService = new MarzneshinService(
                         $credentials['url'],
                         $credentials['username'],
                         $credentials['password'],
-                        $nodeHostname
+                        $configUrl
                     );
                     $userData = ['expire' => $newExpiresAt->getTimestamp(), 'data_limit' => $plan->volume_gb * 1073741824];
 
@@ -232,9 +232,9 @@ class OrderController extends Controller
                         $linkType = $credentials['extra']['link_type'] ?? 'single';
                         if ($linkType === 'subscription') {
                             $subId = $response['generated_subId'];
-                            $subBaseUrl = rtrim($credentials['extra']['subscription_url_base'] ?? '', '/');
+                            $subBaseUrl = $panel->config_url ?: rtrim($credentials['extra']['subscription_url_base'] ?? '', '/');
                             if ($subBaseUrl) {
-                                $finalConfig = $subBaseUrl.'/sub/'.$subId;
+                                $finalConfig = rtrim($subBaseUrl, '/').'/sub/'.$subId;
                                 $success = true;
                             }
                         } else {

@@ -14,6 +14,7 @@ class Panel extends Model
     protected $fillable = [
         'name',
         'url',
+        'config_url',
         'panel_type',
         'username',
         'password',

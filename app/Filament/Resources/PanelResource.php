@@ -41,6 +41,11 @@ class PanelResource extends Resource
                     ->url()
                     ->maxLength(255)
                     ->helperText('مثال: https://panel.example.com'),
+                Forms\Components\TextInput::make('config_url')
+                    ->label('ایپی/دامین برای کانفیگ')
+                    ->url()
+                    ->maxLength(255)
+                    ->helperText('آدرس برای ساخت لینک های کانفیگ (مثال: https://sub.example.com)'),
                 Forms\Components\Select::make('panel_type')
                     ->label('نوع پنل')
                     ->options([
@@ -87,6 +92,11 @@ class PanelResource extends Resource
                     ->label('آدرس URL')
                     ->searchable()
                     ->limit(50),
+                Tables\Columns\TextColumn::make('config_url')
+                    ->label('دامین کانفیگ')
+                    ->searchable()
+                    ->limit(50)
+                    ->toggleable(isToggledHiddenByDefault: false),
                 Tables\Columns\TextColumn::make('panel_type')
                     ->label('نوع پنل')
                     ->badge()
