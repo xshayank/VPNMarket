@@ -73,7 +73,7 @@
                         <span>کیف پول</span>
                     </a>
 
-                    @if(Module::isEnabled('Ticketing'))
+                    @if(\Nwidart\Modules\Facades\Module::isEnabled('Ticketing'))
                         {{-- Tickets --}}
                         <a href="{{ route('tickets.index') }}" 
                            class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150
