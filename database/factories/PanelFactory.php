@@ -51,6 +51,9 @@ class PanelFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'panel_type' => 'marzban',
+            'extra' => [
+                'node_hostname' => fake()->url(),
+            ],
         ]);
     }
 

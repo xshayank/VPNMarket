@@ -64,10 +64,13 @@ class ResellerProvisioner
      */
     protected function provisionMarzban(array $credentials, Plan $plan, string $username, array $options): ?array
     {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+        
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
-            $credentials['password']
+            $credentials['password'],
+            $nodeHostname
         );
 
         if (! $service->login()) {
@@ -77,14 +80,14 @@ class ResellerProvisioner
         $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
         $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
 
-        $result = $service->createUser(
-            $username,
-            $trafficLimit,
-            $expiresAt->timestamp
-        );
+        $result = $service->createUser([
+            'username' => $username,
+            'expire' => $expiresAt->timestamp,
+            'data_limit' => $trafficLimit,
+        ]);
 
-        if ($result) {
-            $subscriptionUrl = $service->generateSubscriptionLink($username);
+        if ($result && isset($result['subscription_url'])) {
+            $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
 
             return [
                 'username' => $username,
@@ -129,8 +132,8 @@ class ResellerProvisioner
 
         $result = $service->createUser($userData);
 
-        if ($result) {
-            $subscriptionUrl = $service->generateSubscriptionLink($result);
+        if ($result && isset($result['subscription_url'])) {
+            $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
 
             return [
                 'username' => $username,
@@ -187,10 +190,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->updateUser($panelUserId, ['status' => 'disabled']);
@@ -238,10 +243,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->updateUser($panelUserId, ['status' => 'active']);
@@ -289,10 +296,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->deleteUser($panelUserId);
