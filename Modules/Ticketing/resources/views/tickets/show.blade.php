@@ -17,7 +17,9 @@
                                 {{ $reply->user->name }}
                                 <span class="text-xs text-gray-500 font-normal">({{ $reply->created_at->diffForHumans() }})</span>
                             </p>
-                            <p class="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $reply->message }}</p>
+                            @if($reply->message)
+                                <p class="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ $reply->message }}</p>
+                            @endif
 
                             {{-- ====================================================== --}}
                             {{-- ====> کد هوشمند برای نمایش فایل ضمیمه <==== --}}
@@ -52,7 +54,8 @@
                         <form action="{{ route('tickets.reply', $ticket->id) }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div>
-                                <textarea name="message" id="message" rows="5" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required></textarea>
+                                <x-input-label for="message" value="پیام (لازم است یا پیام یا فایل ضمیمه ارسال کنید)" />
+                                <textarea name="message" id="message" rows="5" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm"></textarea>
                                 <x-input-error :messages="$errors->get('message')" class="mt-2" />
                             </div>
                             <div class="mt-4">
