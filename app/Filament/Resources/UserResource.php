@@ -111,10 +111,10 @@ class UserResource extends Resource
                             'type' => $data['type'],
                             'status' => 'active',
                             'username_prefix' => $data['username_prefix'] ?? null,
-                            'traffic_total_bytes' => $data['type'] === 'traffic' ? ($data['traffic_total_gb'] * 1024 * 1024 * 1024) : null,
+                            'traffic_total_bytes' => $data['type'] === 'traffic' ? ((float) $data['traffic_total_gb'] * 1024 * 1024 * 1024) : null,
                             'traffic_used_bytes' => 0,
                             'window_starts_at' => $data['type'] === 'traffic' ? now() : null,
-                            'window_ends_at' => $data['type'] === 'traffic' ? now()->addDays($data['window_days']) : null,
+                            'window_ends_at' => $data['type'] === 'traffic' ? now()->addDays((int) $data['window_days']) : null,
                             'marzneshin_allowed_service_ids' => $data['marzneshin_allowed_service_ids'] ?? null,
                         ]);
 
