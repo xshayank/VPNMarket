@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-100 leading-tight">
             {{ __('پلن‌های قابل خرید') }}
         </h2>
     </x-slot>
@@ -35,12 +35,12 @@
                         $pricing = $planData['pricing'];
                     @endphp
                     <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg p-6 text-right">
-                        <h3 class="text-xl font-bold mb-2">{{ $plan->name }}</h3>
+                        <h3 class="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">{{ $plan->name }}</h3>
                         <div class="mb-4">
-                            <span class="text-3xl font-bold text-green-600">{{ number_format($pricing['price']) }}</span>
-                            <span class="text-sm text-gray-500">{{ $plan->currency }}</span>
+                            <span class="text-3xl font-bold text-green-600 dark:text-green-400">{{ number_format($pricing['price']) }}</span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">{{ $plan->currency }}</span>
                             @if ($pricing['original_price'] != $pricing['price'])
-                                <div class="text-sm text-gray-400 line-through">{{ number_format($pricing['original_price']) }} تومان</div>
+                                <div class="text-sm text-gray-400 dark:text-gray-500 line-through">{{ number_format($pricing['original_price']) }} تومان</div>
                             @endif
                         </div>
                         <div class="text-sm text-gray-600 dark:text-gray-300 mb-4">
@@ -51,16 +51,16 @@
                             @csrf
                             <input type="hidden" name="plan_id" value="{{ $plan->id }}">
                             <div class="mb-4">
-                                <label class="block text-sm font-medium mb-2">مقدار <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">مقدار <span class="text-red-500">*</span></label>
                                 <input type="number" name="quantity" min="1" max="{{ $max_quantity }}" value="1" required
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700">
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
                                 @error('quantity')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label class="block text-sm font-medium mb-2">نحوه دریافت</label>
-                                <select name="delivery_mode" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700">
+                                <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">نحوه دریافت</label>
+                                <select name="delivery_mode" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
                                     <option value="onscreen">نمایش در صفحه</option>
                                     <option value="download">دانلود فایل</option>
                                 </select>
