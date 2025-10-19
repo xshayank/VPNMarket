@@ -30,7 +30,7 @@ class TicketController extends Controller
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
             'priority' => 'required|in:low,medium,high',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,zip|max:5120',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,txt,log,zip|max:5120',
         ]);
 
         $ticketData = [
@@ -43,16 +43,19 @@ class TicketController extends Controller
 
         $ticket = Auth::user()->tickets()->create($ticketData);
 
-        // Only create a reply if there is an attachment
+        // Create initial reply with message and optional attachment
+        $replyData = [
+            'user_id' => Auth::id(),
+            'message' => $request->message,
+        ];
+        
         if ($request->hasFile('attachment')) {
-            $replyData = [
-                'user_id' => Auth::id(),
-                // Do not duplicate the message; only store the attachment
-                'message' => null,
-                'attachment_path' => $request->file('attachment')->store('ticket_attachments', 'public'),
-            ];
-            $ticket->replies()->create($replyData);
+            $path = $request->file('attachment')->store('ticket_attachments', 'public');
+            $replyData['attachment_path'] = $path;
         }
+        
+        $ticket->replies()->create($replyData);
+        
         return redirect()->route('reseller.tickets.show', $ticket->id)
             ->with('success', 'تیکت شما با موفقیت ارسال شد.');
     }
@@ -70,5 +73,45 @@ class TicketController extends Controller
         }
 
         return view('reseller::tickets.show', ['ticket' => $ticket]);
+    }
+
+    public function reply(Request $request, Ticket $ticket)
+    {
+        // Ensure user can only reply to their own tickets
+        if (Auth::id() !== $ticket->user_id) {
+            abort(403, 'شما اجازه دسترسی به این تیکت را ندارید.');
+        }
+
+        // Ensure ticket belongs to reseller source
+        if ($ticket->source !== 'reseller') {
+            abort(403, 'این تیکت متعلق به پنل ریسلر نیست.');
+        }
+
+        $request->validate([
+            'message' => 'nullable|string|required_without:attachment|max:10000',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,txt,log,zip|max:5120',
+        ]);
+
+        // Normalize message: trim and convert to empty string if attachment is present
+        $message = trim((string)($request->input('message') ?? ''));
+        if ($message === '' && !$request->hasFile('attachment')) {
+            // Should not happen due to validation, but safety check
+            return back()->withErrors(['message' => 'Either message or attachment is required.']);
+        }
+
+        $replyData = [
+            'user_id' => Auth::id(),
+            'message' => $message === '' ? '' : $message,
+        ];
+
+        if ($request->hasFile('attachment')) {
+            $path = $request->file('attachment')->store('ticket_attachments', 'public');
+            $replyData['attachment_path'] = $path;
+        }
+
+        $ticket->replies()->create($replyData);
+        $ticket->update(['status' => 'open']);
+
+        return back()->with('success', 'پاسخ شما با موفقیت ثبت شد.');
     }
 }

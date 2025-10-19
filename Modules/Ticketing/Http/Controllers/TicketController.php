@@ -32,7 +32,7 @@ class TicketController extends Controller
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
             'priority' => 'required|in:low,medium,high',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,zip|max:5120',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,txt,log,zip|max:5120',
         ]);
 
 
@@ -78,13 +78,20 @@ class TicketController extends Controller
         }
 
         $request->validate([
-            'message' => 'required|string',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,zip|max:5120',
+            'message' => 'nullable|string|required_without:attachment|max:10000',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf,txt,log,zip|max:5120',
         ]);
+
+        // Normalize message: trim and convert to empty string if attachment is present
+        $message = trim((string)($request->input('message') ?? ''));
+        if ($message === '' && !$request->hasFile('attachment')) {
+            // Should not happen due to validation, but safety check
+            return back()->withErrors(['message' => 'Either message or attachment is required.']);
+        }
 
         $replyData = [
             'user_id' => Auth::id(),
-            'message' => $request->message,
+            'message' => $message === '' ? '' : $message,
         ];
 
         if ($request->hasFile('attachment')) {
