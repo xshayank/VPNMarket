@@ -1,120 +1,98 @@
 <?php
 
-namespace Tests\Unit;
-
 use App\Models\Plan;
 use App\Models\Reseller;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Reseller\Services\ResellerPricingService;
-use Tests\TestCase;
 
-class ResellerPricingServiceTest extends TestCase
-{
-    use RefreshDatabase;
+test('it returns null for non visible plan', function () {
+    $pricingService = new ResellerPricingService();
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
+    $plan = Plan::factory()->create(['reseller_visible' => false]);
 
-    protected ResellerPricingService $pricingService;
+    $result = $pricingService->calculatePrice($reseller, $plan);
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->pricingService = new ResellerPricingService();
-    }
+    expect($result)->toBeNull();
+});
 
-    /** @test */
-    public function it_returns_null_for_non_visible_plan()
-    {
-        $user = User::factory()->create();
-        $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
-        $plan = Plan::factory()->create(['reseller_visible' => false]);
+test('it calculates price from plan level fixed price', function () {
+    $pricingService = new ResellerPricingService();
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
+    $plan = Plan::factory()->create([
+        'price' => 100,
+        'reseller_visible' => true,
+        'reseller_price' => 80,
+    ]);
 
-        $result = $this->pricingService->calculatePrice($reseller, $plan);
+    $result = $pricingService->calculatePrice($reseller, $plan);
 
-        $this->assertNull($result);
-    }
+    expect($result)->not->toBeNull()
+        ->and($result['price'])->toBe(80.0)
+        ->and($result['source'])->toBe('plan_price');
+});
 
-    /** @test */
-    public function it_calculates_price_from_plan_level_fixed_price()
-    {
-        $user = User::factory()->create();
-        $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
-        $plan = Plan::factory()->create([
-            'price' => 100,
-            'reseller_visible' => true,
-            'reseller_price' => 80,
-        ]);
+test('it calculates price from plan level discount percent', function () {
+    $pricingService = new ResellerPricingService();
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
+    $plan = Plan::factory()->create([
+        'price' => 100,
+        'reseller_visible' => true,
+        'reseller_discount_percent' => 20,
+    ]);
 
-        $result = $this->pricingService->calculatePrice($reseller, $plan);
+    $result = $pricingService->calculatePrice($reseller, $plan);
 
-        $this->assertNotNull($result);
-        $this->assertEquals(80, $result['price']);
-        $this->assertEquals('plan_price', $result['source']);
-    }
+    expect($result)->not->toBeNull()
+        ->and($result['price'])->toBe(80.0)
+        ->and($result['source'])->toBe('plan_percent');
+});
 
-    /** @test */
-    public function it_calculates_price_from_plan_level_discount_percent()
-    {
-        $user = User::factory()->create();
-        $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
-        $plan = Plan::factory()->create([
-            'price' => 100,
-            'reseller_visible' => true,
-            'reseller_discount_percent' => 20,
-        ]);
+test('it prioritizes override price over plan price', function () {
+    $pricingService = new ResellerPricingService();
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
+    $plan = Plan::factory()->create([
+        'price' => 100,
+        'reseller_visible' => true,
+        'reseller_price' => 80,
+    ]);
 
-        $result = $this->pricingService->calculatePrice($reseller, $plan);
+    $reseller->allowedPlans()->attach($plan->id, [
+        'override_type' => 'price',
+        'override_value' => 70,
+        'active' => true,
+    ]);
 
-        $this->assertNotNull($result);
-        $this->assertEquals(80, $result['price']);
-        $this->assertEquals('plan_percent', $result['source']);
-    }
+    $result = $pricingService->calculatePrice($reseller, $plan);
 
-    /** @test */
-    public function it_prioritizes_override_price_over_plan_price()
-    {
-        $user = User::factory()->create();
-        $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
-        $plan = Plan::factory()->create([
-            'price' => 100,
-            'reseller_visible' => true,
-            'reseller_price' => 80,
-        ]);
+    expect($result)->not->toBeNull()
+        ->and($result['price'])->toBe(70.0)
+        ->and($result['source'])->toBe('override_price');
+});
 
-        $reseller->allowedPlans()->attach($plan->id, [
-            'override_type' => 'price',
-            'override_value' => 70,
-            'active' => true,
-        ]);
+test('it prioritizes override percent over everything', function () {
+    $pricingService = new ResellerPricingService();
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
+    $plan = Plan::factory()->create([
+        'price' => 100,
+        'reseller_visible' => true,
+        'reseller_price' => 80,
+        'reseller_discount_percent' => 20,
+    ]);
 
-        $result = $this->pricingService->calculatePrice($reseller, $plan);
+    $reseller->allowedPlans()->attach($plan->id, [
+        'override_type' => 'percent',
+        'override_value' => 30,
+        'active' => true,
+    ]);
 
-        $this->assertNotNull($result);
-        $this->assertEquals(70, $result['price']);
-        $this->assertEquals('override_price', $result['source']);
-    }
+    $result = $pricingService->calculatePrice($reseller, $plan);
 
-    /** @test */
-    public function it_prioritizes_override_percent_over_everything()
-    {
-        $user = User::factory()->create();
-        $reseller = Reseller::factory()->create(['user_id' => $user->id, 'type' => 'plan']);
-        $plan = Plan::factory()->create([
-            'price' => 100,
-            'reseller_visible' => true,
-            'reseller_price' => 80,
-            'reseller_discount_percent' => 20,
-        ]);
-
-        $reseller->allowedPlans()->attach($plan->id, [
-            'override_type' => 'percent',
-            'override_value' => 30,
-            'active' => true,
-        ]);
-
-        $result = $this->pricingService->calculatePrice($reseller, $plan);
-
-        $this->assertNotNull($result);
-        $this->assertEquals(70, $result['price']);
-        $this->assertEquals('override_percent', $result['source']);
-    }
-}
+    expect($result)->not->toBeNull()
+        ->and($result['price'])->toBe(70.0)
+        ->and($result['source'])->toBe('override_percent');
+});
