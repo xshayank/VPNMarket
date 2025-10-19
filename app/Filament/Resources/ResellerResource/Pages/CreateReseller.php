@@ -12,8 +12,9 @@ class CreateReseller extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Convert traffic GB to bytes if type is traffic
-        if ($data['type'] === 'traffic' && isset($data['traffic_total_bytes'])) {
-            // Already converted in the form
+        if ($data['type'] === 'traffic' && isset($data['traffic_total_gb'])) {
+            $data['traffic_total_bytes'] = (int) ($data['traffic_total_gb'] * 1024 * 1024 * 1024);
+            unset($data['traffic_total_gb']);
         }
 
         return $data;
