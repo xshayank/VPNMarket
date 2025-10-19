@@ -5,6 +5,7 @@ use Modules\Reseller\Http\Controllers\DashboardController;
 use Modules\Reseller\Http\Controllers\PlanPurchaseController;
 use Modules\Reseller\Http\Controllers\ConfigController;
 use Modules\Reseller\Http\Controllers\SyncController;
+use Modules\Reseller\Http\Controllers\TicketController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,4 +38,10 @@ Route::prefix('reseller')
 
         // Manual sync
         Route::post('/sync', [SyncController::class, 'sync'])->name('sync');
+
+        // Tickets
+        Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+        Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
     });

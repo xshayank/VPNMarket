@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Ticketing\Http\Controllers;
+namespace Modules\Reseller\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -12,19 +12,17 @@ class TicketController extends Controller
     public function index()
     {
         $tickets = Ticket::where('user_id', Auth::id())
+            ->where('source', 'reseller')
             ->latest('updated_at')
             ->paginate(10);
 
-        return view('ticketing::index', compact('tickets'));
+        return view('reseller::tickets.index', compact('tickets'));
     }
 
     public function create()
     {
-        return view('ticketing::tickets.create');
-
+        return view('reseller::tickets.create');
     }
-
-
 
     public function store(Request $request)
     {
@@ -35,19 +33,16 @@ class TicketController extends Controller
             'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,zip|max:5120',
         ]);
 
-
-
-
         $ticketData = [
             'subject' => $request->subject,
             'message' => $request->message,
             'priority' => $request->priority,
             'status' => 'open',
+            'source' => 'reseller',
         ];
 
         $ticket = Auth::user()->tickets()->create($ticketData);
 
-
         $replyData = [
             'user_id' => Auth::id(),
             'message' => $request->message,
@@ -60,44 +55,22 @@ class TicketController extends Controller
 
         $ticket->replies()->create($replyData);
 
-        return redirect()->route('dashboard')->with('status', 'تیکت شما با موفقیت ارسال شد.');
+        return redirect()->route('reseller.tickets.show', $ticket->id)
+            ->with('success', 'تیکت شما با موفقیت ارسال شد.');
     }
 
     public function show(Ticket $ticket)
     {
+        // Ensure user can only view their own tickets
         if (Auth::id() !== $ticket->user_id) {
-            abort(403);
+            abort(403, 'شما اجازه دسترسی به این تیکت را ندارید.');
         }
-        return view('ticketing::tickets.show', ['ticket' => $ticket]);
+
+        // Ensure ticket belongs to reseller source
+        if ($ticket->source !== 'reseller') {
+            abort(403, 'این تیکت متعلق به پنل ریسلر نیست.');
+        }
+
+        return view('reseller::tickets.show', ['ticket' => $ticket]);
     }
-
-    public function reply(Request $request, Ticket $ticket)
-    {
-        if (Auth::id() !== $ticket->user_id) {
-            abort(403);
-        }
-
-        $request->validate([
-            'message' => 'required|string',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,zip|max:5120',
-        ]);
-
-        $replyData = [
-            'user_id' => Auth::id(),
-            'message' => $request->message,
-        ];
-
-        if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('ticket_attachments', 'public');
-            $replyData['attachment_path'] = $path;
-        }
-
-        $ticket->replies()->create($replyData);
-        $ticket->update(['status' => 'open']);
-
-        return back()->with('status', 'پاسخ شما با موفقیت ثبت شد.');
-    }
-
-
-
 }

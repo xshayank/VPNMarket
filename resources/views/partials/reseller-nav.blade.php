@@ -75,9 +75,9 @@
 
                     @if(\Nwidart\Modules\Facades\Module::isEnabled('Ticketing'))
                         {{-- Tickets --}}
-                        <a href="{{ route('tickets.index') }}" 
+                        <a href="{{ route('reseller.tickets.index') }}" 
                            class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150
-                                  {{ request()->routeIs('tickets.*') 
+                                  {{ request()->routeIs('reseller.tickets.*') 
                                       ? 'bg-gray-700 text-white' 
                                       : 'text-gray-100 hover:bg-gray-700 hover:text-white' }}"
                            title="تیکت‌ها">
