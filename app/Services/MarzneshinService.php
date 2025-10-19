@@ -131,19 +131,27 @@ class MarzneshinService
         }
     }
 
-    public function generateSubscriptionLink(array $userApiResponse): string
+    /**
+     * Build absolute subscription URL from API response
+     */
+    public function buildAbsoluteSubscriptionUrl(array $userApiResponse): string
     {
         $subscriptionUrl = $userApiResponse['subscription_url'];
 
         // If the subscription URL is already absolute, return as is
         if (preg_match('#^https?://#i', $subscriptionUrl)) {
-            return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$subscriptionUrl;
+            return $subscriptionUrl;
         }
 
         // Ensure exactly one slash between hostname and path
-        $link = rtrim($this->nodeHostname, '/').'/'.ltrim($subscriptionUrl, '/');
+        return rtrim($this->nodeHostname, '/').'/'.ltrim($subscriptionUrl, '/');
+    }
 
-        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$link;
+    public function generateSubscriptionLink(array $userApiResponse): string
+    {
+        $absoluteUrl = $this->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$absoluteUrl;
     }
 
     public function listServices(): array

@@ -96,10 +96,22 @@ class MarzbanService
     }
 
 
-    public function generateSubscriptionLink(array $userApiResponse): string
+    /**
+     * Build absolute subscription URL from API response
+     */
+    public function buildAbsoluteSubscriptionUrl(array $userApiResponse): string
     {
         $subscriptionUrl = $userApiResponse['subscription_url'];
+        
+        // The subscription_url from Marzban API is typically a path like "/sub/abc123"
+        // We need to prepend the node hostname to create an absolute URL
+        return rtrim($this->nodeHostname, '/') . $subscriptionUrl;
+    }
 
-        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $this->nodeHostname . $subscriptionUrl;
+    public function generateSubscriptionLink(array $userApiResponse): string
+    {
+        $absoluteUrl = $this->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $absoluteUrl;
     }
 }
