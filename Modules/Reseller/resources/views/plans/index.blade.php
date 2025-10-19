@@ -51,9 +51,12 @@
                             @csrf
                             <input type="hidden" name="plan_id" value="{{ $plan->id }}">
                             <div class="mb-4">
-                                <label class="block text-sm font-medium mb-2">تعداد</label>
-                                <input type="number" name="quantity" min="1" max="{{ $max_quantity }}" value="1" 
+                                <label class="block text-sm font-medium mb-2">مقدار <span class="text-red-500">*</span></label>
+                                <input type="number" name="quantity" min="1" max="{{ $max_quantity }}" value="1" required
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700">
+                                @error('quantity')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
                             </div>
                             <div class="mb-4">
                                 <label class="block text-sm font-medium mb-2">نحوه دریافت</label>

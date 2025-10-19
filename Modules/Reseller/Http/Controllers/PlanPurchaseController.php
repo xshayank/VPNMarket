@@ -53,6 +53,10 @@ class PlanPurchaseController extends Controller
             'plan_id' => 'required|exists:plans,id',
             'quantity' => "required|integer|min:1|max:{$maxQuantity}",
             'delivery_mode' => 'required|in:download,onscreen',
+        ], [
+            'quantity.required' => 'مقدار الزامی است.',
+            'quantity.integer' => 'مقدار باید یک عدد صحیح باشد.',
+            'quantity.min' => 'مقدار باید حداقل 1 باشد.',
         ]);
 
         if ($validator->fails()) {
