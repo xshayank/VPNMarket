@@ -13,14 +13,14 @@ Artisan::command('inspire', function () {
 
 // Schedule email reminders based on settings
 Schedule::call(function () {
-    $autoRemindEnabled = Setting::where('key', 'email.auto_remind_renewal_wallet')->first()?->value === 'true';
+    $autoRemindEnabled = Setting::get('email.auto_remind_renewal_wallet') === 'true';
     if ($autoRemindEnabled) {
         SendRenewalWalletRemindersJob::dispatch();
     }
 })->daily()->at('09:00');
 
 Schedule::call(function () {
-    $autoRemindEnabled = Setting::where('key', 'email.auto_remind_reseller_traffic_time')->first()?->value === 'true';
+    $autoRemindEnabled = Setting::get('email.auto_remind_reseller_traffic_time') === 'true';
     if ($autoRemindEnabled) {
         SendResellerTrafficTimeRemindersJob::dispatch();
     }
