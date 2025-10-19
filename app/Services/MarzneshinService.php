@@ -101,14 +101,17 @@ class MarzneshinService
         }
 
         try {
-            $apiData = [];
-            
+            // Always include username in the payload as required by Marzneshin API
+            $apiData = [
+                'username' => $username,
+            ];
+
             // Only add fields that are provided
             if (isset($userData['expire'])) {
                 $apiData['expire_strategy'] = 'fixed_date';
                 $apiData['expire_date'] = $this->convertTimestampToIso8601($userData['expire']);
             }
-            
+
             if (isset($userData['data_limit'])) {
                 $apiData['data_limit'] = $userData['data_limit'];
             }

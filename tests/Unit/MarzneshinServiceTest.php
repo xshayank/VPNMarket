@@ -269,14 +269,14 @@ test('updateUser sends correct API request', function () {
 
     $result = $service->updateUser('testuser', $userData);
 
-    expect($result)->toBeArray()
-        ->and($result)->toHaveKey('username');
+    expect($result)->toBeTrue();
 
     Http::assertSent(function ($request) {
         $body = $request->data();
 
         return $request->url() === 'https://example.com/api/users/testuser'
             && $request->method() === 'PUT'
+            && $body['username'] === 'testuser'
             && $body['expire_strategy'] === 'fixed_date'
             && isset($body['expire_date'])
             && $body['data_limit'] === 21474836480
@@ -304,17 +304,18 @@ test('updateUser works without service_ids', function () {
 
     $result = $service->updateUser('testuser', $userData);
 
-    expect($result)->toBeArray();
+    expect($result)->toBeTrue();
 
     Http::assertSent(function ($request) {
         $body = $request->data();
 
         return $request->url() === 'https://example.com/api/users/testuser'
+            && $body['username'] === 'testuser'
             && ! isset($body['service_ids']);
     });
 });
 
-test('updateUser returns null on authentication failure', function () {
+test('updateUser returns false on authentication failure', function () {
     Http::fake([
         '*/api/admins/token' => Http::response(['detail' => 'Invalid credentials'], 401),
     ]);
@@ -333,7 +334,7 @@ test('updateUser returns null on authentication failure', function () {
 
     $result = $service->updateUser('testuser', $userData);
 
-    expect($result)->toBeNull();
+    expect($result)->toBeFalse();
 });
 
 test('updateUser handles exceptions gracefully', function () {
@@ -356,7 +357,7 @@ test('updateUser handles exceptions gracefully', function () {
 
     $result = $service->updateUser('testuser', $userData);
 
-    expect($result)->toBeNull();
+    expect($result)->toBeFalse();
 });
 
 test('buildAbsoluteSubscriptionUrl returns absolute URL from relative path', function () {
