@@ -259,7 +259,7 @@ class ResellerProvisioner
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated enable endpoint
                         $result = $service->enableUser($panelUserId);
-                        return $result !== null;
+                        return $result;
                     }
                     break;
 
