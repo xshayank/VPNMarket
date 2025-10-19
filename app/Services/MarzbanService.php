@@ -10,15 +10,15 @@ class MarzbanService
     protected string $baseUrl;
     protected string $username;
     protected string $password;
-    protected string $nodeHostname;
+    protected string $configUrl;
     protected ?string $accessToken = null;
 
-    public function __construct(string $baseUrl, string $username, string $password, string $nodeHostname)
+    public function __construct(string $baseUrl, string $username, string $password, string $configUrl)
     {
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->username = $username;
         $this->password = $password;
-        $this->nodeHostname = $nodeHostname;
+        $this->configUrl = rtrim($configUrl, '/');
     }
 
 
@@ -100,6 +100,6 @@ class MarzbanService
     {
         $subscriptionUrl = $userApiResponse['subscription_url'];
 
-        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $this->nodeHostname . $subscriptionUrl;
+        return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $this->configUrl . $subscriptionUrl;
     }
 }
