@@ -88,6 +88,24 @@ class OrderController extends Controller
     }
 
     /**
+     * Show the renewal confirmation page for an order.
+     */
+    public function showRenewForm(Order $order)
+    {
+        // Check if user owns this order
+        if (Auth::id() !== $order->user_id) {
+            abort(403, 'شما به این صفحه دسترسی ندارید.');
+        }
+
+        // Check if order is paid and has a plan
+        if ($order->status !== 'paid' || !$order->plan) {
+            return redirect()->route('dashboard')->with('error', 'این سرویس برای تمدید مجاز نیست.');
+        }
+
+        return view('orders.renew', compact('order'));
+    }
+
+    /**
      * Create a new pending order to renew an existing service.
      */
     public function renew(Order $order)

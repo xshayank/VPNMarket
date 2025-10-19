@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
+use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\User;
@@ -57,10 +58,13 @@ Route::middleware(['auth'])->group(function () {
     // Order & Payment Process
     Route::post('/order/{plan}', [OrderController::class, 'store'])->name('order.store');
     Route::get('/order/{order}', [OrderController::class, 'show'])->name('order.show');
+    Route::get('/order/{order}/renew', [OrderController::class, 'showRenewForm'])->name('order.renew.form');
     Route::post('/order/{order}/renew', [OrderController::class, 'renew'])->name('order.renew');
 
-    // Subscription Extension
-    Route::get('/subscription/{order}/extend', [\App\Http\Controllers\SubscriptionExtensionController::class, 'show'])->name('subscription.extend.show');
+    // Subscription Extension (keeping for backward compatibility but redirecting GET to renewal form)
+    Route::get('/subscription/{order}/extend', function (Order $order) {
+        return redirect()->route('order.renew.form', $order);
+    })->name('subscription.extend.show');
     Route::post('/subscription/{order}/extend', [\App\Http\Controllers\SubscriptionExtensionController::class, 'store'])->name('subscription.extend');
 
     Route::post('/payment/card/{order}/submit', [OrderController::class, 'submitCardReceipt'])->name('payment.card.submit');
