@@ -98,7 +98,7 @@ class OrderController extends Controller
         }
 
         // Check if order is paid and has a plan
-        if ($order->status !== 'paid' || !$order->plan) {
+        if ($order->status !== 'paid' || ! $order->plan) {
             return redirect()->route('dashboard')->with('error', 'این سرویس برای تمدید مجاز نیست.');
         }
 
@@ -169,7 +169,7 @@ class OrderController extends Controller
 
                 // Get panel from plan
                 $panel = $plan->panel;
-                if (!$panel) {
+                if (! $panel) {
                     throw new \Exception('هیچ پنلی به این پلن مرتبط نیست. لطفاً از طریق پنل ادمین یک پنل را به این پلن اختصاص دهید.');
                 }
 
@@ -180,7 +180,7 @@ class OrderController extends Controller
                 $newExpiresAt = $isRenewal
                     ? (new \DateTime(Order::find($order->renews_order_id)->expires_at))->modify("+{$plan->duration_days} days")
                     : now()->addDays($plan->duration_days);
-                
+
                 $trafficLimitBytes = $plan->volume_gb * 1073741824;
 
                 if ($panelType === 'marzban') {
@@ -216,13 +216,24 @@ class OrderController extends Controller
                         $userData['service_ids'] = $plan->marzneshin_service_ids;
                     }
 
-                    $response = $isRenewal
-                        ? $marzneshinService->updateUser($uniqueUsername, $userData)
-                        : $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
-
-                    if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
-                        $finalConfig = $marzneshinService->generateSubscriptionLink($response);
-                        $success = true;
+                    if ($isRenewal) {
+                        // For renewal, updateUser returns boolean
+                        $updateSuccess = $marzneshinService->updateUser($uniqueUsername, $userData);
+                        if ($updateSuccess) {
+                            // Keep existing config_details, just extend expiry
+                            $originalOrder = Order::find($order->renews_order_id);
+                            $finalConfig = $originalOrder->config_details;
+                            $success = true;
+                        } else {
+                            throw new \Exception('خطا در تمدید سرویس Marzneshin.');
+                        }
+                    } else {
+                        // For new user, createUser returns array with subscription_url
+                        $response = $marzneshinService->createUser(array_merge($userData, ['username' => $uniqueUsername]));
+                        if ($response && (isset($response['subscription_url']) || isset($response['username']))) {
+                            $finalConfig = $marzneshinService->generateSubscriptionLink($response);
+                            $success = true;
+                        }
                     }
                 } elseif ($panelType === 'xui') {
                     if ($isRenewal) {
@@ -233,10 +244,10 @@ class OrderController extends Controller
                         $credentials['username'],
                         $credentials['password']
                     );
-                    
+
                     $defaultInboundId = $credentials['extra']['default_inbound_id'] ?? null;
                     $inbound = $defaultInboundId ? Inbound::find($defaultInboundId) : null;
-                    
+
                     if (! $inbound || ! $inbound->inbound_data) {
                         throw new \Exception('اطلاعات اینباند پیش‌فرض برای X-UI یافت نشد.');
                     }
@@ -283,7 +294,7 @@ class OrderController extends Controller
                 if ($isRenewal) {
                     $originalOrder = Order::find($order->renews_order_id);
                     $originalOrder->update([
-                        'config_details' => $finalConfig, 
+                        'config_details' => $finalConfig,
                         'expires_at' => $newExpiresAt->format('Y-m-d H:i:s'),
                         'traffic_limit_bytes' => $trafficLimitBytes,
                         'usage_bytes' => 0,
@@ -292,7 +303,7 @@ class OrderController extends Controller
                     $user->update(['show_renewal_notification' => true]);
                 } else {
                     $order->update([
-                        'config_details' => $finalConfig, 
+                        'config_details' => $finalConfig,
                         'expires_at' => $newExpiresAt,
                         'traffic_limit_bytes' => $trafficLimitBytes,
                         'usage_bytes' => 0,
