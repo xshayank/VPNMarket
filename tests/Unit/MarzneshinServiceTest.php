@@ -9,6 +9,7 @@ uses(Tests\TestCase::class);
 beforeEach(function () {
     Log::shouldReceive('error')->andReturnNull();
     Log::shouldReceive('info')->andReturnNull();
+    Log::shouldReceive('warning')->andReturnNull();
 });
 
 test('constructor initializes properties correctly', function () {
@@ -734,3 +735,109 @@ test('deleteUser handles exceptions gracefully', function () {
 
     expect($result)->toBeFalse();
 });
+
+test('getUser returns user data on successful request', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/testuser' => Http::response([
+            'username' => 'testuser',
+            'used_traffic' => 1073741824, // 1 GB
+            'data_limit' => 10737418240, // 10 GB
+            'status' => 'active',
+        ], 200),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveKey('username')
+        ->and($result['username'])->toBe('testuser')
+        ->and($result)->toHaveKey('used_traffic')
+        ->and($result['used_traffic'])->toBe(1073741824);
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://example.com/api/users/testuser'
+            && $request->method() === 'GET';
+    });
+});
+
+test('getUser authenticates automatically if not logged in', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/*' => Http::response(['username' => 'testuser', 'used_traffic' => 0], 200),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $service->getUser('testuser');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/admins/token');
+    });
+});
+
+test('getUser returns null on authentication failure', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['detail' => 'Invalid credentials'], 401),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'wrong-password',
+        'https://node.example.com'
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeNull();
+});
+
+test('getUser returns null on API error', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/testuser' => Http::response(['error' => 'User not found'], 404),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeNull();
+});
+
+test('getUser handles exceptions gracefully', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/*' => fn () => throw new \Exception('Network error'),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeNull();
+});
+

@@ -221,7 +221,7 @@ class ConfigController extends Controller
 
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
-            'type' => 'manually_disabled',
+            'type' => 'manual_disabled',
             'meta' => [
                 'user_id' => $request->user()->id,
                 'remote_failed' => $remoteFailed,
@@ -278,7 +278,7 @@ class ConfigController extends Controller
 
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
-            'type' => 'manually_enabled',
+            'type' => 'manual_enabled',
             'meta' => [
                 'user_id' => $request->user()->id,
                 'remote_failed' => $remoteFailed,

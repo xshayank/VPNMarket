@@ -7,6 +7,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
+use Modules\Reseller\Jobs\ReenableResellerConfigsJob;
 use Modules\Reseller\Jobs\SyncResellerUsageJob;
 
 Artisan::command('inspire', function () {
@@ -46,4 +47,10 @@ Schedule::call(function () {
         Log::info("Scheduling SyncResellerUsageJob (interval: {$intervalMinutes} minutes)");
         SyncResellerUsageJob::dispatch();
     }
+})->everyMinute();
+
+// Schedule reseller config re-enable job
+// Runs every minute to quickly re-enable configs when reseller recovers
+Schedule::call(function () {
+    ReenableResellerConfigsJob::dispatch();
 })->everyMinute();
