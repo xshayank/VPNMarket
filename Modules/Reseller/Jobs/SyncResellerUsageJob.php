@@ -54,20 +54,28 @@ class SyncResellerUsageJob implements ShouldQueue
         }
 
         $totalUsageBytes = 0;
+        $allowConfigOverrun = Setting::get('reseller.allow_config_overrun', 'true') === 'true';
 
         foreach ($configs as $config) {
-            $usage = $this->fetchConfigUsage($config);
-            
-            if ($usage !== null) {
-                $config->update(['usage_bytes' => $usage]);
-                $totalUsageBytes += $usage;
+            try {
+                $usage = $this->fetchConfigUsage($config);
+                
+                if ($usage !== null) {
+                    $config->update(['usage_bytes' => $usage]);
+                    $totalUsageBytes += $usage;
 
-                // Check if config exceeded its own limits
-                if ($config->usage_bytes >= $config->traffic_limit_bytes) {
-                    $this->disableConfig($config, 'traffic_exceeded');
-                } elseif ($config->isExpiredByTime()) {
-                    $this->disableConfig($config, 'time_expired');
+                    // Only check per-config limits if config overrun is NOT allowed
+                    if (!$allowConfigOverrun) {
+                        // Check if config exceeded its own limits
+                        if ($config->usage_bytes >= $config->traffic_limit_bytes) {
+                            $this->disableConfig($config, 'traffic_exceeded');
+                        } elseif ($config->isExpiredByTime()) {
+                            $this->disableConfig($config, 'time_expired');
+                        }
+                    }
                 }
+            } catch (\Exception $e) {
+                Log::error("Error syncing config {$config->id}: " . $e->getMessage());
             }
         }
 
@@ -83,14 +91,15 @@ class SyncResellerUsageJob implements ShouldQueue
     protected function fetchConfigUsage(ResellerConfig $config): ?int
     {
         try {
-            // Find the panel for this config
-            // Since configs don't have a direct panel_id, we need to determine it
-            // For now, we'll use the first active panel of the same type
-            // In a production scenario, you'd want to store panel_id in reseller_configs
-            $panel = Panel::where('panel_type', $config->panel_type)->first();
+            // Find the panel for this config - use exact panel_id if available, otherwise fallback to type
+            if ($config->panel_id) {
+                $panel = Panel::find($config->panel_id);
+            } else {
+                $panel = Panel::where('panel_type', $config->panel_type)->first();
+            }
             
             if (!$panel) {
-                Log::warning("No panel found for config {$config->id} with type {$config->panel_type}");
+                Log::warning("No panel found for config {$config->id} (panel_id: {$config->panel_id}, type: {$config->panel_type})");
                 return null;
             }
 
@@ -184,14 +193,67 @@ class SyncResellerUsageJob implements ShouldQueue
 
     protected function disableResellerConfigs(Reseller $reseller): void
     {
-        $reason = !$reseller->hasTrafficRemaining() ? 'reseller_traffic_exceeded' : 'reseller_window_expired';
+        $reason = !$reseller->hasTrafficRemaining() ? 'reseller_quota_exhausted' : 'reseller_window_expired';
 
         $configs = $reseller->configs()->where('status', 'active')->get();
 
-        foreach ($configs as $config) {
-            $this->disableConfig($config, $reason);
+        if ($configs->isEmpty()) {
+            return;
         }
 
-        Log::info("All active configs disabled for reseller {$reseller->id} due to: {$reason}");
+        Log::info("Starting auto-disable for reseller {$reseller->id}: {$configs->count()} configs, reason: {$reason}");
+
+        $disabledCount = 0;
+        $failedCount = 0;
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+
+        foreach ($configs as $config) {
+            try {
+                // Rate-limit: 3 configs per second
+                if ($disabledCount > 0 && $disabledCount % 3 === 0) {
+                    sleep(1);
+                }
+
+                // Disable on remote panel using the stored panel_id/panel_type
+                $remoteSuccess = false;
+                if ($config->panel_id) {
+                    $panel = Panel::find($config->panel_id);
+                    if ($panel) {
+                        $remoteSuccess = $provisioner->disableUser(
+                            $config->panel_type, 
+                            $panel->getCredentials(), 
+                            $config->panel_user_id
+                        );
+                    }
+                }
+
+                if (!$remoteSuccess) {
+                    Log::warning("Failed to disable config {$config->id} on remote panel");
+                    $failedCount++;
+                }
+
+                // Update local status regardless of remote result
+                $config->update([
+                    'status' => 'disabled',
+                    'disabled_at' => now(),
+                ]);
+
+                ResellerConfigEvent::create([
+                    'reseller_config_id' => $config->id,
+                    'type' => 'auto_disabled',
+                    'meta' => [
+                        'reason' => $reason,
+                        'remote_success' => $remoteSuccess,
+                    ],
+                ]);
+
+                $disabledCount++;
+            } catch (\Exception $e) {
+                Log::error("Exception disabling config {$config->id}: " . $e->getMessage());
+                $failedCount++;
+            }
+        }
+
+        Log::info("Auto-disable completed for reseller {$reseller->id}: {$disabledCount} disabled, {$failedCount} failed");
     }
 }

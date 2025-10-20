@@ -272,6 +272,33 @@ class MarzneshinService
         }
     }
 
+    public function getUser(string $username): ?array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return null;
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl."/api/users/{$username}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('Marzneshin Get User failed:', ['status' => $response->status(), 'username' => $username]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Marzneshin Get User Exception:', ['message' => $e->getMessage(), 'username' => $username]);
+
+            return null;
+        }
+    }
+
     public function deleteUser(string $username): bool
     {
         if (! $this->accessToken) {

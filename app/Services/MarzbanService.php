@@ -115,6 +115,33 @@ class MarzbanService
         return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n" . $absoluteUrl;
     }
 
+    public function getUser(string $username): ?array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return null;
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl."/api/user/{$username}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('Marzban Get User failed:', ['status' => $response->status(), 'username' => $username]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Marzban Get User Exception:', ['message' => $e->getMessage(), 'username' => $username]);
+
+            return null;
+        }
+    }
+
     public function deleteUser(string $username): bool
     {
         if (! $this->accessToken) {
