@@ -51,21 +51,28 @@ class ConfigsRelationManager extends RelationManager
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->copyMessage('نام کاربری کپی شد'),
+                    ->copyMessage('نام کاربری کپی شد')
+                    ->description(fn (ResellerConfig $record): ?string => $record->comment),
 
                 Tables\Columns\TextColumn::make('usage')
                     ->label('استفاده / محدودیت')
                     ->formatStateUsing(function (ResellerConfig $record): string {
-                        $usedGB = round($record->usage_bytes / (1024 * 1024 * 1024), 2);
+                        $usageBytes = $record->usage_bytes ?? 0;
+                        $usedGB = round($usageBytes / (1024 * 1024 * 1024), 2);
                         $limitGB = round($record->traffic_limit_bytes / (1024 * 1024 * 1024), 2);
-                        $percent = $limitGB > 0 ? round(($record->usage_bytes / $record->traffic_limit_bytes) * 100, 1) : 0;
+                        $percent = $record->traffic_limit_bytes > 0 ? round(($usageBytes / $record->traffic_limit_bytes) * 100, 1) : 0;
                         return "{$usedGB} / {$limitGB} GB ({$percent}%)";
                     })
+                    ->html()
                     ->description(function (ResellerConfig $record): string {
+                        $usageBytes = $record->usage_bytes ?? 0;
                         $percent = $record->traffic_limit_bytes > 0 
-                            ? round(($record->usage_bytes / $record->traffic_limit_bytes) * 100, 1) 
+                            ? round(($usageBytes / $record->traffic_limit_bytes) * 100, 1) 
                             : 0;
-                        return "استفاده: {$percent}%";
+                        
+                        // Generate progress bar HTML
+                        $colorClass = $percent >= 90 ? 'bg-red-500' : ($percent >= 70 ? 'bg-yellow-500' : 'bg-green-500');
+                        return "<div class='mt-1'><div class='w-full bg-gray-200 rounded-full h-2'><div class='{$colorClass} h-2 rounded-full' style='width: {$percent}%'></div></div></div>";
                     }),
 
                 Tables\Columns\TextColumn::make('expires_at')

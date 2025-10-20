@@ -69,6 +69,10 @@ Navigate to **Admin Panel > Resellers**
 - Suspend/activate resellers
 - Configure allowed plans (for plan-based resellers)
 - Set per-reseller pricing overrides
+- View and manage configs (for traffic-based resellers)
+  - Monitor usage with progress bars showing percentage
+  - View optional comments for config identification
+  - Perform admin actions (disable, enable, extend, reset usage)
 
 ### 3. Configure Plan Visibility
 
@@ -120,6 +124,7 @@ When a reseller views a plan, pricing is calculated in this order:
 **Configs** (`/reseller/configs`)
 - List all created configs
 - View usage per config
+- View optional comments for easy identification
 - Enable/disable configs
 - Delete configs
 
@@ -127,6 +132,7 @@ When a reseller views a plan, pricing is calculated in this order:
 - Select panel
 - Set traffic limit
 - Set expiry date (within reseller window)
+- Add optional comment (max 200 characters) for identification
 - Select allowed services (Marzneshin only, if whitelisted)
 
 **Manual Sync** 
