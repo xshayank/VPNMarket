@@ -136,7 +136,7 @@
                             <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400">{{ $stats['days_remaining'] }} روز باقی‌مانده</div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                         <div class="bg-indigo-50 dark:bg-indigo-900 p-3 md:p-4 rounded-lg">
                             <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">کانفیگ‌های فعال</div>
                             <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['active_configs'] }}</div>
@@ -144,6 +144,20 @@
                         <div class="bg-pink-50 dark:bg-pink-900 p-3 md:p-4 rounded-lg">
                             <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">مجموع کانفیگ‌ها</div>
                             <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['total_configs'] }}</div>
+                        </div>
+                        <div class="bg-teal-50 dark:bg-teal-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">محدودیت کانفیگ</div>
+                            @if ($stats['is_unlimited_limit'])
+                                <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">نامحدود</div>
+                            @else
+                                <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['configs_remaining'] }} از {{ $stats['config_limit'] }}</div>
+                                <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400">باقیمانده</div>
+                                @if ($stats['config_limit'] > 0)
+                                    <div class="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                        <div class="bg-teal-600 h-2 rounded-full transition-all" style="width: {{ min(($stats['total_configs'] / $stats['config_limit']) * 100, 100) }}%"></div>
+                                    </div>
+                                @endif
+                            @endif
                         </div>
                     </div>
                     <div class="mt-4 md:mt-6 flex flex-col sm:flex-row gap-3 md:gap-4">
