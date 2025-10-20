@@ -7,8 +7,8 @@
         </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+    <div class="py-6 md:py-12">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-3 md:space-y-6">
             
             <x-reseller-back-button :fallbackRoute="route('reseller.dashboard')" />
             
@@ -26,57 +26,57 @@
                 </div>
             @endif
 
-            <div class="p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
-                <p class="text-gray-600 dark:text-gray-300 mb-4">
+            <div class="p-3 md:p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
+                <p class="text-sm md:text-base text-gray-600 dark:text-gray-300 mb-3 md:mb-4">
                     حداکثر تعداد قابل خرید در هر سفارش: <strong>{{ $max_quantity }}</strong> اکانت
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 @forelse ($plans as $planData)
                     @php
                         $plan = $planData['plan'];
                         $pricing = $planData['pricing'];
                     @endphp
-                    <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg p-6 text-right">
-                        <h3 class="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">{{ $plan->name }}</h3>
-                        <div class="mb-4">
-                            <span class="text-3xl font-bold text-green-600 dark:text-green-400">{{ number_format($pricing['price']) }}</span>
-                            <span class="text-sm text-gray-500 dark:text-gray-400">{{ $plan->currency }}</span>
+                    <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg p-4 md:p-6 text-right">
+                        <h3 class="text-lg md:text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">{{ $plan->name }}</h3>
+                        <div class="mb-3 md:mb-4">
+                            <span class="text-2xl md:text-3xl font-bold text-green-600 dark:text-green-400">{{ number_format($pricing['price']) }}</span>
+                            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400">{{ $plan->currency }}</span>
                             @if ($pricing['original_price'] != $pricing['price'])
-                                <div class="text-sm text-gray-400 dark:text-gray-500 line-through">{{ number_format($pricing['original_price']) }} تومان</div>
+                                <div class="text-xs md:text-sm text-gray-400 dark:text-gray-500 line-through">{{ number_format($pricing['original_price']) }} تومان</div>
                             @endif
                         </div>
-                        <div class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                        <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300 mb-3 md:mb-4">
                             <div>حجم: {{ $plan->volume_gb }} GB</div>
                             <div>مدت: {{ $plan->duration_days }} روز</div>
                         </div>
                         <form action="{{ route('reseller.bulk.store') }}" method="POST">
                             @csrf
                             <input type="hidden" name="plan_id" value="{{ $plan->id }}">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">مقدار <span class="text-red-500">*</span></label>
+                            <div class="mb-3 md:mb-4">
+                                <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">مقدار <span class="text-red-500">*</span></label>
                                 <input type="number" name="quantity" min="1" max="{{ $max_quantity }}" value="1" required
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
+                                    class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
                                 @error('quantity')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    <p class="mt-1 text-xs md:text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">نحوه دریافت</label>
-                                <select name="delivery_mode" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
+                            <div class="mb-3 md:mb-4">
+                                <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">نحوه دریافت</label>
+                                <select name="delivery_mode" class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
                                     <option value="onscreen">نمایش در صفحه</option>
                                     <option value="download">دانلود فایل</option>
                                 </select>
                             </div>
-                            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            <button type="submit" class="w-full px-4 py-3 md:py-2 h-12 md:h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm md:text-base font-medium">
                                 خرید
                             </button>
                         </form>
                     </div>
                 @empty
-                    <div class="col-span-3 text-center py-12">
-                        <p class="text-gray-500">هیچ پلنی در دسترس نیست.</p>
+                    <div class="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-12">
+                        <p class="text-sm md:text-base text-gray-500">هیچ پلنی در دسترس نیست.</p>
                     </div>
                 @endforelse
             </div>
