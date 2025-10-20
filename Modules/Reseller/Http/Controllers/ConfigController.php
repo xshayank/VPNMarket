@@ -7,7 +7,6 @@ use App\Models\Panel;
 use App\Models\Plan;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -42,9 +41,6 @@ class ConfigController extends Controller
                 ->with('error', 'This feature is only available for traffic-based resellers.');
         }
 
-        $maxActiveConfigs = Setting::where('key', 'reseller.configs_max_active')->value('value') ?? 50;
-        $activeConfigsCount = $reseller->configs()->where('status', 'active')->count();
-
         // If reseller has a specific panel assigned, use only that panel
         if ($reseller->panel_id) {
             $panels = Panel::where('id', $reseller->panel_id)->where('is_active', true)->get();
@@ -63,8 +59,6 @@ class ConfigController extends Controller
         return view('reseller::configs.create', [
             'reseller' => $reseller,
             'panels' => $panels,
-            'max_active_configs' => $maxActiveConfigs,
-            'active_configs_count' => $activeConfigsCount,
             'marzneshin_services' => $marzneshinServices,
         ]);
     }
@@ -83,13 +77,6 @@ class ConfigController extends Controller
             if ($totalConfigsCount >= $reseller->config_limit) {
                 return back()->with('error', "Config creation limit reached. Maximum allowed: {$reseller->config_limit}");
             }
-        }
-
-        $maxActiveConfigs = Setting::where('key', 'reseller.configs_max_active')->value('value') ?? 50;
-        $activeConfigsCount = $reseller->configs()->where('status', 'active')->count();
-
-        if ($activeConfigsCount >= $maxActiveConfigs) {
-            return back()->with('error', "Maximum active configs limit ({$maxActiveConfigs}) reached.");
         }
 
         $validator = Validator::make($request->all(), [
