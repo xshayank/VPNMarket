@@ -7,8 +7,8 @@
         </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+    <div class="py-6 md:py-12">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-3 md:space-y-6">
             
             <x-reseller-back-button :fallbackRoute="route('reseller.dashboard')" />
             
@@ -26,92 +26,102 @@
                 </div>
             @endif
 
-            <div class="flex justify-end mb-4">
-                <a href="{{ route('reseller.configs.create') }}" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            <div class="flex justify-end mb-3 md:mb-4">
+                <a href="{{ route('reseller.configs.create') }}" class="w-full sm:w-auto px-4 py-3 md:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-center text-sm md:text-base">
                     ایجاد کانفیگ جدید
                 </a>
             </div>
 
             <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg overflow-hidden">
-                <table class="w-full">
-                    <thead class="bg-gray-50 dark:bg-gray-700">
-                        <tr class="text-right">
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">نام کاربری</th>
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">محدودیت ترافیک</th>
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">مصرف شده</th>
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">تاریخ انقضا</th>
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">وضعیت</th>
-                            <th class="px-4 py-3 text-gray-700 dark:text-gray-100">عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody class="text-right">
-                        @forelse ($configs as $config)
-                            <tr class="border-b dark:border-gray-700">
-                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
-                                    {{ $config->external_username }}
-                                    @if ($config->comment)
-                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{{ $config->comment }}</div>
-                                    @endif
-                                </td>
-                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
-                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
-                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $config->expires_at->format('Y-m-d') }}</td>
-                                <td class="px-4 py-3">
-                                    <span class="px-2 py-1 rounded text-sm {{ $config->status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' }}">
-                                        {{ $config->status }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3">
-                                    <div class="flex gap-2">
-                                        @if ($config->subscription_url)
-                                            <button 
-                                                onclick="copyToClipboard('{{ $config->subscription_url }}')" 
-                                                class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                                                title="کپی لینک سابسکریپشن">
-                                                کپی
-                                            </button>
-                                            <button 
-                                                onclick="showQRCode('{{ $config->subscription_url }}')" 
-                                                class="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
-                                                title="نمایش QR Code">
-                                                QR
-                                            </button>
-                                        @endif
-                                        @if ($config->isActive())
-                                            <form action="{{ route('reseller.configs.disable', $config) }}" method="POST" class="inline">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[640px]">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr class="text-right">
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">نام کاربری</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden sm:table-cell">محدودیت ترافیک</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden md:table-cell">مصرف شده</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden sm:table-cell">تاریخ انقضا</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">وضعیت</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-right">
+                            @forelse ($configs as $config)
+                                <tr class="border-b dark:border-gray-700">
+                                    <td class="px-2 md:px-4 py-3 text-gray-900 dark:text-gray-100">
+                                        <div class="break-words max-w-[150px] md:max-w-none">
+                                            <div class="text-xs md:text-base font-medium">{{ $config->external_username }}</div>
+                                            @if ($config->comment)
+                                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{{ $config->comment }}</div>
+                                            @endif
+                                            {{-- Mobile-only: show key info --}}
+                                            <div class="text-xs text-gray-600 dark:text-gray-400 mt-1 sm:hidden space-y-0.5">
+                                                <div>محدودیت: {{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</div>
+                                                <div class="md:hidden">مصرف: {{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</div>
+                                                <div>انقضا: {{ $config->expires_at->format('Y-m-d') }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden sm:table-cell">{{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
+                                    <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden md:table-cell">{{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
+                                    <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden sm:table-cell">{{ $config->expires_at->format('Y-m-d') }}</td>
+                                    <td class="px-2 md:px-4 py-3">
+                                        <span class="px-2 py-1 rounded text-xs {{ $config->status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' }}">
+                                            {{ $config->status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-2 md:px-4 py-3">
+                                        <div class="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                                            @if ($config->subscription_url)
+                                                <button 
+                                                    onclick="copyToClipboard('{{ $config->subscription_url }}')" 
+                                                    class="px-2 md:px-3 py-2 md:py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs md:text-sm min-h-[40px] sm:min-h-0"
+                                                    title="کپی لینک سابسکریپشن">
+                                                    کپی
+                                                </button>
+                                                <button 
+                                                    onclick="showQRCode('{{ $config->subscription_url }}')" 
+                                                    class="px-2 md:px-3 py-2 md:py-1 bg-purple-500 text-white rounded hover:bg-purple-600 text-xs md:text-sm min-h-[40px] sm:min-h-0"
+                                                    title="نمایش QR Code">
+                                                    QR
+                                                </button>
+                                            @endif
+                                            @if ($config->isActive())
+                                                <form action="{{ route('reseller.configs.disable', $config) }}" method="POST" class="w-full sm:w-auto">
+                                                    @csrf
+                                                    <button type="submit" class="w-full px-2 md:px-3 py-2 md:py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs md:text-sm min-h-[40px] sm:min-h-0">
+                                                        غیرفعال
+                                                    </button>
+                                                </form>
+                                            @elseif ($config->isDisabled())
+                                                <form action="{{ route('reseller.configs.enable', $config) }}" method="POST" class="w-full sm:w-auto">
+                                                    @csrf
+                                                    <button type="submit" class="w-full px-2 md:px-3 py-2 md:py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs md:text-sm min-h-[40px] sm:min-h-0">
+                                                        فعال
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            <form action="{{ route('reseller.configs.destroy', $config) }}" method="POST" class="w-full sm:w-auto" 
+                                                onsubmit="return confirm('آیا مطمئن هستید؟')">
                                                 @csrf
-                                                <button type="submit" class="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm">
-                                                    غیرفعال
+                                                @method('DELETE')
+                                                <button type="submit" class="w-full px-2 md:px-3 py-2 md:py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs md:text-sm min-h-[40px] sm:min-h-0">
+                                                    حذف
                                                 </button>
                                             </form>
-                                        @elseif ($config->isDisabled())
-                                            <form action="{{ route('reseller.configs.enable', $config) }}" method="POST" class="inline">
-                                                @csrf
-                                                <button type="submit" class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
-                                                    فعال
-                                                </button>
-                                            </form>
-                                        @endif
-                                        <form action="{{ route('reseller.configs.destroy', $config) }}" method="POST" class="inline" 
-                                            onsubmit="return confirm('آیا مطمئن هستید؟')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm">
-                                                حذف
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                    هیچ کانفیگی وجود ندارد.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-sm md:text-base text-gray-500 dark:text-gray-400">
+                                        هیچ کانفیگی وجود ندارد.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="mt-4">
