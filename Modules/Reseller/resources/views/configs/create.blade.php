@@ -30,12 +30,6 @@
             @endif
 
             <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg p-6 text-right">
-                <div class="mb-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                    <p class="text-sm text-gray-700 dark:text-gray-300">
-                        کانفیگ‌های فعال: <strong>{{ $active_configs_count }}</strong> / <strong>{{ $max_active_configs }}</strong>
-                    </p>
-                </div>
-
                 <form action="{{ route('reseller.configs.store') }}" method="POST">
                     @csrf
 
