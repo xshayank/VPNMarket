@@ -638,3 +638,99 @@ test('username with underscores matches Marzneshin pattern requirements', functi
     }
 });
 
+
+test('deleteUser returns true on successful deletion', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/testuser' => Http::response([], 204),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://example.com/api/users/testuser'
+            && $request->method() === 'DELETE';
+    });
+});
+
+test('deleteUser authenticates automatically if not logged in', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/*' => Http::response([], 204),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $service->deleteUser('testuser');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/admins/token');
+    });
+});
+
+test('deleteUser returns false on authentication failure', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['detail' => 'Invalid credentials'], 401),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'wrong-password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeFalse();
+});
+
+test('deleteUser returns false on deletion failure', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/testuser' => Http::response(['detail' => 'User not found'], 404),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeFalse();
+});
+
+test('deleteUser handles exceptions gracefully', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/*' => fn () => throw new \Exception('Network error'),
+    ]);
+
+    $service = new MarzneshinService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeFalse();
+});

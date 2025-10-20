@@ -174,3 +174,61 @@ test('generateSubscriptionLink uses buildAbsoluteSubscriptionUrl internally', fu
     expect($labeledMessage)->toContain($absoluteUrl)
         ->and($absoluteUrl)->toBe('https://node.example.com/sub/test123');
 });
+
+test('deleteUser returns true on successful deletion', function () {
+    Http::fake([
+        '*/api/admin/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/user/testuser' => Http::response([], 204),
+    ]);
+
+    $service = new MarzbanService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://example.com/api/user/testuser'
+            && $request->method() === 'DELETE';
+    });
+});
+
+test('deleteUser returns false on authentication failure', function () {
+    Http::fake([
+        '*/api/admin/token' => Http::response(['detail' => 'Invalid credentials'], 401),
+    ]);
+
+    $service = new MarzbanService(
+        'https://example.com',
+        'admin',
+        'wrong-password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeFalse();
+});
+
+test('deleteUser handles exceptions gracefully', function () {
+    Http::fake([
+        '*/api/admin/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/user/*' => fn () => throw new \Exception('Network error'),
+    ]);
+
+    $service = new MarzbanService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $result = $service->deleteUser('testuser');
+
+    expect($result)->toBeFalse();
+});

@@ -139,4 +139,21 @@ class XUIService
             return ['success' => false, 'msg' => 'Error updating client: ' . $e->getMessage()];
         }
     }
+
+    public function deleteUser(string $userId): bool
+    {
+        try {
+            $response = $this->getClient()->post($this->baseUrl.$this->basePath."/panel/inbound/delClient/{$userId}");
+
+            Log::info('XUI Delete User Response:', $response->json() ?? ['raw' => $response->body()]);
+
+            $result = $response->json();
+
+            return isset($result['success']) && $result['success'] === true;
+        } catch (\Exception $e) {
+            Log::error('XUI Delete User Exception:', ['message' => $e->getMessage()]);
+
+            return false;
+        }
+    }
 }
