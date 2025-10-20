@@ -87,7 +87,7 @@
 وارد سرور خود شوید و دستور زیر را اجرا کنید. اسکریپت ما بقیه کارها را به صورت خودکار انجام می‌دهد!
 
 ```bash
-wget -O install.sh https://raw.githubusercontent.com/arvinvahed/VPNMarket/main/install.sh && sudo bash install.sh
+wget -O install.sh https://raw.githubusercontent.com/xshayank/VPNMarket/main/install.sh && sudo bash install.sh
 ```
 
 ### پیکربندی پنل‌های مدیریتی
