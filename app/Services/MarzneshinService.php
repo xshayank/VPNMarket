@@ -271,4 +271,27 @@ class MarzneshinService
             return false;
         }
     }
+
+    public function deleteUser(string $username): bool
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return false;
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->delete($this->baseUrl."/api/users/{$username}");
+
+            Log::info('Marzneshin Delete User Response:', $response->json() ?? ['raw' => $response->body()]);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('Marzneshin Delete User Exception:', ['message' => $e->getMessage()]);
+
+            return false;
+        }
+    }
 }
