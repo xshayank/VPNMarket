@@ -88,6 +88,7 @@ class ConfigController extends Controller
             'panel_id' => 'required|exists:panels,id',
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_days' => 'required|integer|min:1',
+            'comment' => 'nullable|string|max:200',
             'service_ids' => 'nullable|array',
             'service_ids.*' => 'integer',
         ]);
@@ -136,6 +137,7 @@ class ConfigController extends Controller
             $config = ResellerConfig::create([
                 'reseller_id' => $reseller->id,
                 'external_username' => '', // Will be set after provisioning
+                'comment' => $request->input('comment'),
                 'traffic_limit_bytes' => $trafficLimitBytes,
                 'usage_bytes' => 0,
                 'expires_at' => $expiresAt,

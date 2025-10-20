@@ -63,6 +63,14 @@
                             placeholder="مثال: 30">
                     </div>
 
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">توضیحات (اختیاری - حداکثر 200 کاراکتر)</label>
+                        <input type="text" name="comment" maxlength="200" 
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                            placeholder="توضیحات کوتاه درباره این کانفیگ">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">می‌توانید توضیحات کوتاهی برای شناسایی بهتر این کانفیگ وارد کنید</p>
+                    </div>
+
                     @if (count($marzneshin_services) > 0)
                         <div class="mb-4">
                             <label class="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">سرویس‌های Marzneshin (اختیاری)</label>

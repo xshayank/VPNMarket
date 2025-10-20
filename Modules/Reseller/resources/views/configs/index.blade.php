@@ -47,7 +47,12 @@
                     <tbody class="text-right">
                         @forelse ($configs as $config)
                             <tr class="border-b dark:border-gray-700">
-                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $config->external_username }}</td>
+                                <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
+                                    {{ $config->external_username }}
+                                    @if ($config->comment)
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{{ $config->comment }}</div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
                                 <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
                                 <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $config->expires_at->format('Y-m-d') }}</td>

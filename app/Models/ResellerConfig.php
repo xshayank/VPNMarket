@@ -15,6 +15,7 @@ class ResellerConfig extends Model
     protected $fillable = [
         'reseller_id',
         'external_username',
+        'comment',
         'traffic_limit_bytes',
         'usage_bytes',
         'expires_at',
