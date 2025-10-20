@@ -18,6 +18,7 @@ class Reseller extends Model
         'status',
         'username_prefix',
         'panel_id',
+        'config_limit',
         'traffic_total_bytes',
         'traffic_used_bytes',
         'window_starts_at',
@@ -27,6 +28,7 @@ class Reseller extends Model
     ];
 
     protected $casts = [
+        'config_limit' => 'integer',
         'traffic_total_bytes' => 'integer',
         'traffic_used_bytes' => 'integer',
         'window_starts_at' => 'datetime',
@@ -95,6 +97,11 @@ class Reseller extends Model
     {
         if (!$this->isTrafficBased()) {
             return false;
+        }
+
+        // If window_ends_at is null, treat as unlimited (always valid)
+        if (!$this->window_ends_at) {
+            return true;
         }
 
         $now = now();
