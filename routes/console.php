@@ -30,15 +30,18 @@ Schedule::call(function () {
 })->hourly();
 
 // Schedule reseller usage sync job
-// Minimum guaranteed interval: 15 minutes
+// Configurable interval: 1-5 minutes (default: 5 minutes)
 // Supports dynamic interval via 'reseller.usage_sync_interval_minutes' setting
 // The interval is read at runtime to support changes without redeployment
 Schedule::call(function () {
-    $intervalMinutes = Setting::getInt('reseller.usage_sync_interval_minutes', 15);
+    $intervalMinutes = Setting::getInt('reseller.usage_sync_interval_minutes', 5);
 
-    // Ensure minimum of 15 minutes
-    if ($intervalMinutes < 15) {
-        $intervalMinutes = 15;
+    // Clamp interval to [1, 5] minutes range
+    if ($intervalMinutes < 1) {
+        $intervalMinutes = 1;
+    }
+    if ($intervalMinutes > 5) {
+        $intervalMinutes = 5;
     }
 
     // Check if current minute is a multiple of the interval
