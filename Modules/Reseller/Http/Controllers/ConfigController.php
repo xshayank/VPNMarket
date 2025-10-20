@@ -77,6 +77,14 @@ class ConfigController extends Controller
             return back()->with('error', 'This feature is only available for traffic-based resellers.');
         }
 
+        // Check config_limit enforcement
+        if ($reseller->config_limit !== null && $reseller->config_limit > 0) {
+            $totalConfigsCount = $reseller->configs()->count();
+            if ($totalConfigsCount >= $reseller->config_limit) {
+                return back()->with('error', "Config creation limit reached. Maximum allowed: {$reseller->config_limit}");
+            }
+        }
+
         $maxActiveConfigs = Setting::where('key', 'reseller.configs_max_active')->value('value') ?? 50;
         $activeConfigsCount = $reseller->configs()->where('status', 'active')->count();
 
@@ -107,7 +115,7 @@ class ConfigController extends Controller
         $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
         $expiresAt = now()->addDays($expiresDays);
 
-        // Validate expiry is within reseller window
+        // Validate expiry is within reseller window (only if window_ends_at is set)
         if ($reseller->window_ends_at && $expiresAt->gt($reseller->window_ends_at)) {
             return back()->with('error', 'Config expiry cannot exceed your reseller window end date.');
         }

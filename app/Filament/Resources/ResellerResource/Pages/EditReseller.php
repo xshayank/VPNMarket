@@ -35,6 +35,11 @@ class EditReseller extends EditRecord
             unset($data['traffic_total_gb']);
         }
 
+        // Treat config_limit of 0 as null (unlimited)
+        if (isset($data['config_limit']) && $data['config_limit'] === 0) {
+            $data['config_limit'] = null;
+        }
+
         return $data;
     }
 }

@@ -94,11 +94,17 @@ class UserResource extends Resource
                                     ->required()
                                     ->default(100),
 
-                                Forms\Components\TextInput::make('window_days')
-                                    ->label('مدت زمان (روز)')
+                                Forms\Components\TextInput::make('config_limit')
+                                    ->label('محدودیت تعداد کانفیگ')
                                     ->numeric()
-                                    ->required()
-                                    ->default(30),
+                                    ->minValue(0)
+                                    ->helperText('تعداد کانفیگ‌هایی که می‌توان ایجاد کرد. 0 یا خالی = نامحدود'),
+
+                                Forms\Components\TextInput::make('window_days')
+                                    ->label('مدت زمان (روز) - اختیاری')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->helperText('اگر خالی باشد، محدودیت زمانی ندارد'),
 
                                 Forms\Components\TagsInput::make('marzneshin_allowed_service_ids')
                                     ->label('سرویس‌های مجاز Marzneshin (اختیاری)')
@@ -106,17 +112,27 @@ class UserResource extends Resource
                             ]),
                     ])
                     ->action(function ($record, array $data) {
-                        \App\Models\Reseller::create([
+                        $resellerData = [
                             'user_id' => $record->id,
                             'type' => $data['type'],
                             'status' => 'active',
                             'username_prefix' => $data['username_prefix'] ?? null,
-                            'traffic_total_bytes' => $data['type'] === 'traffic' ? ((float) $data['traffic_total_gb'] * 1024 * 1024 * 1024) : null,
-                            'traffic_used_bytes' => 0,
-                            'window_starts_at' => $data['type'] === 'traffic' ? now() : null,
-                            'window_ends_at' => $data['type'] === 'traffic' ? now()->addDays((int) $data['window_days']) : null,
                             'marzneshin_allowed_service_ids' => $data['marzneshin_allowed_service_ids'] ?? null,
-                        ]);
+                        ];
+
+                        if ($data['type'] === 'traffic') {
+                            $resellerData['traffic_total_bytes'] = (float) $data['traffic_total_gb'] * 1024 * 1024 * 1024;
+                            $resellerData['traffic_used_bytes'] = 0;
+                            $resellerData['config_limit'] = !empty($data['config_limit']) ? (int) $data['config_limit'] : null;
+                            
+                            // Only set window if window_days is provided
+                            if (!empty($data['window_days'])) {
+                                $resellerData['window_starts_at'] = now();
+                                $resellerData['window_ends_at'] = now()->addDays((int) $data['window_days']);
+                            }
+                        }
+
+                        \App\Models\Reseller::create($resellerData);
 
                         \Filament\Notifications\Notification::make()
                             ->success()

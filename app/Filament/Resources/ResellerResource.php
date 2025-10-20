@@ -96,11 +96,19 @@ class ResellerResource extends Resource
                             ->maxValue(10000000)
                             ->helperText('مقدار را به گیگابایت وارد کنید (حداکثر: 10,000,000 GB)'),
 
+                        Forms\Components\TextInput::make('config_limit')
+                            ->label('محدودیت تعداد کانفیگ')
+                            ->numeric()
+                            ->minValue(0)
+                            ->helperText('تعداد کانفیگ‌هایی که می‌توان ایجاد کرد. 0 یا خالی = نامحدود'),
+
                         Forms\Components\DateTimePicker::make('window_starts_at')
-                            ->label('تاریخ شروع'),
+                            ->label('تاریخ شروع (اختیاری)')
+                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد'),
 
                         Forms\Components\DateTimePicker::make('window_ends_at')
-                            ->label('تاریخ پایان'),
+                            ->label('تاریخ پایان (اختیاری)')
+                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد'),
 
                         Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
                             ->description('سرویسهای مرزنشین مجاز برای این ریسلر')
