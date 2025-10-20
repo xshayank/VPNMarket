@@ -288,7 +288,7 @@ class ResellerUsageSyncTest extends TestCase
 
         $reseller = Reseller::factory()->create([
             'type' => 'traffic',
-            'status' => 'active',
+            'status' => 'suspended', // Was suspended, now has quota
             'traffic_total_bytes' => 10 * 1024 * 1024 * 1024, // 10 GB now
             'traffic_used_bytes' => 2 * 1024 * 1024 * 1024, // 2 GB used
             'window_starts_at' => now()->subDays(1),
@@ -350,7 +350,7 @@ class ResellerUsageSyncTest extends TestCase
 
         $reseller = Reseller::factory()->create([
             'type' => 'traffic',
-            'status' => 'active',
+            'status' => 'suspended', // Was suspended, now has quota
             'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
             'traffic_used_bytes' => 2 * 1024 * 1024 * 1024,
             'window_starts_at' => now()->subDays(1),
@@ -382,7 +382,11 @@ class ResellerUsageSyncTest extends TestCase
         $job = new ReenableResellerConfigsJob();
         $job->handle();
 
-        // Config should remain disabled
+        // Reseller should be reactivated
+        $reseller->refresh();
+        $this->assertEquals('active', $reseller->status);
+
+        // Config should remain disabled (was manually disabled)
         $config->refresh();
         $this->assertEquals('disabled', $config->status);
 
