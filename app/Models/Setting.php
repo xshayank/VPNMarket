@@ -38,6 +38,7 @@ class Setting extends Model
     public static function getValue(string $key, $default = null)
     {
         $setting = self::where('key', $key)->first();
+
         return $setting ? $setting->value : $default;
     }
 
@@ -58,6 +59,7 @@ class Setting extends Model
         if ($value === null) {
             return $default;
         }
+
         return $value === 'true' || $value === '1' || $value === true;
     }
 
@@ -67,6 +69,7 @@ class Setting extends Model
     public static function getInt(string $key, int $default = 0): int
     {
         $value = self::getValue($key);
+
         return $value !== null ? (int) $value : $default;
     }
 }

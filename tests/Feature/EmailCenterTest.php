@@ -36,7 +36,7 @@ test('settings are loaded correctly from database', function () {
     Setting::create(['key' => 'email.min_wallet_threshold', 'value' => '20000']);
 
     $component = Livewire::test(EmailCenter::class);
-    
+
     // Just verify the component renders successfully with the settings
     $component->assertSuccessful();
 });
@@ -91,7 +91,7 @@ test('run reminders now dispatches both reminder jobs', function () {
 
 test('expired normal users count is calculated correctly', function () {
     $plan = Plan::factory()->create();
-    
+
     // Create expired user without active orders
     $expiredUser = User::factory()->create();
     Order::factory()->create([
@@ -125,7 +125,7 @@ test('expired normal users count is calculated correctly', function () {
 test('expired resellers count is calculated correctly', function () {
     $user = User::factory()->create();
     $panel = \App\Models\Panel::factory()->create();
-    
+
     // Create expired reseller by window_ends_at
     Reseller::factory()->create([
         'user_id' => $user->id,
