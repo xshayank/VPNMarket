@@ -180,3 +180,21 @@ test('setting helper methods work correctly', function () {
         ->and(Setting::getValue('test.string'))->toBe('hello')
         ->and(Setting::getValue('test.nonexistent', 'default'))->toBe('default');
 });
+
+test('setting get method works as alias to getValue', function () {
+    // Test with dotted keys that would cause SQL errors without the fix
+    Setting::setValue('reseller.usage_sync_interval_minutes', '5');
+    Setting::setValue('email.auto_remind_renewal_wallet', 'true');
+    Setting::setValue('email.auto_remind_reseller_traffic_time', 'false');
+
+    // Verify get() method works correctly
+    expect(Setting::get('reseller.usage_sync_interval_minutes'))->toBe('5')
+        ->and(Setting::get('email.auto_remind_renewal_wallet'))->toBe('true')
+        ->and(Setting::get('email.auto_remind_reseller_traffic_time'))->toBe('false')
+        ->and(Setting::get('nonexistent.key'))->toBeNull()
+        ->and(Setting::get('nonexistent.key', 'default_value'))->toBe('default_value');
+
+    // Verify get() and getValue() return the same results
+    expect(Setting::get('reseller.usage_sync_interval_minutes'))
+        ->toBe(Setting::getValue('reseller.usage_sync_interval_minutes'));
+});

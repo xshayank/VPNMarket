@@ -25,6 +25,14 @@ class Setting extends Model
     }
 
     /**
+     * Get a setting value by key (alias for getValue)
+     */
+    public static function get(string $key, $default = null)
+    {
+        return self::getValue($key, $default);
+    }
+
+    /**
      * Get a setting value by key
      */
     public static function getValue(string $key, $default = null)
