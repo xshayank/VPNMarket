@@ -25,8 +25,8 @@ class ReenableResellerConfigsJob implements ShouldQueue
     {
         Log::info("Starting reseller config re-enable job");
 
-        // Get all active resellers with traffic-based configs that have quota and valid window
-        $resellers = Reseller::where('status', 'active')
+        // Get suspended traffic-based resellers that now have quota and valid window
+        $resellers = Reseller::where('status', 'suspended')
             ->where('type', 'traffic')
             ->get()
             ->filter(function ($reseller) {
@@ -41,6 +41,10 @@ class ReenableResellerConfigsJob implements ShouldQueue
         Log::info("Found {$resellers->count()} eligible resellers for re-enable");
 
         foreach ($resellers as $reseller) {
+            // Reactivate the reseller
+            $reseller->update(['status' => 'active']);
+            Log::info("Reseller {$reseller->id} reactivated after recovery");
+            
             $this->reenableResellerConfigs($reseller);
         }
 

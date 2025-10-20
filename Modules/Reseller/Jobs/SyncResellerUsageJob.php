@@ -86,6 +86,11 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
         // Check reseller-level limits
         if (!$reseller->hasTrafficRemaining() || !$reseller->isWindowValid()) {
+            // Suspend the reseller if not already suspended
+            if ($reseller->status !== 'suspended') {
+                $reseller->update(['status' => 'suspended']);
+                Log::info("Reseller {$reseller->id} suspended due to quota/window exhaustion");
+            }
             $this->disableResellerConfigs($reseller);
         }
     }

@@ -102,11 +102,6 @@ class ConfigController extends Controller
         $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
         $expiresAt = now()->addDays($expiresDays);
 
-        // Validate expiry is within reseller window (only if window_ends_at is set)
-        if ($reseller->window_ends_at && $expiresAt->gt($reseller->window_ends_at)) {
-            return back()->with('error', 'Config expiry cannot exceed your reseller window end date.');
-        }
-
         // Validate traffic limit doesn't exceed remaining traffic
         $remainingTraffic = $reseller->traffic_total_bytes - $reseller->traffic_used_bytes;
         if ($trafficLimitBytes > $remainingTraffic) {
