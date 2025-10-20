@@ -54,7 +54,7 @@ class SyncResellerUsageJob implements ShouldQueue
         }
 
         $totalUsageBytes = 0;
-        $allowConfigOverrun = Setting::get('reseller.allow_config_overrun', 'true') === 'true';
+        $allowConfigOverrun = Setting::getBool('reseller.allow_config_overrun', true);
 
         foreach ($configs as $config) {
             try {
