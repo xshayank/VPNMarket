@@ -14,8 +14,8 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m'
-PROJECT_PATH="/var/www/vpnmarket"
-GITHUB_REPO="https://github.com/arvinvahed/VPNMarket.git"
+PROJECT_PATH="/var/www/FalcoMarket"
+GITHUB_REPO="https://github.com/xshayank/VPNMarket.git"
 PHP_VERSION="8.3"
 
 echo -e "${CYAN}--- Welcome! Preparing to install the VPNMarket project ---${NC}"
