@@ -130,6 +130,13 @@ Step 4: Recovery (After Admin Recharge)
 - Prevents manual enable when reseller is exhausted
 - Error: "Cannot enable config: reseller quota exceeded or window expired."
 
+### Reseller Middleware
+**File**: `app/Http/Middleware/EnsureUserIsReseller.php`
+- Blocks suspended resellers from accessing any reseller routes
+- Provides additional protection layer
+- Error: "Your reseller account has been suspended. Please contact support."
+- Note: Suspended resellers cannot create new configs even with the validation removed
+
 ## Migration Notes
 
 ### No Database Changes

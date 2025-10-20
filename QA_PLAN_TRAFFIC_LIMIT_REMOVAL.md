@@ -180,6 +180,15 @@ This change removes the blocking validation that prevented traffic-based reselle
 
 ---
 
+## Additional Protection Layer
+
+**Note**: The `EnsureUserIsReseller` middleware blocks suspended resellers from accessing any reseller routes, including config creation. This means:
+- When reseller is suspended (due to quota exhaustion), they cannot access the create config form
+- Error message: "Your reseller account has been suspended. Please contact support."
+- This provides an extra safety layer on top of the enforcement logic
+
+---
+
 ## Edge Cases
 
 ### 7. Multiple Configs Exceed Quota at Creation
