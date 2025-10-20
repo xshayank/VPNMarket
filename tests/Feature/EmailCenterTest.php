@@ -36,7 +36,7 @@ test('settings are loaded correctly from database', function () {
     Setting::create(['key' => 'email.min_wallet_threshold', 'value' => '20000']);
 
     $component = Livewire::test(EmailCenter::class);
-    
+
     // Just verify the component renders successfully with the settings
     $component->assertSuccessful();
 });
@@ -91,7 +91,7 @@ test('run reminders now dispatches both reminder jobs', function () {
 
 test('expired normal users count is calculated correctly', function () {
     $plan = Plan::factory()->create();
-    
+
     // Create expired user without active orders
     $expiredUser = User::factory()->create();
     Order::factory()->create([
@@ -125,7 +125,7 @@ test('expired normal users count is calculated correctly', function () {
 test('expired resellers count is calculated correctly', function () {
     $user = User::factory()->create();
     $panel = \App\Models\Panel::factory()->create();
-    
+
     // Create expired reseller by window_ends_at
     Reseller::factory()->create([
         'user_id' => $user->id,
@@ -179,4 +179,22 @@ test('setting helper methods work correctly', function () {
         ->and(Setting::getInt('test.nonexistent', 10))->toBe(10)
         ->and(Setting::getValue('test.string'))->toBe('hello')
         ->and(Setting::getValue('test.nonexistent', 'default'))->toBe('default');
+});
+
+test('setting get method works as alias to getValue', function () {
+    // Test with dotted keys that would cause SQL errors without the fix
+    Setting::setValue('reseller.usage_sync_interval_minutes', '5');
+    Setting::setValue('email.auto_remind_renewal_wallet', 'true');
+    Setting::setValue('email.auto_remind_reseller_traffic_time', 'false');
+
+    // Verify get() method works correctly
+    expect(Setting::get('reseller.usage_sync_interval_minutes'))->toBe('5')
+        ->and(Setting::get('email.auto_remind_renewal_wallet'))->toBe('true')
+        ->and(Setting::get('email.auto_remind_reseller_traffic_time'))->toBe('false')
+        ->and(Setting::get('nonexistent.key'))->toBeNull()
+        ->and(Setting::get('nonexistent.key', 'default_value'))->toBe('default_value');
+
+    // Verify get() and getValue() return the same results
+    expect(Setting::get('reseller.usage_sync_interval_minutes'))
+        ->toBe(Setting::getValue('reseller.usage_sync_interval_minutes'));
 });
