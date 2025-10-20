@@ -64,11 +64,7 @@ class ResellerProvisioner
      */
     protected function provisionMarzban(array $credentials, Plan $plan, string $username, array $options): ?array
     {
-        $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-        if (empty($nodeHostname)) {
-            Log::error("Missing or empty node_hostname in panel credentials for Marzban provisioning.");
-            return null;
-        }
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
         
         $service = new MarzbanService(
             $credentials['url'],
@@ -194,10 +190,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->updateUser($panelUserId, ['status' => 'disabled']);
@@ -245,10 +243,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->updateUser($panelUserId, ['status' => 'active']);
@@ -256,7 +256,7 @@ class ResellerProvisioner
                     break;
 
                 case 'marzneshin':
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzneshinService(
                         $credentials['url'],
                         $credentials['username'],
@@ -296,10 +296,12 @@ class ResellerProvisioner
         try {
             switch ($panelType) {
                 case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzbanService(
                         $credentials['url'],
                         $credentials['username'],
-                        $credentials['password']
+                        $credentials['password'],
+                        $nodeHostname
                     );
                     if ($service->login()) {
                         return $service->deleteUser($panelUserId);
@@ -307,7 +309,7 @@ class ResellerProvisioner
                     break;
 
                 case 'marzneshin':
-                    $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new MarzneshinService(
                         $credentials['url'],
                         $credentials['username'],

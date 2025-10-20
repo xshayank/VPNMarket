@@ -103,9 +103,16 @@ class MarzbanService
     {
         $subscriptionUrl = $userApiResponse['subscription_url'];
         
-        // The subscription_url from Marzban API is typically a path like "/sub/abc123"
-        // We need to prepend the node hostname to create an absolute URL
-        return rtrim($this->nodeHostname, '/') . '/' . ltrim($subscriptionUrl, '/');
+        // If the subscription URL is already absolute, return as is
+        if (preg_match('#^https?://#i', $subscriptionUrl)) {
+            return $subscriptionUrl;
+        }
+        
+        // Use nodeHostname if set, otherwise fall back to baseUrl
+        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+        
+        // Ensure exactly one slash between hostname and path
+        return rtrim($baseHost, '/') . '/' . ltrim($subscriptionUrl, '/');
     }
 
     public function generateSubscriptionLink(array $userApiResponse): string

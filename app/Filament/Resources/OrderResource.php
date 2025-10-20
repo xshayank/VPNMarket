@@ -143,7 +143,7 @@ class OrderResource extends Resource
                                 : now()->addDays($plan->duration_days);
 
                             if ($panelType === 'marzban') {
-                                $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                                $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                                 $marzbanService = new MarzbanService(
                                     $credentials['url'],
                                     $credentials['username'],
@@ -162,7 +162,7 @@ class OrderResource extends Resource
                                     return;
                                 }
                             } elseif ($panelType === 'marzneshin') {
-                                $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+                                $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                                 $marzneshinService = new MarzneshinService(
                                     $credentials['url'],
                                     $credentials['username'],
