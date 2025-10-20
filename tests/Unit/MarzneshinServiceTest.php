@@ -474,6 +474,24 @@ test('generateSubscriptionLink uses buildAbsoluteSubscriptionUrl internally', fu
         ->and($absoluteUrl)->toBe('https://node.example.com/sub/test123');
 });
 
+test('buildAbsoluteSubscriptionUrl falls back to baseUrl when nodeHostname is empty', function () {
+    $service = new MarzneshinService(
+        'https://panel.example.com',
+        'admin',
+        'password',
+        '' // Empty nodeHostname
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => '/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://panel.example.com/sub/abc123xyz');
+});
+
 test('ISO 8601 conversion works correctly for various timestamps', function () {
     Http::fake([
         '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),

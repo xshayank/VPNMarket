@@ -146,8 +146,11 @@ class MarzneshinService
             return $subscriptionUrl;
         }
 
+        // Use nodeHostname if set, otherwise fall back to baseUrl
+        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+
         // Ensure exactly one slash between hostname and path
-        return rtrim($this->nodeHostname, '/').'/'.ltrim($subscriptionUrl, '/');
+        return rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
     }
 
     public function generateSubscriptionLink(array $userApiResponse): string

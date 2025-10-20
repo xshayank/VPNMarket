@@ -176,6 +176,60 @@ test('generateSubscriptionLink uses buildAbsoluteSubscriptionUrl internally', fu
         ->and($absoluteUrl)->toBe('https://node.example.com/sub/test123');
 });
 
+test('buildAbsoluteSubscriptionUrl returns absolute URL when already absolute', function () {
+    $service = new MarzbanService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => 'https://cdn.example.com/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://cdn.example.com/sub/abc123xyz');
+});
+
+test('buildAbsoluteSubscriptionUrl falls back to baseUrl when nodeHostname is empty', function () {
+    $service = new MarzbanService(
+        'https://panel.example.com',
+        'admin',
+        'password',
+        '' // Empty nodeHostname
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => '/sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://panel.example.com/sub/abc123xyz');
+});
+
+test('buildAbsoluteSubscriptionUrl handles path without leading slash', function () {
+    $service = new MarzbanService(
+        'https://example.com',
+        'admin',
+        'password',
+        'https://node.example.com'
+    );
+
+    $userApiResponse = [
+        'username' => 'testuser',
+        'subscription_url' => 'sub/abc123xyz',
+    ];
+
+    $result = $service->buildAbsoluteSubscriptionUrl($userApiResponse);
+
+    expect($result)->toBe('https://node.example.com/sub/abc123xyz');
+});
+
 test('deleteUser returns true on successful deletion', function () {
     Http::fake([
         '*/api/admin/token' => Http::response(['access_token' => 'test-token'], 200),
