@@ -102,12 +102,6 @@ class ConfigController extends Controller
         $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
         $expiresAt = now()->addDays($expiresDays);
 
-        // Validate traffic limit doesn't exceed remaining traffic
-        $remainingTraffic = $reseller->traffic_total_bytes - $reseller->traffic_used_bytes;
-        if ($trafficLimitBytes > $remainingTraffic) {
-            return back()->with('error', 'Config traffic limit exceeds your remaining traffic quota.');
-        }
-
         // Validate Marzneshin service whitelist
         if ($panel->panel_type === 'marzneshin' && $reseller->marzneshin_allowed_service_ids) {
             $serviceIds = $request->service_ids ?? [];
