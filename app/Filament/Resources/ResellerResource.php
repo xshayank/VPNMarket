@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ResellerResource\Pages;
+use App\Filament\Resources\ResellerResource\RelationManagers;
 use App\Models\Plan;
 use App\Models\Reseller;
 use Filament\Forms;
@@ -10,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 
 class ResellerResource extends Resource
 {
@@ -213,14 +215,25 @@ class ResellerResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('user.email')
+                Tables\Columns\TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable()
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('user.name')
                     ->label('کاربر')
-                    ->searchable()
+                    ->description(fn (Reseller $record): string => $record->user->email ?? '')
+                    ->searchable(['name', 'email'])
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('type')
                     ->label('نوع')
                     ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'plan' => 'info',
+                        'traffic' => 'warning',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
@@ -241,10 +254,46 @@ class ResellerResource extends Resource
                         default => $state,
                     }),
 
+                Tables\Columns\TextColumn::make('traffic')
+                    ->label('ترافیک')
+                    ->visible(fn ($record): bool => $record && $record->type === 'traffic')
+                    ->formatStateUsing(function (Reseller $record): string {
+                        if ($record->type !== 'traffic') {
+                            return '-';
+                        }
+                        $usedGB = round($record->traffic_used_bytes / (1024 * 1024 * 1024), 2);
+                        $totalGB = round($record->traffic_total_bytes / (1024 * 1024 * 1024), 2);
+                        $percent = $totalGB > 0 ? round(($record->traffic_used_bytes / $record->traffic_total_bytes) * 100, 1) : 0;
+                        return "{$usedGB} / {$totalGB} GB ({$percent}%)";
+                    })
+                    ->description(function (Reseller $record): ?string {
+                        if ($record->type !== 'traffic' || !$record->traffic_total_bytes) {
+                            return null;
+                        }
+                        $percent = round(($record->traffic_used_bytes / $record->traffic_total_bytes) * 100, 1);
+                        return "استفاده شده: {$percent}%";
+                    }),
+
+                Tables\Columns\TextColumn::make('window')
+                    ->label('بازه زمانی')
+                    ->visible(fn ($record): bool => $record && $record->type === 'traffic')
+                    ->formatStateUsing(function (Reseller $record): string {
+                        if ($record->type !== 'traffic' || !$record->window_starts_at) {
+                            return '-';
+                        }
+                        return $record->window_starts_at->format('Y-m-d').' تا '.$record->window_ends_at->format('Y-m-d');
+                    }),
+
+                Tables\Columns\TextColumn::make('panel.name')
+                    ->label('پنل')
+                    ->description(fn (Reseller $record): string => $record->panel ? ($record->panel->panel_type ?? '-') : '-')
+                    ->visible(fn ($record): bool => $record && $record->type === 'traffic'),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('تاریخ ایجاد')
-                    ->dateTime()
-                    ->sortable(),
+                    ->dateTime('Y-m-d H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('type')
@@ -260,21 +309,148 @@ class ResellerResource extends Resource
                         'active' => 'فعال',
                         'suspended' => 'معلق',
                     ]),
+
+                Tables\Filters\SelectFilter::make('panel_type')
+                    ->label('نوع پنل')
+                    ->relationship('panel', 'panel_type')
+                    ->options([
+                        'marzban' => 'Marzban',
+                        'marzneshin' => 'Marzneshin',
+                        'xui' => 'X-UI',
+                    ])
+                    ->visible(fn (): bool => Reseller::where('type', 'traffic')->exists()),
             ])
             ->actions([
+                Tables\Actions\Action::make('users')
+                    ->label('کاربران')
+                    ->icon('heroicon-o-users')
+                    ->color('info')
+                    ->url(fn (Reseller $record): string => static::getUrl('edit', ['record' => $record]))
+                    ->visible(fn (Reseller $record): bool => $record->type === 'traffic'),
+
+                Tables\Actions\Action::make('suspend')
+                    ->label('تعلیق')
+                    ->icon('heroicon-o-no-symbol')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn (Reseller $record): bool => $record->status === 'active')
+                    ->action(function (Reseller $record) {
+                        $record->update(['status' => 'suspended']);
+                        Notification::make()
+                            ->success()
+                            ->title('ریسلر با موفقیت معلق شد')
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('activate')
+                    ->label('فعال‌سازی')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->visible(fn (Reseller $record): bool => $record->status === 'suspended')
+                    ->action(function (Reseller $record) {
+                        $record->update(['status' => 'active']);
+                        Notification::make()
+                            ->success()
+                            ->title('ریسلر با موفقیت فعال شد')
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('topup')
+                    ->label('افزایش ترافیک')
+                    ->icon('heroicon-o-arrow-up-circle')
+                    ->color('warning')
+                    ->visible(fn (Reseller $record): bool => $record->type === 'traffic')
+                    ->form([
+                        Forms\Components\TextInput::make('traffic_gb')
+                            ->label('مقدار ترافیک (GB)')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->maxValue(100000)
+                            ->helperText('مقدار ترافیک که می‌خواهید به ریسلر اضافه کنید'),
+                    ])
+                    ->action(function (Reseller $record, array $data) {
+                        $additionalBytes = $data['traffic_gb'] * 1024 * 1024 * 1024;
+                        $record->update([
+                            'traffic_total_bytes' => $record->traffic_total_bytes + $additionalBytes,
+                        ]);
+                        Notification::make()
+                            ->success()
+                            ->title('ترافیک با موفقیت افزایش یافت')
+                            ->body("{$data['traffic_gb']} گیگابایت به ترافیک ریسلر اضافه شد")
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('extend')
+                    ->label('تمدید بازه')
+                    ->icon('heroicon-o-calendar')
+                    ->color('info')
+                    ->visible(fn (Reseller $record): bool => $record->type === 'traffic')
+                    ->form([
+                        Forms\Components\TextInput::make('days')
+                            ->label('تعداد روز')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->maxValue(365)
+                            ->helperText('تعداد روزی که می‌خواهید به بازه زمانی اضافه کنید'),
+                    ])
+                    ->action(function (Reseller $record, array $data) {
+                        $newEndDate = $record->window_ends_at->addDays($data['days']);
+                        $record->update([
+                            'window_ends_at' => $newEndDate,
+                        ]);
+                        Notification::make()
+                            ->success()
+                            ->title('بازه زمانی با موفقیت تمدید شد')
+                            ->body("{$data['days']} روز به بازه زمانی ریسلر اضافه شد")
+                            ->send();
+                    }),
+
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\BulkAction::make('suspend')
+                        ->label('تعلیق گروهی')
+                        ->icon('heroicon-o-no-symbol')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->action(function ($records) {
+                            $records->each(fn (Reseller $record) => $record->update(['status' => 'suspended']));
+                            Notification::make()
+                                ->success()
+                                ->title('ریسلرهای انتخاب شده با موفقیت معلق شدند')
+                                ->send();
+                        }),
+
+                    Tables\Actions\BulkAction::make('activate')
+                        ->label('فعال‌سازی گروهی')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->action(function ($records) {
+                            $records->each(fn (Reseller $record) => $record->update(['status' => 'active']));
+                            Notification::make()
+                                ->success()
+                                ->title('ریسلرهای انتخاب شده با موفقیت فعال شدند')
+                                ->send();
+                        }),
+
+                    Tables\Actions\ExportBulkAction::make()
+                        ->label('خروجی CSV'),
                 ]),
-            ]);
+            ])
+            ->searchable()
+            ->defaultSort('id', 'desc');
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\ConfigsRelationManager::class,
         ];
     }
 
@@ -283,6 +459,7 @@ class ResellerResource extends Resource
         return [
             'index' => Pages\ListResellers::route('/'),
             'create' => Pages\CreateReseller::route('/create'),
+            'view' => Pages\ViewReseller::route('/{record}'),
             'edit' => Pages\EditReseller::route('/{record}/edit'),
         ];
     }
