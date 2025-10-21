@@ -65,7 +65,7 @@ class ResellerProvisioner
     protected function provisionMarzban(array $credentials, Plan $plan, string $username, array $options): ?array
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
-        
+
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
@@ -213,6 +213,7 @@ class ResellerProvisioner
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated disable endpoint
                         $result = $service->disableUser($panelUserId);
+
                         return $result;
                     }
                     break;
@@ -266,6 +267,7 @@ class ResellerProvisioner
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated enable endpoint
                         $result = $service->enableUser($panelUserId);
+
                         return $result;
                     }
                     break;
@@ -286,6 +288,35 @@ class ResellerProvisioner
         }
 
         return false;
+    }
+
+    /**
+     * Enable a config on its panel (convenience wrapper for enableUser)
+     */
+    public function enableConfig(\App\Models\ResellerConfig $config): bool
+    {
+        if (! $config->panel_id || ! $config->panel_user_id) {
+            Log::warning("Cannot enable config {$config->id}: missing panel_id or panel_user_id");
+
+            return false;
+        }
+
+        $panel = Panel::find($config->panel_id);
+        if (! $panel) {
+            Log::warning("Cannot enable config {$config->id}: panel not found");
+
+            return false;
+        }
+
+        try {
+            $credentials = $panel->getCredentials();
+
+            return $this->enableUser($config->panel_type, $credentials, $config->panel_user_id);
+        } catch (\Exception $e) {
+            Log::warning("Failed to enable config {$config->id}: ".$e->getMessage());
+
+            return false;
+        }
     }
 
     /**
