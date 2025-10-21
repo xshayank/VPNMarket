@@ -8,10 +8,10 @@ use App\Models\Plan;
 use App\Models\Reseller;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
 
 class ResellerResource extends Resource
 {
@@ -272,13 +272,15 @@ class ResellerResource extends Resource
                         $usedGB = round($record->traffic_used_bytes / (1024 * 1024 * 1024), 2);
                         $totalGB = round($record->traffic_total_bytes / (1024 * 1024 * 1024), 2);
                         $percent = $totalGB > 0 ? round(($record->traffic_used_bytes / $record->traffic_total_bytes) * 100, 1) : 0;
+
                         return "{$usedGB} / {$totalGB} GB ({$percent}%)";
                     })
                     ->description(function (Reseller $record): ?string {
-                        if ($record->type !== 'traffic' || !$record->traffic_total_bytes) {
+                        if ($record->type !== 'traffic' || ! $record->traffic_total_bytes) {
                             return null;
                         }
                         $percent = round(($record->traffic_used_bytes / $record->traffic_total_bytes) * 100, 1);
+
                         return "استفاده شده: {$percent}%";
                     }),
 
@@ -286,9 +288,10 @@ class ResellerResource extends Resource
                     ->label('بازه زمانی')
                     ->visible(fn ($record): bool => $record && $record->type === 'traffic')
                     ->formatStateUsing(function (Reseller $record): string {
-                        if ($record->type !== 'traffic' || !$record->window_starts_at) {
+                        if ($record->type !== 'traffic' || ! $record->window_starts_at) {
                             return '-';
                         }
+
                         return $record->window_starts_at->format('Y-m-d').' تا '.$record->window_ends_at->format('Y-m-d');
                     }),
 
@@ -383,6 +386,10 @@ class ResellerResource extends Resource
                         $record->update([
                             'traffic_total_bytes' => $record->traffic_total_bytes + $additionalBytes,
                         ]);
+
+                        // Dispatch job to re-enable configs if reseller recovered
+                        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+
                         Notification::make()
                             ->success()
                             ->title('ترافیک با موفقیت افزایش یافت')
@@ -409,6 +416,10 @@ class ResellerResource extends Resource
                         $record->update([
                             'window_ends_at' => $newEndDate,
                         ]);
+
+                        // Dispatch job to re-enable configs if reseller recovered
+                        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+
                         Notification::make()
                             ->success()
                             ->title('بازه زمانی با موفقیت تمدید شد')

@@ -19,11 +19,12 @@ class ReenableResellerConfigsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 2;
+
     public $timeout = 600;
 
-    public function handle(): void
+    public function handle(ResellerProvisioner $provisioner): void
     {
-        Log::info("Starting reseller config re-enable job");
+        Log::info('Starting reseller config re-enable job');
 
         // Get suspended traffic-based resellers that now have quota and valid window
         $resellers = Reseller::where('status', 'suspended')
@@ -34,7 +35,8 @@ class ReenableResellerConfigsJob implements ShouldQueue
             });
 
         if ($resellers->isEmpty()) {
-            Log::info("No eligible resellers for re-enable");
+            Log::info('No eligible resellers for re-enable');
+
             return;
         }
 
@@ -44,14 +46,14 @@ class ReenableResellerConfigsJob implements ShouldQueue
             // Reactivate the reseller
             $reseller->update(['status' => 'active']);
             Log::info("Reseller {$reseller->id} reactivated after recovery");
-            
-            $this->reenableResellerConfigs($reseller);
+
+            $this->reenableResellerConfigs($reseller, $provisioner);
         }
 
-        Log::info("Reseller config re-enable job completed");
+        Log::info('Reseller config re-enable job completed');
     }
 
-    protected function reenableResellerConfigs(Reseller $reseller): void
+    protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
         // Find disabled configs that were auto-disabled by the system
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
@@ -69,12 +71,12 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 ->orderBy('created_at', 'desc')
                 ->first();
 
-            if (!$lastEvent) {
+            if (! $lastEvent) {
                 return false;
             }
 
             // Only re-enable if the last event was auto_disabled with reseller-level reason
-            return $lastEvent->type === 'auto_disabled' 
+            return $lastEvent->type === 'auto_disabled'
                 && isset($lastEvent->meta['reason'])
                 && in_array($lastEvent->meta['reason'], ['reseller_quota_exhausted', 'reseller_window_expired']);
         });
@@ -87,7 +89,6 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
         $enabledCount = 0;
         $failedCount = 0;
-        $provisioner = new ResellerProvisioner();
 
         foreach ($configs as $config) {
             try {
@@ -96,20 +97,10 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     sleep(1);
                 }
 
-                // Enable on remote panel using the stored panel_id/panel_type
-                $remoteSuccess = false;
-                if ($config->panel_id) {
-                    $panel = Panel::find($config->panel_id);
-                    if ($panel) {
-                        $remoteSuccess = $provisioner->enableUser(
-                            $config->panel_type, 
-                            $panel->getCredentials(), 
-                            $config->panel_user_id
-                        );
-                    }
-                }
+                // Enable on remote panel using enableConfig method
+                $remoteSuccess = $provisioner->enableConfig($config);
 
-                if (!$remoteSuccess) {
+                if (! $remoteSuccess) {
                     Log::warning("Failed to enable config {$config->id} on remote panel");
                     $failedCount++;
                 }
@@ -131,7 +122,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
                 $enabledCount++;
             } catch (\Exception $e) {
-                Log::error("Exception enabling config {$config->id}: " . $e->getMessage());
+                Log::error("Exception enabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
             }
         }
