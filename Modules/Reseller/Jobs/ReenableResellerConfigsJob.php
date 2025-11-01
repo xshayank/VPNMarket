@@ -55,13 +55,15 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
-        // Optimize: Use eager loading and whereHas to prevent N+1 queries
+        // Optimize: Use eager loading to prevent N+1 queries
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
             ->with(['events' => function ($query) {
                 $query->where('type', 'auto_disabled')
-                    ->whereJsonContains('meta->reason', 'reseller_quota_exhausted')
-                    ->orWhereJsonContains('meta->reason', 'reseller_window_expired')
+                    ->where(function ($q) {
+                        $q->whereJsonContains('meta->reason', 'reseller_quota_exhausted')
+                            ->orWhereJsonContains('meta->reason', 'reseller_window_expired');
+                    })
                     ->orderBy('created_at', 'desc');
             }])
             ->get();
