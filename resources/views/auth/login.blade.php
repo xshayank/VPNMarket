@@ -32,7 +32,7 @@
             <x-input-error :messages="$errors->get('password')" class="input-error-message" />
         </div>
 
-        <div class="form-row mb-4">
+        <div class="form-row">
             <label for="remember_me" class="remember-me">
                 <input id="remember_me" type="checkbox" name="remember">
                 <span>مرا به خاطر بسپار</span>
