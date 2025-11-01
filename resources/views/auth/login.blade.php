@@ -7,15 +7,9 @@
 
     <title>{{ config('app.name', 'Laravel') }} - ورود</title>
 
-    <link rel="stylesheet" href="{{ asset('themes/auth/dragon/css/style.css') }}">
+    <link rel="stylesheet" href="{{ asset('themes/auth/modern/style.css') }}">
 </head>
-<body class="dragon-auth-body">
-
-<div class="embers-container">
-    @for ($i = 0; $i < 20; $i++)
-        <div class="ember"></div>
-    @endfor
-</div>
+<body class="modern-auth-body">
 
 <div class="auth-card">
 
@@ -38,10 +32,10 @@
             <x-input-error :messages="$errors->get('password')" class="input-error-message" />
         </div>
 
-        <div class="form-row mb-4">
+        <div class="form-row">
             <label for="remember_me" class="remember-me">
                 <input id="remember_me" type="checkbox" name="remember">
-                مرا به خاطر بسپار
+                <span>مرا به خاطر بسپار</span>
             </label>
         </div>
 
