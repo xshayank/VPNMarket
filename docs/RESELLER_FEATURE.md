@@ -192,16 +192,23 @@ Runs every `reseller.usage_sync_interval_minutes`:
 
 1. Fetches usage from panels for all active configs
 2. Updates `usage_bytes` for each config
-3. Calculates total reseller usage
+3. **Calculates total reseller usage from ALL configs (regardless of status)** - this ensures reseller-level suspension decisions are based on complete usage totals, not just active configs
 4. Auto-disables configs that:
    - Exceed their individual traffic limit + grace (when `allow_config_overrun` is false)
    - Are past their expiry date + grace minutes
    - Belong to resellers whose quota + grace or window is exhausted
+5. **Suspends reseller if total usage exceeds quota or window expires** - creates domain-specific audit logs with reason codes
+
+**Important Note on Reseller Suspension:**
+- Reseller total usage is calculated by summing `usage_bytes` from **all configs** (active, disabled, expired, etc.)
+- This prevents the edge case where a config that was just disabled or is inactive could cause the reseller-level quota check to miss the actual overage
+- When reseller is suspended, all remaining active configs are disabled with appropriate audit logs
 
 **Enforcement Order:**
 1. Attempt remote panel disable (with 3 retries: 0s, 1s, 3s delays)
 2. Update local database status
 3. Record event with telemetry
+4. **Emit domain-specific AuditLog entries** with reason codes and remote operation telemetry
 
 ### Reseller Suspension
 

@@ -307,8 +307,14 @@ curl -H "Authorization: Bearer {token}" \
 - `AuditLogsController`: API endpoint
 
 ### Jobs
-- `SyncResellerUsageJob`: Auto-disable, reseller suspension
-- `ReenableResellerConfigsJob`: Auto-enable, reseller activation
+- `SyncResellerUsageJob`: Auto-disable configs, reseller suspension
+  - **Domain-specific audit logs**: Emits `config_auto_disabled` with reasons (`traffic_exceeded`, `time_expired`, `reseller_quota_exhausted`, `reseller_window_expired`)
+  - **Domain-specific audit logs**: Emits `reseller_suspended` with reasons (`reseller_quota_exhausted`, `reseller_window_expired`)
+  - Includes full remote operation telemetry: `remote_success`, `attempts`, `last_error`, `panel_id`, `panel_type_used`
+- `ReenableResellerConfigsJob`: Auto-enable configs, reseller activation
+  - **Domain-specific audit logs**: Emits `config_auto_enabled` with reason `reseller_recovered`
+  - **Domain-specific audit logs**: Emits `reseller_activated` with reason `reseller_recovered`
+  - Includes full remote operation telemetry
 
 ### Filament
 - `ConfigsRelationManager`: Manual disable/enable/delete actions
@@ -316,7 +322,28 @@ curl -H "Authorization: Bearer {token}" \
 
 ### Observers (Safety Net)
 - `ResellerObserver`: Fallback logging for reseller changes
+  - Creates audit logs with action matching status (`reseller_suspended`, `reseller_activated`)
+  - Uses reason `audit_reseller_status_changed` to distinguish from domain-specific logs
+  - **Note**: Jobs emit domain-specific logs with specific reasons; observer logs serve as safety net
 - `ResellerConfigObserver`: Fallback logging for config changes
+
+## Important: Domain-Specific vs Safety Net Audit Logs
+
+The audit system has two layers:
+
+1. **Domain-specific logs** (from jobs/controllers): These are the primary audit records
+   - Created explicitly by business logic (e.g., `SyncResellerUsageJob`, `ReenableResellerConfigsJob`)
+   - Include specific reason codes that explain *why* the action occurred
+   - Examples: `config_auto_disabled` with reason `traffic_exceeded` or `reseller_quota_exhausted`
+   - Include complete remote operation telemetry
+
+2. **Safety net logs** (from observers): These are fallback records
+   - Created automatically when model state changes
+   - Use generic reason `audit_reseller_status_changed` or similar
+   - Ensure no status change goes unlogged even if domain logic fails to create a log
+   - Examples: `reseller_suspended` with reason `audit_reseller_status_changed`
+
+**When troubleshooting**: Look for domain-specific logs first (specific reasons), then safety net logs if none exist.
 
 ## Troubleshooting with Audit Logs
 
@@ -326,12 +353,21 @@ curl -H "Authorization: Bearer {token}" \
 2. Filter by `target_type=config` and `target_id={config_id}`
 3. Sort by `created_at` desc
 4. Look for `config_auto_disabled` or `config_manual_disabled`
-5. Check `reason` and `meta.remote_success`
+5. Check `reason` field - domain-specific logs will have specific reasons like `traffic_exceeded`, `reseller_quota_exhausted`, etc.
+6. If multiple logs exist for the same action, look for the one with a specific reason (not `audit_*`)
+7. Check `meta.remote_success` to see if remote panel operation succeeded
 
 **Common Causes**:
 - `traffic_exceeded`: Config hit its traffic limit
-- `reseller_quota_exhausted`: Reseller out of quota
-- `admin_action`: Manually disabled by user
+- `reseller_quota_exhausted`: Reseller out of quota (total usage across all configs exceeded limit)
+- `reseller_window_expired`: Reseller window expired
+- `time_expired`: Config expired due to time limit
+- `admin_action`: Manually disabled by admin/user
+
+**Note**: You may see multiple audit logs for the same status change:
+- One from the job/controller with specific reason (e.g., `traffic_exceeded`)
+- One from the observer with reason `audit_reseller_status_changed` or similar
+- The domain-specific log (with specific reason) is the primary record to review
 
 ### Scenario 2: Remote Panel Operation Failed
 **Steps**:
@@ -344,11 +380,23 @@ curl -H "Authorization: Bearer {token}" \
 - Invalid credentials
 - Panel API changed
 
-### Scenario 3: Reseller Quota Not Updating
+### Scenario 3: Reseller Suspended or Reactivated
 **Steps**:
-1. Filter by `target_type=reseller` and `action=reseller_recharged`
-2. Verify `meta.old_traffic_bytes` and `meta.new_traffic_bytes`
-3. Cross-reference with reseller record
+1. Filter by `target_type=reseller` and specific `target_id`
+2. Look for `reseller_suspended` or `reseller_activated` actions
+3. Check `reason` field for domain-specific reasons:
+   - `reseller_quota_exhausted`: Total usage exceeded quota (sum of all config usage)
+   - `reseller_window_expired`: Window validity period ended
+   - `reseller_recovered`: Quota increased or window extended, configs auto-enabled
+4. Review `meta` for usage details:
+   - `traffic_used_bytes`: Total usage across all configs (including disabled ones)
+   - `traffic_total_bytes`: Total allocated quota
+   - `window_ends_at`: Window expiration timestamp
+
+**Note**: Multiple logs may exist for the same suspension/activation:
+- Domain-specific log with specific reason (e.g., `reseller_quota_exhausted`)
+- Observer safety net log with reason `audit_reseller_status_changed`
+- Focus on the domain-specific log for root cause analysis
 
 ## Best Practices
 
