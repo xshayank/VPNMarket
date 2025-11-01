@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\ResellerConfig;
 use App\Models\User;
+use App\Observers\ResellerConfigObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -21,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register ResellerConfig observer for audit safety net
+        ResellerConfig::observe(ResellerConfigObserver::class);
 
         User::creating(function ($user) {
             do {
