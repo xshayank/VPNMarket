@@ -144,7 +144,8 @@ class ResellerConfigTrafficLimitValidationTest extends TestCase
 
         // Run sync job - should detect quota exhaustion
         $job = new SyncResellerUsageJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Reseller should be suspended
         $reseller->refresh();
@@ -235,7 +236,8 @@ class ResellerConfigTrafficLimitValidationTest extends TestCase
 
         // Run re-enable job
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Reseller should be reactivated
         $reseller->refresh();

@@ -321,9 +321,10 @@ class ResellerUsageSyncTest extends TestCase
             '*/api/users/*/enable' => Http::response([], 200),
         ]);
 
-        // Run re-enable job
+        // Run re-enable job with provisioner
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $job->handle($provisioner);
 
         // Config should be re-enabled
         $config->refresh();
@@ -378,9 +379,10 @@ class ResellerUsageSyncTest extends TestCase
 
         Http::fake();
 
-        // Run re-enable job
+        // Run re-enable job with provisioner
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $job->handle($provisioner);
 
         // Reseller should be reactivated
         $reseller->refresh();

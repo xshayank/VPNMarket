@@ -158,8 +158,32 @@ Default settings can be configured via the `settings` table:
 | `reseller.bulk_max_quantity` | `50` | Max accounts per bulk order |
 | `reseller.configs_max_active` | `50` | Max active configs for traffic resellers |
 | `reseller.usage_sync_interval_minutes` | `5` | Minutes between usage sync jobs |
+| `reseller.allow_config_overrun` | `true` | Allow configs to exceed their own limits while reseller has quota |
+| `reseller.auto_disable_grace_percent` | `2.0` | Grace percentage for reseller-level traffic enforcement |
+| `reseller.auto_disable_grace_bytes` | `52428800` | Grace bytes (50MB) for reseller-level traffic enforcement |
+| `reseller.time_expiry_grace_minutes` | `0` | Grace minutes after config expiration (0 = no grace) |
+| `config.auto_disable_grace_percent` | `2.0` | Grace percentage for per-config traffic enforcement |
+| `config.auto_disable_grace_bytes` | `52428800` | Grace bytes (50MB) for per-config traffic enforcement |
 
 ## Automated Enforcement
+
+### Grace Thresholds
+
+Grace thresholds prevent premature config disabling due to:
+- API lag between usage sync and panel state
+- Rounding errors in traffic calculations
+- Temporary panel connectivity issues
+
+**How it works:**
+- System adds a grace buffer above configured limits
+- Grace is the maximum of: `grace_bytes` or `limit * grace_percent / 100`
+- Config is disabled only when: `usage >= limit + grace`
+
+**Example:**
+- Config limit: 5GB
+- Grace percent: 2%
+- Grace bytes: 50MB
+- Effective enforcement limit: 5GB + max(102.4MB, 50MB) = 5.1GB
 
 ### Usage Sync Job
 
@@ -169,16 +193,80 @@ Runs every `reseller.usage_sync_interval_minutes`:
 2. Updates `usage_bytes` for each config
 3. Calculates total reseller usage
 4. Auto-disables configs that:
-   - Exceed their individual traffic limit
-   - Are past their expiry date
-   - Belong to resellers whose quota/window is exhausted
+   - Exceed their individual traffic limit + grace (when `allow_config_overrun` is false)
+   - Are past their expiry date + grace minutes
+   - Belong to resellers whose quota + grace or window is exhausted
+
+**Enforcement Order:**
+1. Attempt remote panel disable (with 3 retries: 0s, 1s, 3s delays)
+2. Update local database status
+3. Record event with telemetry
 
 ### Reseller Suspension
 
 When a reseller is suspended:
-- All active configs are disabled
+- All active configs are disabled remotely and locally
 - Access to `/reseller` panel is blocked
 - No new purchases or configs can be created
+- Rate limiting: 3 configs/sec with micro-sleeps (333ms between operations)
+
+### Retry Logic
+
+All remote panel operations use exponential backoff:
+- **Attempt 1**: Immediate
+- **Attempt 2**: 1 second delay
+- **Attempt 3**: 3 seconds delay
+
+Returns telemetry: `{success: bool, attempts: int, last_error: ?string}`
+
+## Event Tracking
+
+All config lifecycle events include detailed metadata:
+
+### Event Types
+
+| Event Type | Triggered By | Reason Codes |
+|------------|-------------|--------------|
+| `created` | User action | N/A |
+| `auto_disabled` | System (SyncResellerUsageJob) | `traffic_exceeded`, `time_expired`, `reseller_quota_exhausted`, `reseller_window_expired` |
+| `manual_disabled` | User action (ConfigController) | N/A |
+| `auto_enabled` | System (ReenableResellerConfigsJob) | `reseller_recovered` |
+| `manual_enabled` | User action (ConfigController) | N/A |
+| `deleted` | User action | N/A |
+
+### Event Metadata Fields
+
+All disable/enable events include:
+
+```json
+{
+  "reason": "string",           // Why operation occurred
+  "remote_success": true,       // Whether remote panel operation succeeded
+  "attempts": 1,                // Number of retry attempts (1-3)
+  "last_error": null,           // Error message if operation failed
+  "panel_id": 5,                // Panel ID used
+  "panel_type_used": "marzneshin", // Resolved panel type (not stale config type)
+  "user_id": 123                // User ID (manual operations only)
+}
+```
+
+### Querying Events
+
+```php
+// Get last disable event for a config
+$event = ResellerConfigEvent::where('reseller_config_id', $config->id)
+    ->where('type', 'auto_disabled')
+    ->latest()
+    ->first();
+
+// Check if remote disable succeeded
+if ($event->meta['remote_success']) {
+    // Panel was successfully disabled
+}
+
+// Get retry count
+$retries = $event->meta['attempts'];
+```
 
 ## Ticketing Integration
 

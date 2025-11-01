@@ -31,7 +31,18 @@ class ReenableResellerConfigsJob implements ShouldQueue
             ->where('type', 'traffic')
             ->get()
             ->filter(function ($reseller) {
-                return $reseller->hasTrafficRemaining() && $reseller->isWindowValid();
+                // Apply grace thresholds for consistency with disable logic
+                $resellerGrace = $this->getResellerGraceSettings();
+                $effectiveResellerLimit = $this->applyGrace(
+                    $reseller->traffic_total_bytes,
+                    $resellerGrace['percent'],
+                    $resellerGrace['bytes']
+                );
+                
+                $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
+                $isWindowValid = $reseller->isWindowValid();
+                
+                return $hasTrafficRemaining && $isWindowValid;
             });
 
         if ($resellers->isEmpty()) {
@@ -92,16 +103,14 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
         foreach ($configs as $config) {
             try {
-                // Rate-limit: 3 configs per second
-                if ($enabledCount > 0 && $enabledCount % 3 === 0) {
-                    sleep(1);
-                }
+                // Apply micro-sleep rate limiting: 3 ops/sec evenly distributed
+                $provisioner->applyRateLimit($enabledCount);
 
                 // Enable on remote panel using enableConfig method
-                $remoteSuccess = $provisioner->enableConfig($config);
+                $remoteResult = $provisioner->enableConfig($config);
 
-                if (! $remoteSuccess) {
-                    Log::warning("Failed to enable config {$config->id} on remote panel");
+                if (! $remoteResult['success']) {
+                    Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     $failedCount++;
                 }
 
@@ -116,7 +125,11 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     'type' => 'auto_enabled',
                     'meta' => [
                         'reason' => 'reseller_recovered',
-                        'remote_success' => $remoteSuccess,
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
                     ],
                 ]);
 
@@ -128,5 +141,34 @@ class ReenableResellerConfigsJob implements ShouldQueue
         }
 
         Log::info("Auto-enable completed for reseller {$reseller->id}: {$enabledCount} enabled, {$failedCount} failed");
+    }
+
+    /**
+     * Calculate the effective limit with grace threshold applied
+     * 
+     * @param int $limit The base limit in bytes
+     * @param float $gracePercent Grace percentage (e.g., 2.0 for 2%)
+     * @param int $graceBytes Grace in bytes (e.g., 50MB)
+     * @return int The limit plus maximum grace
+     */
+    protected function applyGrace(int $limit, float $gracePercent, int $graceBytes): int
+    {
+        $percentGrace = (int) ($limit * ($gracePercent / 100));
+        $maxGrace = max($percentGrace, $graceBytes);
+        
+        return $limit + $maxGrace;
+    }
+
+    /**
+     * Get grace settings for reseller-level checks
+     * 
+     * @return array ['percent' => float, 'bytes' => int]
+     */
+    protected function getResellerGraceSettings(): array
+    {
+        return [
+            'percent' => (float) \App\Models\Setting::get('reseller.auto_disable_grace_percent', 2.0),
+            'bytes' => (int) \App\Models\Setting::get('reseller.auto_disable_grace_bytes', 50 * 1024 * 1024), // 50MB
+        ];
     }
 }

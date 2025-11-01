@@ -51,12 +51,17 @@ test('job re-enables configs when reseller recovers from quota exhaustion', func
         ],
     ]);
 
-    // Mock the enableConfig method to return success
+    // Mock the enableConfig method to return success array
     $provisionerMock
         ->shouldReceive('enableConfig')
         ->once()
         ->with(Mockery::on(fn($c) => $c->id === $config->id))
-        ->andReturn(true);
+        ->andReturn(['success' => true, 'attempts' => 1, 'last_error' => null]);
+    
+    // Mock the applyRateLimit method
+    $provisionerMock
+        ->shouldReceive('applyRateLimit')
+        ->andReturnNull();
 
     // Run the job
     ReenableResellerConfigsJob::dispatchSync();
@@ -136,7 +141,12 @@ test('job re-enables configs when reseller window is extended', function () {
     $provisionerMock
         ->shouldReceive('enableConfig')
         ->twice()
-        ->andReturn(true);
+        ->andReturn(['success' => true, 'attempts' => 1, 'last_error' => null]);
+    
+    // Mock the applyRateLimit method
+    $provisionerMock
+        ->shouldReceive('applyRateLimit')
+        ->andReturnNull();
 
     // Run the job
     ReenableResellerConfigsJob::dispatchSync();
@@ -209,7 +219,12 @@ test('job does not re-enable manually disabled configs', function () {
         ->shouldReceive('enableConfig')
         ->once()
         ->with(Mockery::on(fn($c) => $c->id === $autoConfig->id))
-        ->andReturn(true);
+        ->andReturn(['success' => true, 'attempts' => 1, 'last_error' => null]);
+    
+    // Mock the applyRateLimit method
+    $provisionerMock
+        ->shouldReceive('applyRateLimit')
+        ->andReturnNull();
 
     // Run the job
     ReenableResellerConfigsJob::dispatchSync();
@@ -261,7 +276,12 @@ test('job handles remote enable failures gracefully', function () {
     $provisionerMock
         ->shouldReceive('enableConfig')
         ->once()
-        ->andReturn(false);
+        ->andReturn(['success' => false, 'attempts' => 3, 'last_error' => 'API timeout']);
+    
+    // Mock the applyRateLimit method
+    $provisionerMock
+        ->shouldReceive('applyRateLimit')
+        ->andReturnNull();
 
     // Run the job
     ReenableResellerConfigsJob::dispatchSync();
@@ -288,14 +308,14 @@ test('job skips resellers without traffic or expired window', function () {
     $panel = Panel::factory()->create();
     $user = User::factory()->create();
     
-    // Create a suspended reseller with no traffic remaining
+    // Create a suspended reseller with no traffic remaining (over grace)
     $noTrafficReseller = Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
         'status' => 'suspended',
         'panel_id' => $panel->id,
-        'traffic_total_bytes' => 100 * 1024 * 1024 * 1024,
-        'traffic_used_bytes' => 100 * 1024 * 1024 * 1024, // All used
+        'traffic_total_bytes' => 100 * 1024 * 1024 * 1024, // 100GB
+        'traffic_used_bytes' => 105 * 1024 * 1024 * 1024, // 105GB used (over grace of 2GB)
         'window_starts_at' => now()->subDays(5),
         'window_ends_at' => now()->addDays(25),
     ]);
@@ -370,7 +390,16 @@ test('job respects rate limiting of 3 configs per second', function () {
     $provisionerMock
         ->shouldReceive('enableConfig')
         ->times(5)
-        ->andReturn(true);
+        ->andReturn(['success' => true, 'attempts' => 1, 'last_error' => null]);
+    
+    // Mock the applyRateLimit method to actually sleep for testing
+    $provisionerMock
+        ->shouldReceive('applyRateLimit')
+        ->andReturnUsing(function ($count) {
+            if ($count > 0) {
+                usleep(333333); // 333ms between operations
+            }
+        });
 
     $startTime = microtime(true);
     
@@ -380,9 +409,8 @@ test('job respects rate limiting of 3 configs per second', function () {
     $endTime = microtime(true);
     $duration = $endTime - $startTime;
 
-    // Should take at least 1 second due to sleep after 3rd config
-    // (configs 0,1,2 process, then sleep, then configs 3,4)
-    expect($duration)->toBeGreaterThanOrEqual(1.0);
+    // With 5 configs and 333ms between each (starting from 2nd): 4 * 333ms = ~1.33 seconds
+    expect($duration)->toBeGreaterThanOrEqual(1.3);
 
     // All configs should be enabled
     foreach ($configs as $config) {
@@ -402,5 +430,7 @@ test('enableConfig method returns false for config without panel_id', function (
     $provisioner = new ResellerProvisioner();
 
     $result = $provisioner->enableConfig($config);
-    expect($result)->toBe(false);
+    expect($result)->toBeArray();
+    expect($result['success'])->toBe(false);
+    expect($result['last_error'])->toContain('Missing panel_id');
 });

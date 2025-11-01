@@ -118,7 +118,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
 
         // Act: Run sync job
         $job = new SyncResellerUsageJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Assert: Reseller should be suspended
         $reseller->refresh();
@@ -176,7 +177,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
 
         // Act: Run sync job
         $job = new SyncResellerUsageJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Assert: Reseller should be suspended due to expired window
         $reseller->refresh();
@@ -262,7 +264,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
 
         // Act: Run re-enable job
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Assert: Reseller should be reactivated
         $reseller->refresh();
@@ -328,7 +331,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
 
         // Act: Run re-enable job
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Assert: Reseller should be reactivated
         $reseller->refresh();
@@ -388,7 +392,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
 
         // Act: Run re-enable job
         $job = new ReenableResellerConfigsJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
 
         // Assert: Reseller should be reactivated
         $reseller->refresh();
@@ -452,7 +457,8 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
         // Act: Run sync job and measure time
         $startTime = microtime(true);
         $job = new SyncResellerUsageJob();
-        $job->handle();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $job->handle($provisioner);
         $duration = microtime(true) - $startTime;
 
         // Assert: All configs should be disabled

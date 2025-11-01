@@ -6,9 +6,147 @@ This implementation addresses critical issues with the reseller traffic checking
 
 1. **Marzneshin Usage Sync** - Fixed usage tracking for Marzneshin panels
 2. **Per-Config Overrun Control** - Allow resellers to exceed individual config limits while staying within total quota
-3. **Rate-Limited Auto-Disable** - Prevent overwhelming remote panels with disable requests
+3. **Rate-Limited Auto-Disable** - Prevent overwhelming remote panels with disable requests (micro-sleeps for even distribution)
 4. **Automatic Re-Enable** - Restore configs when reseller quota/window is extended
 5. **Event Separation** - Distinguish manual vs automatic disable/enable operations
+6. **Grace Thresholds** - Configurable grace periods to reduce false positives from API lag
+7. **Retry Logic** - Exponential backoff for remote panel operations (3 attempts: 0s, 1s, 3s)
+8. **Enhanced Telemetry** - Record remote_success, attempts, last_error in all events
+
+## Grace Thresholds
+
+Grace thresholds prevent premature disabling due to API lag, rounding errors, or temporary panel issues. They add a buffer above the configured limits before enforcement occurs.
+
+### Configuration
+
+#### Config-Level Grace (Per-Config Enforcement)
+- **Setting**: `config.auto_disable_grace_percent` (default: 2%)
+- **Setting**: `config.auto_disable_grace_bytes` (default: 50MB)
+- **Purpose**: Grace for individual config traffic limits when `reseller.allow_config_overrun` is false
+
+#### Reseller-Level Grace (Aggregate Enforcement)
+- **Setting**: `reseller.auto_disable_grace_percent` (default: 2%)
+- **Setting**: `reseller.auto_disable_grace_bytes` (default: 50MB)
+- **Purpose**: Grace for reseller total traffic quota
+
+#### Time Expiry Grace
+- **Setting**: `reseller.time_expiry_grace_minutes` (default: 0)
+- **Purpose**: Grace period after config expiration time (0 = no grace)
+
+### Grace Calculation
+
+The effective limit is calculated as:
+```
+effective_limit = base_limit + max(grace_percent * base_limit / 100, grace_bytes)
+```
+
+**Example**:
+- Base limit: 10GB
+- Grace percent: 2%
+- Grace bytes: 50MB
+
+Grace options:
+- Percent grace: 10GB * 2% = 204.8MB
+- Fixed grace: 50MB
+
+Effective limit: 10GB + 204.8MB = 10.2GB (uses the larger grace value)
+
+A config/reseller is disabled only when usage >= effective_limit.
+
+## Retry Logic
+
+All remote panel operations (enable/disable) now use exponential backoff:
+
+### Retry Schedule
+- **Attempt 1**: Immediate (0s delay)
+- **Attempt 2**: 1 second delay
+- **Attempt 3**: 3 seconds delay
+
+### Return Value
+Operations return an array with telemetry:
+```php
+[
+    'success' => bool,      // true if operation succeeded
+    'attempts' => int,      // number of attempts made (1-3)
+    'last_error' => ?string // error message from last attempt, or null
+]
+```
+
+### Benefits
+- Handles transient network issues
+- Reduces false failures from temporary panel unavailability
+- Provides detailed telemetry for troubleshooting
+
+## Rate Limiting
+
+Rate limiting prevents overwhelming remote panel APIs during bulk operations.
+
+### Configuration
+- **Rate**: 3 operations per second
+- **Implementation**: Micro-sleeps (333ms between operations)
+- **Applies to**: Auto-disable and auto-enable flows
+
+### Previous vs Current
+- **Before**: `sleep(1)` after every 3 operations (chunked)
+- **After**: `usleep(333333)` between each operation (evenly distributed)
+
+**Benefit**: Smoother API load distribution, no burst traffic
+
+## Event Telemetry
+
+All config lifecycle events now record comprehensive metadata:
+
+### Auto-Disable Events
+```json
+{
+  "reason": "traffic_exceeded | time_expired | reseller_quota_exhausted | reseller_window_expired",
+  "remote_success": true,
+  "attempts": 1,
+  "last_error": null,
+  "panel_id": 5,
+  "panel_type_used": "marzneshin"
+}
+```
+
+### Manual Disable/Enable Events
+```json
+{
+  "user_id": 123,
+  "remote_success": true,
+  "attempts": 1,
+  "last_error": null,
+  "panel_id": 5,
+  "panel_type_used": "marzneshin"
+}
+```
+
+### Auto-Enable Events
+```json
+{
+  "reason": "reseller_recovered",
+  "remote_success": true,
+  "attempts": 1,
+  "last_error": null,
+  "panel_id": 5,
+  "panel_type_used": "marzneshin"
+}
+```
+
+### Telemetry Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `remote_success` | boolean | True if remote panel operation succeeded |
+| `attempts` | integer | Number of retry attempts (1-3) |
+| `last_error` | string\|null | Error message from final attempt, if failed |
+| `panel_id` | integer\|null | ID of the panel used |
+| `panel_type_used` | string\|null | Resolved panel type (not config's stale copy) |
+| `reason` | string | Why the operation occurred |
+
+### Benefits
+- **Debugging**: Identify panel connectivity issues
+- **Auditing**: Track which operations succeeded/failed remotely
+- **Monitoring**: Detect patterns in remote failures
 
 ## Changes Made
 
