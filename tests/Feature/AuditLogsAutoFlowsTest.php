@@ -13,12 +13,15 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Modules\Reseller\Jobs\ReenableResellerConfigsJob;
 use Modules\Reseller\Jobs\SyncResellerUsageJob;
+use Modules\Reseller\Services\ResellerProvisioner;
 use Tests\TestCase;
 
 class AuditLogsAutoFlowsTest extends TestCase
 {
     use RefreshDatabase;
 
+    // Byte conversion constants for traffic calculations
+    // Note: If these are needed in multiple test files, consider extracting to a shared trait
     private const GB_IN_BYTES = 1024 * 1024 * 1024;
     private const MB_IN_BYTES = 1024 * 1024;
 
@@ -195,7 +198,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         ]);
 
         // Run re-enable job
-        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $provisioner = new ResellerProvisioner();
         $job = new ReenableResellerConfigsJob();
         $job->handle($provisioner);
 
