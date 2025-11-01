@@ -1,0 +1,366 @@
+/* Modern Authentication Theme - RTL-first, Responsive, Accessible */
+
+/* ============================================================================
+   CSS Variables for theming (light/dark mode)
+   ============================================================================ */
+:root {
+    /* Light mode colors */
+    --bg-primary: #f9fafb;
+    --bg-card: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --accent-color: #3b82f6;
+    --accent-hover: #2563eb;
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --input-focus: #3b82f6;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --error-color: #ef4444;
+    --success-color: #10b981;
+}
+
+/* Dark mode colors */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #111827;
+        --bg-card: #1f2937;
+        --text-primary: #f9fafb;
+        --text-secondary: #9ca3af;
+        --border-color: #374151;
+        --accent-color: #60a5fa;
+        --accent-hover: #3b82f6;
+        --input-bg: #374151;
+        --input-border: #4b5563;
+        --input-focus: #60a5fa;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+        --error-color: #f87171;
+        --success-color: #34d399;
+    }
+}
+
+/* ============================================================================
+   Reset & Base Styles
+   ============================================================================ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 
+                 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 
+                 'Noto Color Emoji', 'Vazirmatn', 'Tahoma';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================================
+   Modern Auth Body Layout
+   ============================================================================ */
+.modern-auth-body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================================================
+   Auth Card Container
+   ============================================================================ */
+.auth-card {
+    width: 100%;
+    max-width: 28rem; /* 448px */
+    background-color: var(--bg-card);
+    border-radius: 0.75rem; /* 12px */
+    padding: 2rem;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* ============================================================================
+   Auth Logo/Brand
+   ============================================================================ */
+.auth-logo {
+    text-align: center;
+    font-size: 2rem; /* 32px */
+    font-weight: 700;
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+    letter-spacing: -0.025em;
+}
+
+/* ============================================================================
+   Auth Title
+   ============================================================================ */
+.auth-title {
+    text-align: center;
+    font-size: 1.5rem; /* 24px */
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+/* ============================================================================
+   Form Elements
+   ============================================================================ */
+.input-group {
+    margin-bottom: 1.25rem; /* 20px */
+}
+
+.input-field {
+    width: 100%;
+    padding: 0.75rem 1rem; /* 12px 16px */
+    font-size: 1rem; /* 16px - prevents zoom on mobile */
+    line-height: 1.5;
+    color: var(--text-primary);
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem; /* 8px */
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    /* RTL-friendly text direction is handled by dir="rtl" on html element */
+}
+
+.input-field::placeholder {
+    color: var(--text-secondary);
+}
+
+/* Focus states - accessible with high contrast */
+.input-field:focus {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .input-field:focus {
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+}
+
+/* Focus-visible for keyboard navigation only */
+.input-field:focus-visible {
+    outline: 2px solid var(--input-focus);
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   Error Messages
+   ============================================================================ */
+.input-error-message {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.875rem; /* 14px */
+    color: var(--error-color);
+}
+
+/* ============================================================================
+   Session Status Messages
+   ============================================================================ */
+.mb-4 {
+    margin-bottom: 1rem;
+}
+
+/* ============================================================================
+   Remember Me & Form Row
+   ============================================================================ */
+.form-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* RTL: will be right-aligned */
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem; /* 14px */
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.remember-me input[type="checkbox"] {
+    width: 1.125rem; /* 18px - larger touch target */
+    height: 1.125rem;
+    cursor: pointer;
+    accent-color: var(--accent-color);
+}
+
+.remember-me input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--input-focus);
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   Submit Button
+   ============================================================================ */
+.btn-submit {
+    width: 100%;
+    padding: 0.875rem 1.5rem; /* 14px 24px - larger touch target */
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: var(--accent-color);
+    border: none;
+    border-radius: 0.5rem; /* 8px */
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    min-height: 44px; /* WCAG touch target minimum */
+}
+
+.btn-submit:hover {
+    background-color: var(--accent-hover);
+}
+
+.btn-submit:active {
+    transform: scale(0.98);
+}
+
+.btn-submit:focus-visible {
+    outline: 2px solid var(--input-focus);
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   Separator
+   ============================================================================ */
+.separator {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============================================================================
+   Register Link
+   ============================================================================ */
+.register-link {
+    text-align: center;
+    font-size: 0.875rem; /* 14px */
+    color: var(--text-secondary);
+}
+
+.auth-link {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.auth-link:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.auth-link:focus-visible {
+    outline: 2px solid var(--input-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+/* Small mobile devices */
+@media (max-width: 360px) {
+    .auth-card {
+        padding: 1.5rem;
+    }
+    
+    .auth-logo {
+        font-size: 1.75rem;
+    }
+    
+    .auth-title {
+        font-size: 1.25rem;
+    }
+}
+
+/* Medium devices and up */
+@media (min-width: 640px) {
+    .modern-auth-body {
+        padding: 2rem;
+    }
+    
+    .auth-card {
+        padding: 2.5rem;
+    }
+}
+
+/* Large devices */
+@media (min-width: 1024px) {
+    .auth-card {
+        padding: 3rem;
+    }
+}
+
+/* ============================================================================
+   RTL-specific adjustments
+   ============================================================================ */
+[dir="rtl"] .remember-me {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .form-row {
+    justify-content: flex-start; /* Items align to the right in RTL */
+}
+
+/* ============================================================================
+   High Contrast Mode Support
+   ============================================================================ */
+@media (prefers-contrast: high) {
+    .input-field {
+        border-width: 2px;
+    }
+    
+    .btn-submit {
+        border: 2px solid var(--text-primary);
+    }
+    
+    .auth-link {
+        text-decoration: underline;
+    }
+}
+
+/* ============================================================================
+   Reduced Motion Support
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ============================================================================
+   Print Styles
+   ============================================================================ */
+@media print {
+    .modern-auth-body {
+        background-color: white;
+    }
+    
+    .auth-card {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+}
