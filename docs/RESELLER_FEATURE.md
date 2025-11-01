@@ -15,6 +15,7 @@ The Reseller feature allows administrators to convert regular users into reselle
 - **reseller_orders**: Bulk purchase orders from plan-based resellers
 - **reseller_configs**: VPN configs created by traffic-based resellers
 - **reseller_config_events**: Audit log for config lifecycle events
+- **audit_logs**: Comprehensive audit trail for all reseller and config actions (see [AUDIT_LOGS.md](AUDIT_LOGS.md))
 
 ### Module Structure
 
@@ -347,6 +348,21 @@ Tests cover:
 - Check expiry is within reseller window
 - For Marzneshin, ensure selected services are whitelisted
 
+**Q: Config unexpectedly disabled**
+- **Check Audit Logs** (System > Audit Logs in admin panel)
+- Filter by `target_type=config` and specific `target_id`
+- Look for `config_auto_disabled` or `config_manual_disabled` actions
+- Review `reason` field: `traffic_exceeded`, `reseller_quota_exhausted`, etc.
+- Check `meta.remote_success` to see if remote panel operation succeeded
+- See [AUDIT_LOGS.md](AUDIT_LOGS.md) for detailed troubleshooting steps
+
+**Q: Reseller suspended automatically**
+- **Check Audit Logs** for `reseller_suspended` action
+- Review `reason`: `reseller_quota_exhausted` or `reseller_window_expired`
+- Check `meta.traffic_used_bytes` vs `meta.traffic_total_bytes`
+- Verify `window_ends_at` timestamp
+- See [AUDIT_LOGS.md](AUDIT_LOGS.md) for recovery procedures
+
 ## Future Enhancements
 
 - Reseller API for external integrations
@@ -354,3 +370,11 @@ Tests cover:
 - Multi-currency support
 - Webhook notifications for provisioning events
 - Reseller-specific branding options
+
+## Related Documentation
+
+- **[Audit Logs](AUDIT_LOGS.md)**: Comprehensive audit trail for troubleshooting and compliance
+  - Track all reseller lifecycle events (created, suspended, activated, recharged)
+  - Monitor config actions (manual/auto disable/enable)
+  - Review remote panel operation telemetry
+  - Filter by action type, reason, date range, and more
