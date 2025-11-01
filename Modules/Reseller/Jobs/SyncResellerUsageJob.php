@@ -81,7 +81,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(): void
     {
-        Log::info("Starting reseller usage sync");
+        Log::notice("Starting reseller usage sync");
 
         // Get all active resellers with traffic-based configs
         $resellers = Reseller::where('status', 'active')
@@ -92,7 +92,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $this->syncResellerUsage($reseller);
         }
 
-        Log::info("Reseller usage sync completed");
+        Log::notice("Reseller usage sync completed");
     }
 
     protected function syncResellerUsage(Reseller $reseller): void
@@ -232,7 +232,13 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         }
 
         $user = $service->getUser($username);
-        return $user['used_traffic'] ?? null;
+        
+        if (!$user) {
+            return null;
+        }
+        
+        // Defensive cast to avoid null arithmetic
+        return isset($user['used_traffic']) ? (int)$user['used_traffic'] : null;
     }
 
     protected function fetchMarzneshinUsage(array $credentials, string $username): ?int
@@ -251,7 +257,13 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         }
 
         $user = $service->getUser($username);
-        return $user['used_traffic'] ?? null;
+        
+        if (!$user) {
+            return null;
+        }
+        
+        // Defensive cast to avoid null arithmetic
+        return isset($user['used_traffic']) ? (int)$user['used_traffic'] : null;
     }
 
     protected function fetchXUIUsage(array $credentials, string $username): ?int
@@ -326,7 +338,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             ],
         ]);
 
-        Log::info("Config {$config->id} disabled due to: {$reason} (remote_success: " . ($remoteResult['success'] ? 'true' : 'false') . ")");
+        Log::notice("Config {$config->id} disabled due to: {$reason} (remote_success: " . ($remoteResult['success'] ? 'true' : 'false') . ", panel_id: {$config->panel_id})");
     }
 
     protected function disableResellerConfigs(Reseller $reseller): void

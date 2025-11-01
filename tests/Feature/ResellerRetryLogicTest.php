@@ -22,6 +22,7 @@ class ResellerRetryLogicTest extends TestCase
         
         // Mock Log to avoid output during tests
         Log::shouldReceive('info')->andReturnNull();
+        Log::shouldReceive('notice')->andReturnNull();
         Log::shouldReceive('warning')->andReturnNull();
         Log::shouldReceive('error')->andReturnNull();
     }

@@ -232,6 +232,7 @@ All config lifecycle events include detailed metadata:
 | `manual_disabled` | User action (ConfigController), Admin action (Filament) | `admin_action` (Filament), N/A (ConfigController) |
 | `auto_enabled` | System (ReenableResellerConfigsJob) | `reseller_recovered` |
 | `manual_enabled` | User action (ConfigController), Admin action (Filament) | `admin_action` (Filament), N/A (ConfigController) |
+| `audit_status_changed` | System (Observer - audit safety net) | N/A |
 | `deleted` | User action | N/A |
 
 ### Event Metadata Fields
@@ -249,6 +250,24 @@ All disable/enable events include:
   "user_id": 123                // User ID (manual operations from ConfigController only)
 }
 ```
+
+**Audit Status Changed Event**: This is a system-generated audit-only event created by the `ResellerConfigObserver` as a safety net. It ensures any status change is tracked in the database, even if the code path doesn't explicitly create a domain event. This event:
+- Is **only created if no recent domain event** (`auto_disabled`, `manual_disabled`, `auto_enabled`, `manual_enabled`, `expired`) was recorded within the last 2 seconds
+- **Does not affect enforcement decisions** - it's purely for auditability
+- Includes metadata fields:
+  ```json
+  {
+    "from_status": "active",    // Previous status
+    "to_status": "disabled",    // New status
+    "actor": "system",          // User ID if authenticated, otherwise 'system'
+    "request_id": "...",        // Request ID if available
+    "route": "...",             // Route name if available
+    "ip": "...",                // Request IP if available
+    "panel_id": 5,              // Panel ID if available
+    "panel_type": "marzneshin"  // Panel type if available
+  }
+  ```
+- Always logs at `notice` level for visibility (credentials sanitized)
 
 **Note on Admin Actions**: When admins disable/enable configs through the Filament admin interface:
 - Events use `type='manual_disabled'` or `type='manual_enabled'` (not 'disabled' or 'enabled')
@@ -273,6 +292,11 @@ if ($event->meta['remote_success']) {
 
 // Get retry count
 $retries = $event->meta['attempts'];
+
+// Query audit events (for debugging silent status changes)
+$auditEvents = ResellerConfigEvent::where('reseller_config_id', $config->id)
+    ->where('type', 'audit_status_changed')
+    ->get();
 ```
 
 ## Ticketing Integration
