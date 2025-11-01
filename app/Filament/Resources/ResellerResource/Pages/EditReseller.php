@@ -26,7 +26,7 @@ class EditReseller extends EditRecord
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
-                        
+
                         // Reset usage to zero
                         $this->record->update([
                             'traffic_used_bytes' => 0,
@@ -60,7 +60,7 @@ class EditReseller extends EditRecord
                         \Filament\Notifications\Notification::make()
                             ->danger()
                             ->title('خطا در بازنشانی مصرف')
-                            ->body('خطایی رخ داده است: ' . $e->getMessage())
+                            ->body('خطایی رخ داده است: '.$e->getMessage())
                             ->send();
                     }
                 }),

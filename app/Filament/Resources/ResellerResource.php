@@ -440,7 +440,7 @@ class ResellerResource extends Resource
                     ->action(function (Reseller $record) {
                         try {
                             $oldUsedBytes = $record->traffic_used_bytes;
-                            
+
                             // Reset usage to zero
                             $record->update([
                                 'traffic_used_bytes' => 0,
@@ -474,7 +474,7 @@ class ResellerResource extends Resource
                             Notification::make()
                                 ->danger()
                                 ->title('خطا در بازنشانی مصرف')
-                                ->body('خطایی رخ داده است: ' . $e->getMessage())
+                                ->body('خطایی رخ داده است: '.$e->getMessage())
                                 ->send();
                         }
                     }),
