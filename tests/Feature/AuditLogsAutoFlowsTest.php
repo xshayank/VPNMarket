@@ -19,6 +19,9 @@ class AuditLogsAutoFlowsTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const GB_IN_BYTES = 1024 * 1024 * 1024;
+    private const MB_IN_BYTES = 1024 * 1024;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -50,7 +53,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         $reseller = Reseller::factory()->create([
             'type' => 'traffic',
             'status' => 'active',
-            'traffic_total_bytes' => 1 * 1024 * 1024 * 1024, // 1 GB total
+            'traffic_total_bytes' => self::GB_IN_BYTES, // 1 GB total
             'traffic_used_bytes' => 0,
             'window_starts_at' => now()->subDays(1),
             'window_ends_at' => now()->addDays(30),
@@ -63,7 +66,7 @@ class AuditLogsAutoFlowsTest extends TestCase
             'panel_type' => 'marzneshin',
             'panel_user_id' => 'testuser1',
             'status' => 'active',
-            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'traffic_limit_bytes' => 5 * self::GB_IN_BYTES,
             'usage_bytes' => 0,
             'expires_at' => now()->addDays(30),
         ]);
@@ -74,7 +77,7 @@ class AuditLogsAutoFlowsTest extends TestCase
             'panel_type' => 'marzneshin',
             'panel_user_id' => 'testuser2',
             'status' => 'active',
-            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'traffic_limit_bytes' => 5 * self::GB_IN_BYTES,
             'usage_bytes' => 0,
             'expires_at' => now()->addDays(30),
         ]);
@@ -83,7 +86,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         Http::fake([
             '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
             '*/api/users/*' => Http::response([
-                'used_traffic' => 600 * 1024 * 1024, // 600 MB each
+                'used_traffic' => 600 * self::MB_IN_BYTES, // 600 MB each
             ], 200),
             '*/api/users/*/disable' => Http::response([], 200),
         ]);
@@ -95,7 +98,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         // Assert reseller is suspended
         $reseller->refresh();
         $this->assertEquals('suspended', $reseller->status);
-        $this->assertEquals(1200 * 1024 * 1024, $reseller->traffic_used_bytes); // 1.2 GB
+        $this->assertEquals(1200 * self::MB_IN_BYTES, $reseller->traffic_used_bytes); // 1.2 GB
 
         // Assert configs are disabled
         $config1->refresh();
@@ -136,7 +139,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         $this->assertNotNull($jobAuditLog, 'Domain-specific audit log from job should exist');
         $this->assertArrayHasKey('traffic_used_bytes', $jobAuditLog->meta);
         $this->assertArrayHasKey('traffic_total_bytes', $jobAuditLog->meta);
-        $this->assertEquals(1200 * 1024 * 1024, $jobAuditLog->meta['traffic_used_bytes']);
+        $this->assertEquals(1200 * self::MB_IN_BYTES, $jobAuditLog->meta['traffic_used_bytes']);
     }
 
     /**
@@ -159,8 +162,8 @@ class AuditLogsAutoFlowsTest extends TestCase
         $reseller = Reseller::factory()->create([
             'type' => 'traffic',
             'status' => 'suspended',
-            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024, // 10 GB (recharged)
-            'traffic_used_bytes' => 1 * 1024 * 1024 * 1024, // 1 GB used
+            'traffic_total_bytes' => 10 * self::GB_IN_BYTES, // 10 GB (recharged)
+            'traffic_used_bytes' => self::GB_IN_BYTES, // 1 GB used
             'window_starts_at' => now()->subDays(1),
             'window_ends_at' => now()->addDays(30),
         ]);
@@ -173,8 +176,8 @@ class AuditLogsAutoFlowsTest extends TestCase
             'panel_user_id' => 'testuser',
             'status' => 'disabled',
             'disabled_at' => now(),
-            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
-            'usage_bytes' => 1 * 1024 * 1024 * 1024,
+            'traffic_limit_bytes' => 5 * self::GB_IN_BYTES,
+            'usage_bytes' => self::GB_IN_BYTES,
             'expires_at' => now()->addDays(30),
         ]);
 
@@ -253,7 +256,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         $reseller = Reseller::factory()->create([
             'type' => 'traffic',
             'status' => 'active',
-            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024, // 10 GB
+            'traffic_total_bytes' => 10 * self::GB_IN_BYTES, // 10 GB
             'traffic_used_bytes' => 0,
             'window_starts_at' => now()->subDays(1),
             'window_ends_at' => now()->addDays(30),
@@ -266,7 +269,7 @@ class AuditLogsAutoFlowsTest extends TestCase
             'panel_type' => 'marzneshin',
             'panel_user_id' => 'active_user',
             'status' => 'active',
-            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'traffic_limit_bytes' => 5 * self::GB_IN_BYTES,
             'usage_bytes' => 0,
             'expires_at' => now()->addDays(30),
         ]);
@@ -278,8 +281,8 @@ class AuditLogsAutoFlowsTest extends TestCase
             'panel_type' => 'marzneshin',
             'panel_user_id' => 'disabled_user',
             'status' => 'disabled',
-            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
-            'usage_bytes' => 2 * 1024 * 1024 * 1024, // 2 GB already used (from before)
+            'traffic_limit_bytes' => 5 * self::GB_IN_BYTES,
+            'usage_bytes' => 2 * self::GB_IN_BYTES, // 2 GB already used (from before)
             'expires_at' => now()->addDays(30),
         ]);
 
@@ -287,7 +290,7 @@ class AuditLogsAutoFlowsTest extends TestCase
         Http::fake([
             '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
             '*/api/users/active_user' => Http::response([
-                'used_traffic' => 3 * 1024 * 1024 * 1024, // 3 GB
+                'used_traffic' => 3 * self::GB_IN_BYTES, // 3 GB
             ], 200),
         ]);
 
@@ -297,14 +300,14 @@ class AuditLogsAutoFlowsTest extends TestCase
 
         // Assert active config usage was updated
         $activeConfig->refresh();
-        $this->assertEquals(3 * 1024 * 1024 * 1024, $activeConfig->usage_bytes);
+        $this->assertEquals(3 * self::GB_IN_BYTES, $activeConfig->usage_bytes);
 
         // Assert disabled config usage remains unchanged (wasn't synced)
         $disabledConfig->refresh();
-        $this->assertEquals(2 * 1024 * 1024 * 1024, $disabledConfig->usage_bytes);
+        $this->assertEquals(2 * self::GB_IN_BYTES, $disabledConfig->usage_bytes);
 
         // Assert reseller total usage includes BOTH configs (3 GB + 2 GB = 5 GB)
         $reseller->refresh();
-        $this->assertEquals(5 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes);
+        $this->assertEquals(5 * self::GB_IN_BYTES, $reseller->traffic_used_bytes);
     }
 }

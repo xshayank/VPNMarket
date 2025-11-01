@@ -104,22 +104,17 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             ->where('status', 'active')
             ->get();
 
-        if ($configs->isEmpty()) {
-            return;
-        }
-
-        $totalUsageBytes = 0;
         $allowConfigOverrun = Setting::getBool('reseller.allow_config_overrun', true);
         $configGrace = $this->getConfigGraceSettings();
         $timeGraceMinutes = $this->getTimeExpiryGraceMinutes();
 
+        // Sync usage for all active configs
         foreach ($configs as $config) {
             try {
                 $usage = $this->fetchConfigUsage($config);
                 
                 if ($usage !== null) {
                     $config->update(['usage_bytes' => $usage]);
-                    $totalUsageBytes += $usage;
 
                     // Only check per-config limits if config overrun is NOT allowed
                     if (!$allowConfigOverrun) {
