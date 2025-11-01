@@ -55,21 +55,23 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
-        // Find disabled configs that were auto-disabled by the system
+        // Optimize: Use eager loading to prevent N+1 queries
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
-            ->whereHas('events', function ($query) {
+            ->with(['events' => function ($query) {
                 $query->where('type', 'auto_disabled')
-                    ->whereJsonContains('meta->reason', 'reseller_quota_exhausted')
-                    ->orWhereJsonContains('meta->reason', 'reseller_window_expired');
-            })
+                    ->where(function ($q) {
+                        $q->whereJsonContains('meta->reason', 'reseller_quota_exhausted')
+                            ->orWhereJsonContains('meta->reason', 'reseller_window_expired');
+                    })
+                    ->orderBy('created_at', 'desc');
+            }])
             ->get();
 
         // Filter configs to only those whose last event was auto_disabled with the right reason
         $configs = $configs->filter(function ($config) {
-            $lastEvent = $config->events()
-                ->orderBy('created_at', 'desc')
-                ->first();
+            // Events are already loaded and ordered by created_at desc
+            $lastEvent = $config->events->first();
 
             if (! $lastEvent) {
                 return false;

@@ -25,6 +25,19 @@ class MarzneshinService
         $this->nodeHostname = $nodeHostname;
     }
 
+    /**
+     * Ensure authentication token is valid
+     * This method consolidates authentication checks to reduce redundant code
+     */
+    protected function ensureAuthenticated(): bool
+    {
+        if (! $this->accessToken) {
+            return $this->login();
+        }
+
+        return true;
+    }
+
     public function login(): bool
     {
         try {
@@ -49,10 +62,8 @@ class MarzneshinService
 
     public function createUser(array $userData): ?array
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return ['detail' => 'Authentication failed'];
-            }
+        if (! $this->ensureAuthenticated()) {
+            return ['detail' => 'Authentication failed'];
         }
 
         try {
@@ -94,10 +105,8 @@ class MarzneshinService
 
     public function updateUser(string $username, array $userData): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return false;
         }
 
         try {
@@ -147,7 +156,7 @@ class MarzneshinService
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
-        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+        $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
         return rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
@@ -162,10 +171,8 @@ class MarzneshinService
 
     public function listServices(): array
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return [];
-            }
+        if (! $this->ensureAuthenticated()) {
+            return [];
         }
 
         try {
@@ -208,10 +215,8 @@ class MarzneshinService
 
     public function enableUser(string $username): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return false;
         }
 
         try {
@@ -231,10 +236,8 @@ class MarzneshinService
 
     public function disableUser(string $username): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return false;
         }
 
         try {
@@ -254,10 +257,8 @@ class MarzneshinService
 
     public function resetUser(string $username): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return false;
         }
 
         try {
@@ -277,10 +278,8 @@ class MarzneshinService
 
     public function getUser(string $username): ?array
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return null;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return null;
         }
 
         try {
@@ -304,10 +303,8 @@ class MarzneshinService
 
     public function deleteUser(string $username): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (! $this->ensureAuthenticated()) {
+            return false;
         }
 
         try {
