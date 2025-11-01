@@ -27,6 +27,58 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     public $timeout = 600;
     public $uniqueFor = 300; // 5 minutes
 
+    /**
+     * Calculate the effective limit with grace threshold applied
+     * 
+     * @param int $limit The base limit in bytes
+     * @param float $gracePercent Grace percentage (e.g., 2.0 for 2%)
+     * @param int $graceBytes Grace in bytes (e.g., 50MB)
+     * @return int The limit plus maximum grace
+     */
+    protected function applyGrace(int $limit, float $gracePercent, int $graceBytes): int
+    {
+        $percentGrace = (int) ($limit * ($gracePercent / 100));
+        $maxGrace = max($percentGrace, $graceBytes);
+        
+        return $limit + $maxGrace;
+    }
+
+    /**
+     * Get grace settings for config-level checks
+     * 
+     * @return array ['percent' => float, 'bytes' => int]
+     */
+    protected function getConfigGraceSettings(): array
+    {
+        return [
+            'percent' => (float) Setting::get('config.auto_disable_grace_percent', 2.0),
+            'bytes' => (int) Setting::get('config.auto_disable_grace_bytes', 50 * 1024 * 1024), // 50MB
+        ];
+    }
+
+    /**
+     * Get grace settings for reseller-level checks
+     * 
+     * @return array ['percent' => float, 'bytes' => int]
+     */
+    protected function getResellerGraceSettings(): array
+    {
+        return [
+            'percent' => (float) Setting::get('reseller.auto_disable_grace_percent', 2.0),
+            'bytes' => (int) Setting::get('reseller.auto_disable_grace_bytes', 50 * 1024 * 1024), // 50MB
+        ];
+    }
+
+    /**
+     * Get time expiry grace in minutes
+     * 
+     * @return int Grace minutes (0 = no grace)
+     */
+    protected function getTimeExpiryGraceMinutes(): int
+    {
+        return (int) Setting::get('reseller.time_expiry_grace_minutes', 0);
+    }
+
     public function handle(): void
     {
         Log::info("Starting reseller usage sync");
@@ -57,6 +109,8 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
         $totalUsageBytes = 0;
         $allowConfigOverrun = Setting::getBool('reseller.allow_config_overrun', true);
+        $configGrace = $this->getConfigGraceSettings();
+        $timeGraceMinutes = $this->getTimeExpiryGraceMinutes();
 
         foreach ($configs as $config) {
             try {
@@ -68,10 +122,17 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
                     // Only check per-config limits if config overrun is NOT allowed
                     if (!$allowConfigOverrun) {
-                        // Check if config exceeded its own limits
-                        if ($config->usage_bytes >= $config->traffic_limit_bytes) {
+                        // Apply grace threshold to traffic limit
+                        $effectiveTrafficLimit = $this->applyGrace(
+                            $config->traffic_limit_bytes,
+                            $configGrace['percent'],
+                            $configGrace['bytes']
+                        );
+                        
+                        // Check if config exceeded its own limits (with grace)
+                        if ($config->usage_bytes >= $effectiveTrafficLimit) {
                             $this->disableConfig($config, 'traffic_exceeded');
-                        } elseif ($config->isExpiredByTime()) {
+                        } elseif ($this->isExpiredByTimeWithGrace($config->expires_at, $timeGraceMinutes)) {
                             $this->disableConfig($config, 'time_expired');
                         }
                     }
@@ -84,8 +145,18 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         // Update reseller's total traffic usage
         $reseller->update(['traffic_used_bytes' => $totalUsageBytes]);
 
-        // Check reseller-level limits
-        if (!$reseller->hasTrafficRemaining() || !$reseller->isWindowValid()) {
+        // Check reseller-level limits with grace
+        $resellerGrace = $this->getResellerGraceSettings();
+        $effectiveResellerLimit = $this->applyGrace(
+            $reseller->traffic_total_bytes,
+            $resellerGrace['percent'],
+            $resellerGrace['bytes']
+        );
+        
+        $hasTrafficRemaining = $totalUsageBytes < $effectiveResellerLimit;
+        $isWindowValid = $reseller->isWindowValid();
+        
+        if (!$hasTrafficRemaining || !$isWindowValid) {
             // Suspend the reseller if not already suspended
             if ($reseller->status !== 'suspended') {
                 $reseller->update(['status' => 'suspended']);
@@ -93,6 +164,23 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             }
             $this->disableResellerConfigs($reseller);
         }
+    }
+
+    /**
+     * Check if a datetime is expired considering grace period
+     * 
+     * @param \Carbon\Carbon $expiresAt
+     * @param int $graceMinutes
+     * @return bool
+     */
+    protected function isExpiredByTimeWithGrace($expiresAt, int $graceMinutes): bool
+    {
+        if ($graceMinutes <= 0) {
+            return now() >= $expiresAt;
+        }
+        
+        $expiresAtWithGrace = $expiresAt->copy()->addMinutes($graceMinutes);
+        return now() >= $expiresAtWithGrace;
     }
 
     protected function fetchConfigUsage(ResellerConfig $config): ?int
@@ -179,11 +267,47 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         }
 
         $user = $service->getUser($username);
-        return ($user['up'] + $user['down']) ?? null;
+        
+        if (!$user) {
+            return null;
+        }
+        
+        // Safely compute usage with proper type casting
+        $up = (int)($user['up'] ?? 0);
+        $down = (int)($user['down'] ?? 0);
+        
+        return $up + $down;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void
     {
+        // Attempt remote disable first using ResellerProvisioner
+        $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+        
+        if ($config->panel_id) {
+            try {
+                $panel = Panel::find($config->panel_id);
+                if ($panel) {
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+                    $remoteResult = $provisioner->disableUser(
+                        $panel->panel_type,  // Use panel's panel_type, not config's
+                        $panel->getCredentials(),
+                        $config->panel_user_id
+                    );
+                    
+                    if (!$remoteResult['success']) {
+                        Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts");
+                    }
+                } else {
+                    Log::warning("Panel {$config->panel_id} not found for config {$config->id}");
+                }
+            } catch (\Exception $e) {
+                Log::error("Exception disabling config {$config->id} on panel: " . $e->getMessage());
+                $remoteResult['last_error'] = $e->getMessage();
+            }
+        }
+
+        // Update local state only after remote attempt (success or definitive failure)
         $config->update([
             'status' => $reason === 'time_expired' ? 'expired' : 'disabled',
             'disabled_at' => now(),
@@ -192,10 +316,17 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'auto_disabled',
-            'meta' => ['reason' => $reason],
+            'meta' => [
+                'reason' => $reason,
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+            ],
         ]);
 
-        Log::info("Config {$config->id} disabled due to: {$reason}");
+        Log::info("Config {$config->id} disabled due to: {$reason} (remote_success: " . ($remoteResult['success'] ? 'true' : 'false') . ")");
     }
 
     protected function disableResellerConfigs(Reseller $reseller): void
@@ -216,30 +347,29 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
         foreach ($configs as $config) {
             try {
-                // Rate-limit: 3 configs per second
-                if ($disabledCount > 0 && $disabledCount % 3 === 0) {
-                    sleep(1);
-                }
+                // Apply micro-sleep rate limiting: 3 ops/sec evenly distributed
+                $provisioner->applyRateLimit($disabledCount);
 
-                // Disable on remote panel using the stored panel_id/panel_type
-                $remoteSuccess = false;
+                // Disable on remote panel first using the stored panel_id
+                $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+                
                 if ($config->panel_id) {
                     $panel = Panel::find($config->panel_id);
                     if ($panel) {
-                        $remoteSuccess = $provisioner->disableUser(
-                            $config->panel_type, 
-                            $panel->getCredentials(), 
+                        $remoteResult = $provisioner->disableUser(
+                            $panel->panel_type,  // Use panel's panel_type, not config's
+                            $panel->getCredentials(),
                             $config->panel_user_id
                         );
+                        
+                        if (!$remoteResult['success']) {
+                            Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                            $failedCount++;
+                        }
                     }
                 }
 
-                if (!$remoteSuccess) {
-                    Log::warning("Failed to disable config {$config->id} on remote panel");
-                    $failedCount++;
-                }
-
-                // Update local status regardless of remote result
+                // Update local status after remote attempt (regardless of result)
                 $config->update([
                     'status' => 'disabled',
                     'disabled_at' => now(),
@@ -250,7 +380,11 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                     'type' => 'auto_disabled',
                     'meta' => [
                         'reason' => $reason,
-                        'remote_success' => $remoteSuccess,
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
                     ],
                 ]);
 

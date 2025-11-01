@@ -181,41 +181,51 @@ class ConfigController extends Controller
             return back()->with('error', 'Config is not active.');
         }
 
-        // Update local state first
-        $config->update([
-            'status' => 'disabled',
-            'disabled_at' => now(),
-        ]);
-
-        // Try to disable on remote panel
-        $remoteFailed = false;
+        // Try to disable on remote panel first
+        $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+        
         if ($config->panel_id) {
             try {
                 $panel = Panel::findOrFail($config->panel_id);
                 $provisioner = new ResellerProvisioner;
-                $success = $provisioner->disableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
                 
-                if (!$success) {
-                    $remoteFailed = true;
-                    Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id}");
+                // Use panel->panel_type instead of config->panel_type
+                $remoteResult = $provisioner->disableUser(
+                    $panel->panel_type,
+                    $panel->getCredentials(),
+                    $config->panel_user_id
+                );
+                
+                if (!$remoteResult['success']) {
+                    Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                 }
             } catch (\Exception $e) {
-                $remoteFailed = true;
                 Log::error("Exception disabling config {$config->id} on panel: " . $e->getMessage());
+                $remoteResult['last_error'] = $e->getMessage();
             }
         }
+
+        // Update local state after remote attempt
+        $config->update([
+            'status' => 'disabled',
+            'disabled_at' => now(),
+        ]);
 
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'manual_disabled',
             'meta' => [
                 'user_id' => $request->user()->id,
-                'remote_failed' => $remoteFailed,
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
             ],
         ]);
 
-        if ($remoteFailed) {
-            return back()->with('warning', 'Config disabled locally, but remote panel update failed.');
+        if (!$remoteResult['success']) {
+            return back()->with('warning', 'Config disabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
         }
 
         return back()->with('success', 'Config disabled successfully.');
@@ -239,24 +249,30 @@ class ConfigController extends Controller
         }
 
         // Try to enable on remote panel first
-        $remoteFailed = false;
+        $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+        
         if ($config->panel_id) {
             try {
                 $panel = Panel::findOrFail($config->panel_id);
                 $provisioner = new ResellerProvisioner;
-                $success = $provisioner->enableUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
                 
-                if (!$success) {
-                    $remoteFailed = true;
-                    Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id}");
+                // Use panel->panel_type instead of config->panel_type
+                $remoteResult = $provisioner->enableUser(
+                    $panel->panel_type,
+                    $panel->getCredentials(),
+                    $config->panel_user_id
+                );
+                
+                if (!$remoteResult['success']) {
+                    Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                 }
             } catch (\Exception $e) {
-                $remoteFailed = true;
                 Log::error("Exception enabling config {$config->id} on panel: " . $e->getMessage());
+                $remoteResult['last_error'] = $e->getMessage();
             }
         }
 
-        // Update local state
+        // Update local state after remote attempt
         $config->update([
             'status' => 'active',
             'disabled_at' => null,
@@ -267,12 +283,16 @@ class ConfigController extends Controller
             'type' => 'manual_enabled',
             'meta' => [
                 'user_id' => $request->user()->id,
-                'remote_failed' => $remoteFailed,
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
             ],
         ]);
 
-        if ($remoteFailed) {
-            return back()->with('warning', 'Config enabled locally, but remote panel update failed.');
+        if (!$remoteResult['success']) {
+            return back()->with('warning', 'Config enabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
         }
 
         return back()->with('success', 'Config enabled successfully.');

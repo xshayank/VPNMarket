@@ -14,6 +14,72 @@ use Illuminate\Support\Facades\Log;
 class ResellerProvisioner
 {
     /**
+     * Retry an operation with exponential backoff
+     * Attempts: 0s, 1s, 3s (3 total attempts)
+     * 
+     * @param callable $operation The operation to retry (should return bool)
+     * @param string $description Description for logging (no sensitive data)
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
+     */
+    protected function retryOperation(callable $operation, string $description): array
+    {
+        $maxAttempts = 3;
+        $lastError = null;
+        
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                // Exponential backoff: 0s, 1s, 3s
+                if ($attempt > 1) {
+                    $delay = pow(2, $attempt - 2); // 2^0=1, 2^1=2, but we want 1, 3
+                    if ($attempt == 2) {
+                        $delay = 1;
+                    } else {
+                        $delay = 3;
+                    }
+                    usleep($delay * 1000000); // Convert to microseconds
+                }
+                
+                $result = $operation();
+                
+                if ($result) {
+                    return [
+                        'success' => true,
+                        'attempts' => $attempt,
+                        'last_error' => null,
+                    ];
+                }
+                
+                $lastError = "Operation returned false";
+            } catch (\Exception $e) {
+                $lastError = $e->getMessage();
+                Log::warning("Attempt {$attempt}/{$maxAttempts} to {$description} failed: {$lastError}");
+            }
+        }
+        
+        Log::error("All {$maxAttempts} attempts to {$description} failed. Last error: {$lastError}");
+        
+        return [
+            'success' => false,
+            'attempts' => $maxAttempts,
+            'last_error' => $lastError,
+        ];
+    }
+
+    /**
+     * Apply rate limiting with micro-sleeps to evenly distribute operations
+     * Rate: 3 operations per second
+     * 
+     * @param int $operationCount Current operation count (0-indexed)
+     */
+    public function applyRateLimit(int $operationCount): void
+    {
+        if ($operationCount > 0) {
+            // 3 ops/sec = 333ms between operations
+            usleep(333333); // 333.333 milliseconds
+        }
+    }
+
+    /**
      * Create a username following the reseller naming convention
      */
     public function generateUsername(Reseller $reseller, string $type, int $id, ?int $index = null): string
@@ -183,11 +249,13 @@ class ResellerProvisioner
     }
 
     /**
-     * Disable a user on a panel
+     * Disable a user on a panel with retry logic
+     * 
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
-    public function disableUser(string $panelType, array $credentials, string $panelUserId): bool
+    public function disableUser(string $panelType, array $credentials, string $panelUserId): array
     {
-        try {
+        return $this->retryOperation(function () use ($panelType, $credentials, $panelUserId) {
             switch ($panelType) {
                 case 'marzban':
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
@@ -212,9 +280,7 @@ class ResellerProvisioner
                     );
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated disable endpoint
-                        $result = $service->disableUser($panelUserId);
-
-                        return $result;
+                        return $service->disableUser($panelUserId);
                     }
                     break;
 
@@ -229,19 +295,19 @@ class ResellerProvisioner
                     }
                     break;
             }
-        } catch (\Exception $e) {
-            Log::error("Failed to disable user {$panelUserId}: ".$e->getMessage());
-        }
 
-        return false;
+            return false;
+        }, "disable user {$panelUserId}");
     }
 
     /**
-     * Enable a user on a panel
+     * Enable a user on a panel with retry logic
+     * 
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
-    public function enableUser(string $panelType, array $credentials, string $panelUserId): bool
+    public function enableUser(string $panelType, array $credentials, string $panelUserId): array
     {
-        try {
+        return $this->retryOperation(function () use ($panelType, $credentials, $panelUserId) {
             switch ($panelType) {
                 case 'marzban':
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
@@ -266,9 +332,7 @@ class ResellerProvisioner
                     );
                     if ($service->login()) {
                         // For Marzneshin, use the dedicated enable endpoint
-                        $result = $service->enableUser($panelUserId);
-
-                        return $result;
+                        return $service->enableUser($panelUserId);
                     }
                     break;
 
@@ -283,39 +347,39 @@ class ResellerProvisioner
                     }
                     break;
             }
-        } catch (\Exception $e) {
-            Log::error("Failed to enable user {$panelUserId}: ".$e->getMessage());
-        }
 
-        return false;
+            return false;
+        }, "enable user {$panelUserId}");
     }
 
     /**
      * Enable a config on its panel (convenience wrapper for enableUser)
+     * 
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
-    public function enableConfig(\App\Models\ResellerConfig $config): bool
+    public function enableConfig(\App\Models\ResellerConfig $config): array
     {
         if (! $config->panel_id || ! $config->panel_user_id) {
             Log::warning("Cannot enable config {$config->id}: missing panel_id or panel_user_id");
 
-            return false;
+            return ['success' => false, 'attempts' => 0, 'last_error' => 'Missing panel_id or panel_user_id'];
         }
 
         $panel = Panel::find($config->panel_id);
         if (! $panel) {
             Log::warning("Cannot enable config {$config->id}: panel not found");
 
-            return false;
+            return ['success' => false, 'attempts' => 0, 'last_error' => 'Panel not found'];
         }
 
         try {
             $credentials = $panel->getCredentials();
 
-            return $this->enableUser($config->panel_type, $credentials, $config->panel_user_id);
+            return $this->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
         } catch (\Exception $e) {
             Log::warning("Failed to enable config {$config->id}: ".$e->getMessage());
 
-            return false;
+            return ['success' => false, 'attempts' => 0, 'last_error' => $e->getMessage()];
         }
     }
 
