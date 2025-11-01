@@ -274,8 +274,8 @@ class ConfigsRelationManager extends RelationManager
             $panel = null;
             $panelTypeUsed = null;
             
-            if ($config->panel_id) {
-                $panel = \App\Models\Panel::find($config->panel_id);
+            if ($config->panel_id && $config->panel_user_id) {
+                $panel = $config->panel;  // Use relationship instead of manual fetch
                 if ($panel) {
                     $panelTypeUsed = $panel->panel_type;
                     $credentials = $panel->getCredentials();
@@ -341,8 +341,8 @@ class ConfigsRelationManager extends RelationManager
             $panel = null;
             $panelTypeUsed = null;
             
-            if ($config->panel_id) {
-                $panel = \App\Models\Panel::find($config->panel_id);
+            if ($config->panel_id && $config->panel_user_id) {
+                $panel = $config->panel;  // Use relationship instead of manual fetch
                 if ($panel) {
                     $panelTypeUsed = $panel->panel_type;
                     $credentials = $panel->getCredentials();
