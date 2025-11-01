@@ -427,6 +427,58 @@ class ResellerResource extends Resource
                             ->send();
                     }),
 
+                Tables\Actions\Action::make('reset_usage')
+                    ->label('بازنشانی مصرف')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (Reseller $record): bool => $record->type === 'traffic' && auth()->user()?->is_admin)
+                    ->requiresConfirmation()
+                    ->modalHeading('بازنشانی مصرف ترافیک')
+                    ->modalDescription('این عملیات مصرف ترافیک ریسلر را به صفر تنظیم می‌کند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟')
+                    ->modalSubmitActionLabel('بله، بازنشانی شود')
+                    ->modalCancelActionLabel('انصراف')
+                    ->action(function (Reseller $record) {
+                        try {
+                            $oldUsedBytes = $record->traffic_used_bytes;
+
+                            // Reset usage to zero
+                            $record->update([
+                                'traffic_used_bytes' => 0,
+                            ]);
+
+                            // Create audit log
+                            \App\Models\AuditLog::log(
+                                action: 'reseller_usage_reset',
+                                targetType: 'reseller',
+                                targetId: $record->id,
+                                reason: 'admin_action',
+                                meta: [
+                                    'old_traffic_used_bytes' => $oldUsedBytes,
+                                    'new_traffic_used_bytes' => 0,
+                                    'traffic_total_bytes' => $record->traffic_total_bytes,
+                                ]
+                            );
+
+                            // If reseller was suspended and now has remaining quota and valid window,
+                            // dispatch job to re-enable configs
+                            if ($record->status === 'suspended' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                                \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('مصرف ترافیک با موفقیت بازنشانی شد')
+                                ->body('مصرف ترافیک ریسلر به صفر تنظیم شد')
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('خطا در بازنشانی مصرف')
+                                ->body('خطایی رخ داده است: '.$e->getMessage())
+                                ->send();
+                        }
+                    }),
+
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
