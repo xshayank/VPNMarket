@@ -31,9 +31,10 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     {
         Log::info("Starting reseller usage sync");
 
-        // Get all active resellers with traffic-based configs
+        // Optimize: Use eager loading to prevent N+1 queries
         $resellers = Reseller::where('status', 'active')
             ->where('type', 'traffic')
+            ->with('configs')
             ->get();
 
         foreach ($resellers as $reseller) {
@@ -133,10 +134,13 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     protected function fetchMarzbanUsage(array $credentials, string $username): ?int
     {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
-            $credentials['password']
+            $credentials['password'],
+            $nodeHostname
         );
 
         if (!$service->login()) {

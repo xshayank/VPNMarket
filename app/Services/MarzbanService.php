@@ -42,12 +42,22 @@ class MarzbanService
         }
     }
 
-    public function createUser(array $userData): ?array
+    /**
+     * Ensure authentication token is valid
+     * This method consolidates authentication checks to reduce redundant code
+     */
+    protected function ensureAuthenticated(): bool
     {
         if (!$this->accessToken) {
-            if (!$this->login()) {
-                return ['detail' => 'Authentication failed'];
-            }
+            return $this->login();
+        }
+        return true;
+    }
+
+    public function createUser(array $userData): ?array
+    {
+        if (!$this->ensureAuthenticated()) {
+            return ['detail' => 'Authentication failed'];
         }
 
         try {
@@ -75,8 +85,8 @@ class MarzbanService
 
     public function updateUser(string $username, array $userData): ?array
     {
-        if (!$this->accessToken) {
-            if (!$this->login()) return null;
+        if (!$this->ensureAuthenticated()) {
+            return null;
         }
 
         try {
@@ -124,10 +134,8 @@ class MarzbanService
 
     public function getUser(string $username): ?array
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return null;
-            }
+        if (!$this->ensureAuthenticated()) {
+            return null;
         }
 
         try {
@@ -151,10 +159,8 @@ class MarzbanService
 
     public function deleteUser(string $username): bool
     {
-        if (! $this->accessToken) {
-            if (! $this->login()) {
-                return false;
-            }
+        if (!$this->ensureAuthenticated()) {
+            return false;
         }
 
         try {

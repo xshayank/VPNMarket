@@ -12,15 +12,28 @@ class DashboardController extends Controller
         $reseller = $request->user()->reseller;
 
         if ($reseller->isPlanBased()) {
+            // Optimize: Use single query with aggregation instead of multiple queries
+            $orderStats = $reseller->orders()
+                ->selectRaw('COUNT(*) as total_orders')
+                ->selectRaw('COUNT(CASE WHEN status = "fulfilled" THEN 1 END) as fulfilled_orders')
+                ->selectRaw('SUM(CASE WHEN status = "fulfilled" THEN quantity ELSE 0 END) as total_accounts')
+                ->first();
+            
             $stats = [
                 'balance' => $request->user()->balance,
-                'total_orders' => $reseller->orders()->count(),
-                'fulfilled_orders' => $reseller->orders()->where('status', 'fulfilled')->count(),
-                'total_accounts' => $reseller->orders()->where('status', 'fulfilled')->sum('quantity'),
+                'total_orders' => $orderStats->total_orders ?? 0,
+                'fulfilled_orders' => $orderStats->fulfilled_orders ?? 0,
+                'total_accounts' => $orderStats->total_accounts ?? 0,
                 'recent_orders' => $reseller->orders()->latest()->take(5)->with('plan')->get(),
             ];
         } else {
-            $totalConfigs = $reseller->configs()->count();
+            // Optimize: Use single query with aggregation for counts
+            $configStats = $reseller->configs()
+                ->selectRaw('COUNT(*) as total_configs')
+                ->selectRaw('COUNT(CASE WHEN status = "active" THEN 1 END) as active_configs')
+                ->first();
+            
+            $totalConfigs = $configStats->total_configs ?? 0;
             $configLimit = $reseller->config_limit;
             $isUnlimitedLimit = is_null($configLimit) || $configLimit === 0;
             $configsRemaining = $isUnlimitedLimit ? null : max($configLimit - $totalConfigs, 0);
@@ -32,7 +45,7 @@ class DashboardController extends Controller
                 'window_starts_at' => $reseller->window_starts_at,
                 'window_ends_at' => $reseller->window_ends_at,
                 'days_remaining' => $reseller->window_ends_at ? now()->diffInDays($reseller->window_ends_at, false) : null,
-                'active_configs' => $reseller->configs()->where('status', 'active')->count(),
+                'active_configs' => $configStats->active_configs ?? 0,
                 'total_configs' => $totalConfigs,
                 'recent_configs' => $reseller->configs()->latest()->take(10)->get(),
                 'config_limit' => $configLimit,
