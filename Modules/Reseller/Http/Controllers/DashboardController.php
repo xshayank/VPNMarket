@@ -18,7 +18,7 @@ class DashboardController extends Controller
                 ->selectRaw('COUNT(CASE WHEN status = "fulfilled" THEN 1 END) as fulfilled_orders')
                 ->selectRaw('SUM(CASE WHEN status = "fulfilled" THEN quantity ELSE 0 END) as total_accounts')
                 ->first();
-            
+
             $stats = [
                 'balance' => $request->user()->balance,
                 'total_orders' => $orderStats->total_orders ?? 0,
@@ -32,7 +32,7 @@ class DashboardController extends Controller
                 ->selectRaw('COUNT(*) as total_configs')
                 ->selectRaw('COUNT(CASE WHEN status = "active" THEN 1 END) as active_configs')
                 ->first();
-            
+
             $totalConfigs = $configStats->total_configs ?? 0;
             $configLimit = $reseller->config_limit;
             $isUnlimitedLimit = is_null($configLimit) || $configLimit === 0;

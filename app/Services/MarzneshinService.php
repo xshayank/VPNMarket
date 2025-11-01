@@ -31,9 +31,10 @@ class MarzneshinService
      */
     protected function ensureAuthenticated(): bool
     {
-        if (!$this->accessToken) {
+        if (! $this->accessToken) {
             return $this->login();
         }
+
         return true;
     }
 
@@ -61,7 +62,7 @@ class MarzneshinService
 
     public function createUser(array $userData): ?array
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return ['detail' => 'Authentication failed'];
         }
 
@@ -104,7 +105,7 @@ class MarzneshinService
 
     public function updateUser(string $username, array $userData): bool
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return false;
         }
 
@@ -155,7 +156,7 @@ class MarzneshinService
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
-        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+        $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
         return rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
@@ -170,7 +171,7 @@ class MarzneshinService
 
     public function listServices(): array
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return [];
         }
 
@@ -214,7 +215,7 @@ class MarzneshinService
 
     public function enableUser(string $username): bool
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return false;
         }
 
@@ -235,7 +236,7 @@ class MarzneshinService
 
     public function disableUser(string $username): bool
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return false;
         }
 
@@ -256,7 +257,7 @@ class MarzneshinService
 
     public function resetUser(string $username): bool
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return false;
         }
 
@@ -277,7 +278,7 @@ class MarzneshinService
 
     public function getUser(string $username): ?array
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return null;
         }
 
@@ -302,7 +303,7 @@ class MarzneshinService
 
     public function deleteUser(string $username): bool
     {
-        if (!$this->ensureAuthenticated()) {
+        if (! $this->ensureAuthenticated()) {
             return false;
         }
 
