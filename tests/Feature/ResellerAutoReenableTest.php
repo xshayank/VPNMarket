@@ -308,14 +308,14 @@ test('job skips resellers without traffic or expired window', function () {
     $panel = Panel::factory()->create();
     $user = User::factory()->create();
     
-    // Create a suspended reseller with no traffic remaining
+    // Create a suspended reseller with no traffic remaining (over grace)
     $noTrafficReseller = Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
         'status' => 'suspended',
         'panel_id' => $panel->id,
-        'traffic_total_bytes' => 100 * 1024 * 1024 * 1024,
-        'traffic_used_bytes' => 100 * 1024 * 1024 * 1024, // All used
+        'traffic_total_bytes' => 100 * 1024 * 1024 * 1024, // 100GB
+        'traffic_used_bytes' => 105 * 1024 * 1024 * 1024, // 105GB used (over grace of 2GB)
         'window_starts_at' => now()->subDays(5),
         'window_ends_at' => now()->addDays(25),
     ]);
