@@ -29,7 +29,10 @@ test('disableUser returns true for successful Marzneshin disable', function () {
     $provisioner = new ResellerProvisioner();
     $result = $provisioner->disableUser('marzneshin', $credentials, 'test_user');
 
-    expect($result)->toBeTrue();
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeTrue()
+        ->and($result['attempts'])->toBe(1)
+        ->and($result['last_error'])->toBeNull();
 
     Http::assertSent(function ($request) {
         return str_contains($request->url(), '/disable');
@@ -48,7 +51,10 @@ test('disableUser returns false when remote API fails', function () {
     $provisioner = new ResellerProvisioner();
     $result = $provisioner->disableUser('marzneshin', $credentials, 'test_user');
 
-    expect($result)->toBeFalse();
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeFalse()
+        ->and($result['attempts'])->toBe(3) // Should retry 3 times
+        ->and($result['last_error'])->not->toBeNull();
 });
 
 test('enableUser returns true for successful Marzneshin enable', function () {
@@ -63,7 +69,10 @@ test('enableUser returns true for successful Marzneshin enable', function () {
     $provisioner = new ResellerProvisioner();
     $result = $provisioner->enableUser('marzneshin', $credentials, 'test_user');
 
-    expect($result)->toBeTrue();
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeTrue()
+        ->and($result['attempts'])->toBe(1)
+        ->and($result['last_error'])->toBeNull();
 
     Http::assertSent(function ($request) {
         return str_contains($request->url(), '/enable');
@@ -82,7 +91,10 @@ test('enableUser returns false when remote API fails', function () {
     $provisioner = new ResellerProvisioner();
     $result = $provisioner->enableUser('marzneshin', $credentials, 'test_user');
 
-    expect($result)->toBeFalse();
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeFalse()
+        ->and($result['attempts'])->toBe(3) // Should retry 3 times
+        ->and($result['last_error'])->not->toBeNull();
 });
 
 test('config stores subscription_url and panel_id during provisioning', function () {
