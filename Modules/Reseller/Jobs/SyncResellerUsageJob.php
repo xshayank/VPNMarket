@@ -2,6 +2,7 @@
 
 namespace Modules\Reseller\Jobs;
 
+use App\Models\AuditLog;
 use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
@@ -159,8 +160,24 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         if (!$hasTrafficRemaining || !$isWindowValid) {
             // Suspend the reseller if not already suspended
             if ($reseller->status !== 'suspended') {
+                $reason = !$hasTrafficRemaining ? 'reseller_quota_exhausted' : 'reseller_window_expired';
                 $reseller->update(['status' => 'suspended']);
                 Log::info("Reseller {$reseller->id} suspended due to quota/window exhaustion");
+                
+                // Create audit log for reseller suspension
+                AuditLog::log(
+                    action: 'reseller_suspended',
+                    targetType: 'reseller',
+                    targetId: $reseller->id,
+                    reason: $reason,
+                    meta: [
+                        'traffic_used_bytes' => $totalUsageBytes,
+                        'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                        'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                    ],
+                    actorType: null,
+                    actorId: null  // System action
+                );
             }
             $this->disableResellerConfigs($reseller);
         }
@@ -221,10 +238,13 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     protected function fetchMarzbanUsage(array $credentials, string $username): ?int
     {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
-            $credentials['password']
+            $credentials['password'],
+            $nodeHostname
         );
 
         if (!$service->login()) {
@@ -338,6 +358,23 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             ],
         ]);
 
+        // Create audit log entry
+        AuditLog::log(
+            action: 'config_auto_disabled',
+            targetType: 'config',
+            targetId: $config->id,
+            reason: $reason,
+            meta: [
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+            ],
+            actorType: null,
+            actorId: null  // System action
+        );
+
         Log::notice("Config {$config->id} disabled due to: {$reason} (remote_success: " . ($remoteResult['success'] ? 'true' : 'false') . ", panel_id: {$config->panel_id})");
     }
 
@@ -399,6 +436,23 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                         'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
                     ],
                 ]);
+
+                // Create audit log entry
+                AuditLog::log(
+                    action: 'config_auto_disabled',
+                    targetType: 'config',
+                    targetId: $config->id,
+                    reason: $reason,
+                    meta: [
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                    ],
+                    actorType: null,
+                    actorId: null  // System action
+                );
 
                 $disabledCount++;
             } catch (\Exception $e) {

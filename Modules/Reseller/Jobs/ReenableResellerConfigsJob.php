@@ -2,6 +2,7 @@
 
 namespace Modules\Reseller\Jobs;
 
+use App\Models\AuditLog;
 use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
@@ -57,6 +58,21 @@ class ReenableResellerConfigsJob implements ShouldQueue
             // Reactivate the reseller
             $reseller->update(['status' => 'active']);
             Log::info("Reseller {$reseller->id} reactivated after recovery");
+
+            // Create audit log for reseller activation
+            AuditLog::log(
+                action: 'reseller_activated',
+                targetType: 'reseller',
+                targetId: $reseller->id,
+                reason: 'reseller_recovered',
+                meta: [
+                    'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                    'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                    'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                ],
+                actorType: null,
+                actorId: null  // System action
+            );
 
             $this->reenableResellerConfigs($reseller, $provisioner);
         }
@@ -132,6 +148,23 @@ class ReenableResellerConfigsJob implements ShouldQueue
                         'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
                     ],
                 ]);
+
+                // Create audit log entry
+                AuditLog::log(
+                    action: 'config_auto_enabled',
+                    targetType: 'config',
+                    targetId: $config->id,
+                    reason: 'reseller_recovered',
+                    meta: [
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                    ],
+                    actorType: null,
+                    actorId: null  // System action
+                );
 
                 $enabledCount++;
             } catch (\Exception $e) {
