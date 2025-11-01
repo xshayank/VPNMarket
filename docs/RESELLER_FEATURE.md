@@ -229,9 +229,9 @@ All config lifecycle events include detailed metadata:
 |------------|-------------|--------------|
 | `created` | User action | N/A |
 | `auto_disabled` | System (SyncResellerUsageJob) | `traffic_exceeded`, `time_expired`, `reseller_quota_exhausted`, `reseller_window_expired` |
-| `manual_disabled` | User action (ConfigController) | N/A |
+| `manual_disabled` | User action (ConfigController), Admin action (Filament) | `admin_action` (Filament), N/A (ConfigController) |
 | `auto_enabled` | System (ReenableResellerConfigsJob) | `reseller_recovered` |
-| `manual_enabled` | User action (ConfigController) | N/A |
+| `manual_enabled` | User action (ConfigController), Admin action (Filament) | `admin_action` (Filament), N/A (ConfigController) |
 | `deleted` | User action | N/A |
 
 ### Event Metadata Fields
@@ -240,15 +240,22 @@ All disable/enable events include:
 
 ```json
 {
-  "reason": "string",           // Why operation occurred
+  "reason": "string",           // Why operation occurred (e.g., 'admin_action' for Filament actions)
   "remote_success": true,       // Whether remote panel operation succeeded
   "attempts": 1,                // Number of retry attempts (1-3)
   "last_error": null,           // Error message if operation failed
   "panel_id": 5,                // Panel ID used
   "panel_type_used": "marzneshin", // Resolved panel type (not stale config type)
-  "user_id": 123                // User ID (manual operations only)
+  "user_id": 123                // User ID (manual operations from ConfigController only)
 }
 ```
+
+**Note on Admin Actions**: When admins disable/enable configs through the Filament admin interface:
+- Events use `type='manual_disabled'` or `type='manual_enabled'` (not 'disabled' or 'enabled')
+- The `reason` field is set to `'admin_action'` to distinguish from user-initiated actions
+- The `panel_type_used` is resolved from the `Panel` model (via `panel_id`), not from the config's `panel_type` field
+- Full telemetry is included: `remote_success`, `attempts`, `last_error`, `panel_id`, `panel_type_used`
+- Info logs are written on successful operations, warnings on failures
 
 ### Querying Events
 

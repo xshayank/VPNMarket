@@ -349,3 +349,142 @@ test('bulk activate action activates multiple resellers', function () {
     
     expect(Reseller::where('status', 'active')->count())->toBe(3);
 });
+
+test('admin disable config action creates manual_disabled event with proper telemetry', function () {
+    $panel = Panel::factory()->create(['panel_type' => 'marzban']);
+    $reseller = Reseller::factory()->create([
+        'type' => 'traffic',
+        'status' => 'active',
+        'panel_id' => $panel->id,
+    ]);
+    
+    $config = ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'status' => 'active',
+        'panel_type' => 'marzban',
+        'panel_id' => $panel->id,
+        'panel_user_id' => 'test_user',
+    ]);
+    
+    // Simulate admin disable action
+    $config->update(['status' => 'disabled', 'disabled_at' => now()]);
+    
+    \App\Models\ResellerConfigEvent::create([
+        'reseller_config_id' => $config->id,
+        'type' => 'manual_disabled',
+        'meta' => [
+            'reason' => 'admin_action',
+            'remote_success' => false,
+            'attempts' => 0,
+            'last_error' => 'No panel configured',
+            'panel_id' => $panel->id,
+            'panel_type_used' => $panel->panel_type,
+        ],
+    ]);
+    
+    $event = \App\Models\ResellerConfigEvent::where('reseller_config_id', $config->id)
+        ->where('type', 'manual_disabled')
+        ->first();
+    
+    expect($event)->not->toBeNull();
+    expect($event->type)->toBe('manual_disabled');
+    expect($event->meta['reason'])->toBe('admin_action');
+    expect($event->meta)->toHaveKey('remote_success');
+    expect($event->meta)->toHaveKey('attempts');
+    expect($event->meta)->toHaveKey('last_error');
+    expect($event->meta)->toHaveKey('panel_id');
+    expect($event->meta)->toHaveKey('panel_type_used');
+    expect($event->meta['panel_type_used'])->toBe('marzban');
+});
+
+test('admin enable config action creates manual_enabled event with proper telemetry', function () {
+    $panel = Panel::factory()->create(['panel_type' => 'marzneshin']);
+    $reseller = Reseller::factory()->create([
+        'type' => 'traffic',
+        'status' => 'active',
+        'panel_id' => $panel->id,
+    ]);
+    
+    $config = ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'status' => 'disabled',
+        'panel_type' => 'marzneshin',
+        'panel_id' => $panel->id,
+        'panel_user_id' => 'test_user',
+        'disabled_at' => now(),
+    ]);
+    
+    // Simulate admin enable action
+    $config->update(['status' => 'active', 'disabled_at' => null]);
+    
+    \App\Models\ResellerConfigEvent::create([
+        'reseller_config_id' => $config->id,
+        'type' => 'manual_enabled',
+        'meta' => [
+            'reason' => 'admin_action',
+            'remote_success' => false,
+            'attempts' => 0,
+            'last_error' => 'No panel configured',
+            'panel_id' => $panel->id,
+            'panel_type_used' => $panel->panel_type,
+        ],
+    ]);
+    
+    $event = \App\Models\ResellerConfigEvent::where('reseller_config_id', $config->id)
+        ->where('type', 'manual_enabled')
+        ->first();
+    
+    expect($event)->not->toBeNull();
+    expect($event->type)->toBe('manual_enabled');
+    expect($event->meta['reason'])->toBe('admin_action');
+    expect($event->meta)->toHaveKey('remote_success');
+    expect($event->meta)->toHaveKey('attempts');
+    expect($event->meta)->toHaveKey('last_error');
+    expect($event->meta)->toHaveKey('panel_id');
+    expect($event->meta)->toHaveKey('panel_type_used');
+    expect($event->meta['panel_type_used'])->toBe('marzneshin');
+});
+
+test('admin actions use panel type from Panel model not config', function () {
+    // Create panel with specific type
+    $panel = Panel::factory()->create(['panel_type' => 'xui']);
+    
+    $reseller = Reseller::factory()->create([
+        'type' => 'traffic',
+        'status' => 'active',
+        'panel_id' => $panel->id,
+    ]);
+    
+    // Config has mismatched panel_type (simulating stale data)
+    $config = ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'status' => 'active',
+        'panel_type' => 'marzban',  // Different from panel
+        'panel_id' => $panel->id,
+        'panel_user_id' => 'test_user',
+    ]);
+    
+    // Simulate admin disable action with proper panel type resolution
+    $config->update(['status' => 'disabled', 'disabled_at' => now()]);
+    
+    \App\Models\ResellerConfigEvent::create([
+        'reseller_config_id' => $config->id,
+        'type' => 'manual_disabled',
+        'meta' => [
+            'reason' => 'admin_action',
+            'remote_success' => false,
+            'attempts' => 0,
+            'last_error' => 'No panel configured',
+            'panel_id' => $panel->id,
+            'panel_type_used' => $panel->panel_type,  // Use panel's type, not config's
+        ],
+    ]);
+    
+    $event = \App\Models\ResellerConfigEvent::where('reseller_config_id', $config->id)
+        ->where('type', 'manual_disabled')
+        ->first();
+    
+    // Verify that panel_type_used is from Panel model (xui), not config's panel_type (marzban)
+    expect($event->meta['panel_type_used'])->toBe('xui');
+    expect($event->meta['panel_type_used'])->not->toBe($config->panel_type);
+});
