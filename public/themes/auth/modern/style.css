@@ -313,12 +313,8 @@ body {
 /* ============================================================================
    RTL-specific adjustments
    ============================================================================ */
-[dir="rtl"] .remember-me {
-    flex-direction: row-reverse;
-}
-
 [dir="rtl"] .form-row {
-    justify-content: flex-start; /* Items align to the right in RTL */
+    justify-content: flex-start;
 }
 
 /* ============================================================================

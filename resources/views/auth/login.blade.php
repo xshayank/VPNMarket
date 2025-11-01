@@ -13,7 +13,7 @@
 
 <div class="auth-card">
 
-    <div class="auth-logo">{{ $settings->get('auth_brand_name', config('app.name', 'VPN Market')) }}</div>
+    <div class="auth-logo">{{ $settings->get('auth_brand_name', 'ARV') }}</div>
 
     <h2 class="auth-title">ورود به حساب کاربری</h2>
 
@@ -23,18 +23,18 @@
         @csrf
 
         <div class="input-group">
-            <input id="email" class="input-field" type="email" name="email" value="{{ old('email') }}" required autofocus placeholder="ایمیل خود را وارد کنید" aria-label="ایمیل">
+            <input id="email" class="input-field" type="email" name="email" value="{{ old('email') }}" required autofocus placeholder="ایمیل خود را وارد کنید">
             <x-input-error :messages="$errors->get('email')" class="input-error-message" />
         </div>
 
         <div class="input-group">
-            <input id="password" class="input-field" type="password" name="password" required autocomplete="current-password" placeholder="رمز عبور" aria-label="رمز عبور">
+            <input id="password" class="input-field" type="password" name="password" required autocomplete="current-password" placeholder="رمز عبور">
             <x-input-error :messages="$errors->get('password')" class="input-error-message" />
         </div>
 
         <div class="form-row mb-4">
             <label for="remember_me" class="remember-me">
-                <input id="remember_me" type="checkbox" name="remember" aria-label="مرا به خاطر بسپار">
+                <input id="remember_me" type="checkbox" name="remember">
                 <span>مرا به خاطر بسپار</span>
             </label>
         </div>
