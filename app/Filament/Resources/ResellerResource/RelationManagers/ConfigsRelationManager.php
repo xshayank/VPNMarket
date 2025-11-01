@@ -269,30 +269,54 @@ class ConfigsRelationManager extends RelationManager
     protected function disableConfig(ResellerConfig $config): void
     {
         try {
-            if ($config->panel && $config->panel_user_id) {
-                $credentials = $config->panel->getCredentials();
-                $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-                
-                $success = $provisioner->disableUser(
-                    $config->panel_type,
-                    $credentials,
-                    $config->panel_user_id
-                );
+            // Attempt remote disable first
+            $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+            $panel = null;
+            $panelTypeUsed = null;
+            
+            if ($config->panel_id) {
+                $panel = \App\Models\Panel::find($config->panel_id);
+                if ($panel) {
+                    $panelTypeUsed = $panel->panel_type;
+                    $credentials = $panel->getCredentials();
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+                    
+                    $remoteResult = $provisioner->disableUser(
+                        $panel->panel_type,
+                        $credentials,
+                        $config->panel_user_id
+                    );
 
-                if (!$success) {
-                    Log::warning("Failed to disable config on panel", ['config_id' => $config->id]);
+                    if (!$remoteResult['success']) {
+                        Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                    } else {
+                        Log::info("Config {$config->id} disabled successfully on panel {$panel->id}", [
+                            'config_id' => $config->id,
+                            'panel_id' => $panel->id,
+                            'reason' => 'admin_action',
+                        ]);
+                    }
                 }
             }
 
+            // Update local state after remote attempt
             $config->update([
                 'status' => 'disabled',
                 'disabled_at' => now(),
             ]);
 
+            // Create standardized event with telemetry
             ResellerConfigEvent::create([
                 'reseller_config_id' => $config->id,
-                'type' => 'disabled',
-                'meta' => ['disabled_at' => now()->toDateTimeString()],
+                'type' => 'manual_disabled',
+                'meta' => [
+                    'reason' => 'admin_action',
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                    'panel_id' => $config->panel_id,
+                    'panel_type_used' => $panelTypeUsed,
+                ],
             ]);
 
             Notification::make()
@@ -312,30 +336,54 @@ class ConfigsRelationManager extends RelationManager
     protected function enableConfig(ResellerConfig $config): void
     {
         try {
-            if ($config->panel && $config->panel_user_id) {
-                $credentials = $config->panel->getCredentials();
-                $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-                
-                $success = $provisioner->enableUser(
-                    $config->panel_type,
-                    $credentials,
-                    $config->panel_user_id
-                );
+            // Attempt remote enable first
+            $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+            $panel = null;
+            $panelTypeUsed = null;
+            
+            if ($config->panel_id) {
+                $panel = \App\Models\Panel::find($config->panel_id);
+                if ($panel) {
+                    $panelTypeUsed = $panel->panel_type;
+                    $credentials = $panel->getCredentials();
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+                    
+                    $remoteResult = $provisioner->enableUser(
+                        $panel->panel_type,
+                        $credentials,
+                        $config->panel_user_id
+                    );
 
-                if (!$success) {
-                    Log::warning("Failed to enable config on panel", ['config_id' => $config->id]);
+                    if (!$remoteResult['success']) {
+                        Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                    } else {
+                        Log::info("Config {$config->id} enabled successfully on panel {$panel->id}", [
+                            'config_id' => $config->id,
+                            'panel_id' => $panel->id,
+                            'reason' => 'admin_action',
+                        ]);
+                    }
                 }
             }
 
+            // Update local state after remote attempt
             $config->update([
                 'status' => 'active',
                 'disabled_at' => null,
             ]);
 
+            // Create standardized event with telemetry
             ResellerConfigEvent::create([
                 'reseller_config_id' => $config->id,
-                'type' => 'enabled',
-                'meta' => ['enabled_at' => now()->toDateTimeString()],
+                'type' => 'manual_enabled',
+                'meta' => [
+                    'reason' => 'admin_action',
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                    'panel_id' => $config->panel_id,
+                    'panel_type_used' => $panelTypeUsed,
+                ],
             ]);
 
             Notification::make()
