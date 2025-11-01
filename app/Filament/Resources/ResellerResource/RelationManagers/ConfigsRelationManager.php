@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ResellerResource\RelationManagers;
 
+use App\Models\AuditLog;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use App\Services\MarzbanService;
@@ -320,6 +321,21 @@ class ConfigsRelationManager extends RelationManager
                 ],
             ]);
 
+            // Create audit log entry
+            AuditLog::log(
+                action: 'config_manual_disabled',
+                targetType: 'config',
+                targetId: $config->id,
+                reason: 'admin_action',
+                meta: [
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                    'panel_id' => $config->panel_id,
+                    'panel_type_used' => $panelTypeUsed,
+                ]
+            );
+
             Notification::make()
                 ->success()
                 ->title('کانفیگ با موفقیت غیرفعال شد')
@@ -388,6 +404,21 @@ class ConfigsRelationManager extends RelationManager
                 ],
             ]);
 
+            // Create audit log entry
+            AuditLog::log(
+                action: 'config_manual_enabled',
+                targetType: 'config',
+                targetId: $config->id,
+                reason: 'admin_action',
+                meta: [
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                    'panel_id' => $config->panel_id,
+                    'panel_type_used' => $panelTypeUsed,
+                ]
+            );
+
             Notification::make()
                 ->success()
                 ->title('کانفیگ با موفقیت فعال شد')
@@ -428,6 +459,18 @@ class ConfigsRelationManager extends RelationManager
                 'type' => 'deleted',
                 'meta' => ['deleted_at' => now()->toDateTimeString()],
             ]);
+
+            // Create audit log entry
+            AuditLog::log(
+                action: 'config_deleted',
+                targetType: 'config',
+                targetId: $config->id,
+                reason: 'admin_action',
+                meta: [
+                    'deleted_at' => now()->toDateTimeString(),
+                    'panel_id' => $config->panel_id,
+                ]
+            );
 
             Notification::make()
                 ->success()

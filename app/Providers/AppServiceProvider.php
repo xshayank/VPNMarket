@@ -2,9 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\AuditLog;
+use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\User;
 use App\Observers\ResellerConfigObserver;
+use App\Observers\ResellerObserver;
+use App\Policies\AuditLogPolicy;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -23,8 +28,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register ResellerConfig observer for audit safety net
+        // Register policies
+        Gate::policy(AuditLog::class, AuditLogPolicy::class);
+
+        // Register observers for audit safety net
         ResellerConfig::observe(ResellerConfigObserver::class);
+        Reseller::observe(ResellerObserver::class);
 
         User::creating(function ($user) {
             do {

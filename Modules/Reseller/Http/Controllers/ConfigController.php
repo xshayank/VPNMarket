@@ -3,6 +3,7 @@
 namespace Modules\Reseller\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Panel;
 use App\Models\Plan;
 use App\Models\ResellerConfig;
@@ -224,6 +225,21 @@ class ConfigController extends Controller
             ],
         ]);
 
+        // Create audit log entry
+        AuditLog::log(
+            action: 'config_manual_disabled',
+            targetType: 'config',
+            targetId: $config->id,
+            reason: 'admin_action',
+            meta: [
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+            ]
+        );
+
         if (!$remoteResult['success']) {
             return back()->with('warning', 'Config disabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
         }
@@ -291,6 +307,21 @@ class ConfigController extends Controller
             ],
         ]);
 
+        // Create audit log entry
+        AuditLog::log(
+            action: 'config_manual_enabled',
+            targetType: 'config',
+            targetId: $config->id,
+            reason: 'admin_action',
+            meta: [
+                'remote_success' => $remoteResult['success'],
+                'attempts' => $remoteResult['attempts'],
+                'last_error' => $remoteResult['last_error'],
+                'panel_id' => $config->panel_id,
+                'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+            ]
+        );
+
         if (!$remoteResult['success']) {
             return back()->with('warning', 'Config enabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
         }
@@ -336,6 +367,18 @@ class ConfigController extends Controller
                 'remote_failed' => $remoteFailed,
             ],
         ]);
+
+        // Create audit log entry
+        AuditLog::log(
+            action: 'config_deleted',
+            targetType: 'config',
+            targetId: $config->id,
+            reason: 'admin_action',
+            meta: [
+                'remote_failed' => $remoteFailed,
+                'panel_id' => $config->panel_id,
+            ]
+        );
 
         if ($remoteFailed) {
             return back()->with('warning', 'Config deleted locally, but remote panel deletion failed.');
