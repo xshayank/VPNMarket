@@ -143,8 +143,10 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             }
         }
 
-        // Update reseller's total traffic usage
-        $reseller->update(['traffic_used_bytes' => $totalUsageBytes]);
+        // Update reseller's total traffic usage from ALL configs (not just active)
+        // This ensures reseller suspension decision is based on complete usage picture
+        $totalUsageBytesFromDB = $reseller->configs()->sum('usage_bytes');
+        $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
         // Check reseller-level limits with grace
         $resellerGrace = $this->getResellerGraceSettings();
@@ -154,7 +156,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $resellerGrace['bytes']
         );
         
-        $hasTrafficRemaining = $totalUsageBytes < $effectiveResellerLimit;
+        $hasTrafficRemaining = $totalUsageBytesFromDB < $effectiveResellerLimit;
         $isWindowValid = $reseller->isWindowValid();
         
         if (!$hasTrafficRemaining || !$isWindowValid) {
@@ -171,7 +173,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                     targetId: $reseller->id,
                     reason: $reason,
                     meta: [
-                        'traffic_used_bytes' => $totalUsageBytes,
+                        'traffic_used_bytes' => $totalUsageBytesFromDB,
                         'traffic_total_bytes' => $reseller->traffic_total_bytes,
                         'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
                     ],
