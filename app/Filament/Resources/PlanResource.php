@@ -81,7 +81,6 @@ class PlanResource extends Resource
                                 'marzban' => 'مرزبان',
                                 'marzneshin' => 'مرزنشین',
                                 'xui' => 'سنایی / X-UI',
-                                'ovpanel' => 'OV-Panel',
                             ])
                             ->required()
                             ->default('marzban'),

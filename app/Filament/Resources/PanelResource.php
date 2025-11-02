@@ -47,7 +47,6 @@ class PanelResource extends Resource
                         'marzban' => 'مرزبان',
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
-                        'ovpanel' => 'OV-Panel',
                         'v2ray' => 'V2Ray',
                         'other' => 'سایر',
                     ])
@@ -95,7 +94,6 @@ class PanelResource extends Resource
                         'marzban' => 'success',
                         'marzneshin' => 'info',
                         'xui' => 'warning',
-                        'ovpanel' => 'purple',
                         'v2ray' => 'primary',
                         'other' => 'gray',
                         default => 'gray',
@@ -104,7 +102,6 @@ class PanelResource extends Resource
                         'marzban' => 'مرزبان',
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
-                        'ovpanel' => 'OV-Panel',
                         'v2ray' => 'V2Ray',
                         'other' => 'سایر',
                         default => $state,
