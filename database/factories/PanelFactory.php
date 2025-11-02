@@ -22,7 +22,7 @@ class PanelFactory extends Factory
         return [
             'name' => fake()->words(2, true),
             'url' => fake()->url(),
-            'panel_type' => fake()->randomElement(['marzban', 'marzneshin', 'xui']),
+            'panel_type' => fake()->randomElement(['marzban', 'marzneshin', 'xui', 'ovpanel']),
             'username' => fake()->userName(),
             'password' => fake()->password(),
             'api_token' => null,
@@ -64,6 +64,16 @@ class PanelFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'panel_type' => 'xui',
+        ]);
+    }
+
+    /**
+     * Indicate that the panel is of type ovpanel.
+     */
+    public function ovpanel(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'panel_type' => 'ovpanel',
         ]);
     }
 }

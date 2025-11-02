@@ -13,9 +13,6 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reseller_configs', function (Blueprint $table) {
-            // Add 'ovpanel' to panel_type enum
-            DB::statement("ALTER TABLE reseller_configs MODIFY panel_type ENUM('marzban', 'marzneshin', 'xui', 'ovpanel')");
-            
             // Add columns for .ovpn file management
             $table->string('ovpn_path')->nullable()->after('subscription_url');
             $table->string('ovpn_token', 64)->nullable()->after('ovpn_path');
@@ -24,6 +21,13 @@ return new class extends Migration
             // Add index for token lookup
             $table->index('ovpn_token');
         });
+        
+        // Add 'ovpanel' to panel_type enum (MySQL specific)
+        // SQLite doesn't support enum modification, so we check the driver
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'mysql') {
+            DB::statement("ALTER TABLE reseller_configs MODIFY panel_type ENUM('marzban', 'marzneshin', 'xui', 'ovpanel')");
+        }
     }
 
     /**
@@ -34,9 +38,12 @@ return new class extends Migration
         Schema::table('reseller_configs', function (Blueprint $table) {
             $table->dropIndex(['ovpn_token']);
             $table->dropColumn(['ovpn_path', 'ovpn_token', 'ovpn_token_expires_at']);
-            
-            // Revert panel_type enum to original values
-            DB::statement("ALTER TABLE reseller_configs MODIFY panel_type ENUM('marzban', 'marzneshin', 'xui')");
         });
+        
+        // Revert panel_type enum to original values (MySQL specific)
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'mysql') {
+            DB::statement("ALTER TABLE reseller_configs MODIFY panel_type ENUM('marzban', 'marzneshin', 'xui')");
+        }
     }
 };

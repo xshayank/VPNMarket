@@ -63,7 +63,7 @@ class OVPNDownloadController extends Controller
         $user = $request->user();
         
         // If user is not an admin, ensure they own the config through their reseller account
-        if (!$user->hasRole('admin') && !$user->hasRole('super_admin')) {
+        if (!$user->is_admin) {
             $reseller = $user->reseller ?? null;
             
             if (!$reseller || $config->reseller_id !== $reseller->id) {
