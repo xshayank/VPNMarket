@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-PROJECT_PATH="/var/www/vpnmarket"
+PROJECT_PATH="/var/www/FalcoMarket"
 WEB_USER="www-data"
 BUILD_LOG="$PROJECT_PATH/npm_build.log"
 
