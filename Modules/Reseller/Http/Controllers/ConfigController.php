@@ -148,6 +148,18 @@ class ConfigController extends Controller
             ]);
 
             if ($result) {
+                // Handle ovpanel specific result
+                if (isset($result['ovpn_content'])) {
+                    // Store .ovpn file
+                    $filename = \Illuminate\Support\Str::uuid() . '.ovpn';
+                    $path = "ovpn/{$filename}";
+                    \Illuminate\Support\Facades\Storage::put($path, $result['ovpn_content']);
+                    
+                    // Generate token
+                    $config->generateOvpnToken();
+                    $config->ovpn_path = $path;
+                }
+                
                 $config->update([
                     'panel_user_id' => $result['panel_user_id'],
                     'subscription_url' => $result['subscription_url'] ?? null,
@@ -158,6 +170,21 @@ class ConfigController extends Controller
                     'type' => 'created',
                     'meta' => $result,
                 ]);
+
+                // Log ovpn generation if applicable
+                if (isset($result['ovpn_content'])) {
+                    \App\Models\AuditLog::log(
+                        action: 'config_ovpn_generated',
+                        targetType: \App\Models\ResellerConfig::class,
+                        targetId: $config->id,
+                        meta: [
+                            'reseller_id' => $config->reseller_id,
+                            'panel_id' => $config->panel_id,
+                            'panel_type' => $config->panel_type,
+                            'filename' => $filename,
+                        ]
+                    );
+                }
 
                 session()->flash('success', 'Config created successfully.');
                 session()->flash('subscription_url', $result['subscription_url'] ?? null);
