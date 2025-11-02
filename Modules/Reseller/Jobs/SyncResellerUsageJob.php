@@ -224,9 +224,6 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                 case 'xui':
                     return $this->fetchXUIUsage($credentials, $config->panel_user_id);
                     
-                case 'ovpanel':
-                    return $this->fetchOVPanelUsage($credentials, $config->panel_user_id);
-                    
                 default:
                     return null;
             }
@@ -309,20 +306,6 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         $down = (int)($user['down'] ?? 0);
         
         return $up + $down;
-    }
-
-    protected function fetchOVPanelUsage(array $credentials, string $username): ?int
-    {
-        $service = new \Modules\Reseller\Services\OVPanelService(
-            $credentials['url'],
-            $credentials['username'],
-            $credentials['password']
-        );
-
-        $usage = $service->getUsage($username);
-        
-        // Defensive cast to ensure proper integer handling
-        return $usage !== null ? (int)$usage : null;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void

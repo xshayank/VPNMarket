@@ -81,13 +81,6 @@ Route::middleware(['auth'])->group(function () {
 Route::post('/webhooks/nowpayments', [NowPaymentsWebhookController::class, 'handle'])->name('webhooks.nowpayments');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('webhooks.telegram');
 
-// OV-Panel .ovpn download routes
-Route::get('/ovpn/{token}', [\App\Http\Controllers\OVPNDownloadController::class, 'downloadByToken'])->name('ovpn.download.token');
-
-Route::middleware(['auth'])->group(function () {
-    Route::get('/reseller/configs/{id}/ovpn', [\App\Http\Controllers\OVPNDownloadController::class, 'downloadForReseller'])->name('ovpn.download.reseller');
-});
-
 
 /* BREEZE AUTHENTICATION */
 require __DIR__.'/auth.php';
