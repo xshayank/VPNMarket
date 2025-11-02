@@ -26,6 +26,9 @@ class ResellerConfig extends Model
         'panel_id',
         'created_by',
         'disabled_at',
+        'ovpn_path',
+        'ovpn_token',
+        'ovpn_token_expires_at',
     ];
 
     protected $casts = [
@@ -33,6 +36,7 @@ class ResellerConfig extends Model
         'usage_bytes' => 'integer',
         'expires_at' => 'datetime',
         'disabled_at' => 'datetime',
+        'ovpn_token_expires_at' => 'datetime',
     ];
 
     public function reseller(): BelongsTo
@@ -83,5 +87,43 @@ class ResellerConfig extends Model
     public function isExpiredByTime(): bool
     {
         return now() >= $this->expires_at;
+    }
+
+    /**
+     * Check if this is an ovpanel config
+     */
+    public function isOvpanel(): bool
+    {
+        return $this->panel_type === 'ovpanel';
+    }
+
+    /**
+     * Check if the ovpn token is valid (not expired)
+     */
+    public function isOvpnTokenValid(): bool
+    {
+        if (!$this->ovpn_token) {
+            return false;
+        }
+
+        if (!$this->ovpn_token_expires_at) {
+            return true; // No expiry set, token is always valid
+        }
+
+        return now() < $this->ovpn_token_expires_at;
+    }
+
+    /**
+     * Generate a new secure token for ovpn downloads
+     */
+    public function generateOvpnToken(?int $expiresInHours = null): void
+    {
+        $this->ovpn_token = bin2hex(random_bytes(32)); // 64 character hex string
+        
+        if ($expiresInHours) {
+            $this->ovpn_token_expires_at = now()->addHours($expiresInHours);
+        } else {
+            $this->ovpn_token_expires_at = null;
+        }
     }
 }
