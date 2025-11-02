@@ -328,7 +328,6 @@ class ResellerResource extends Resource
                         'marzban' => 'Marzban',
                         'marzneshin' => 'Marzneshin',
                         'xui' => 'X-UI',
-                        'ovpanel' => 'OV-Panel',
                     ])
                     ->visible(fn (): bool => Reseller::where('type', 'traffic')->exists()),
             ])

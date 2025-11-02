@@ -44,7 +44,7 @@ class PanelsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'url' => 'required|url|max:255',
-            'panel_type' => ['required', Rule::in(['marzban', 'marzneshin', 'xui', 'ovpanel', 'v2ray', 'other'])],
+            'panel_type' => ['required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])],
             'username' => 'nullable|string|max:255',
             'password' => 'nullable|string',
             'api_token' => 'nullable|string',
@@ -111,7 +111,7 @@ class PanelsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'url' => 'sometimes|required|url|max:255',
-            'panel_type' => ['sometimes', 'required', Rule::in(['marzban', 'marzneshin', 'xui', 'ovpanel', 'v2ray', 'other'])],
+            'panel_type' => ['sometimes', 'required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])],
             'username' => 'nullable|string|max:255',
             'password' => 'nullable|string',
             'api_token' => 'nullable|string',
