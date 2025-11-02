@@ -113,6 +113,9 @@ class ResellerProvisioner
                 case 'xui':
                     return $this->provisionXUI($credentials, $plan, $username, $options);
 
+                case 'ovpanel':
+                    return $this->provisionOvpanel($credentials, $plan, $username, $options);
+
                 default:
                     Log::error("Unknown panel type: {$panel->panel_type}");
 
@@ -249,6 +252,40 @@ class ResellerProvisioner
     }
 
     /**
+     * Provision user on OV-Panel
+     */
+    protected function provisionOvpanel(array $credentials, Plan $plan, string $username, array $options): ?array
+    {
+        $service = new OVPanelService(
+            $credentials['url'],
+            $credentials['username'],
+            $credentials['password']
+        );
+
+        if (! $service->login()) {
+            return null;
+        }
+
+        $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
+
+        $result = $service->createUser([
+            'name' => $username,
+            'expiry_date' => $expiresAt->format('Y-m-d'),
+        ]);
+
+        if ($result['success'] && $result['ovpn_content']) {
+            return [
+                'username' => $username,
+                'panel_type' => 'ovpanel',
+                'panel_user_id' => $result['user_id'],
+                'ovpn_content' => $result['ovpn_content'],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * Disable a user on a panel with retry logic
      * 
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
@@ -294,6 +331,15 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['enable' => false]);
                     }
                     break;
+
+                case 'ovpanel':
+                    $service = new OVPanelService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    $result = $service->disableUser($panelUserId);
+                    return $result['success'];
             }
 
             return false;
@@ -346,6 +392,15 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['enable' => true]);
                     }
                     break;
+
+                case 'ovpanel':
+                    $service = new OVPanelService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    $result = $service->enableUser($panelUserId);
+                    return $result['success'];
             }
 
             return false;
@@ -457,6 +512,15 @@ class ResellerProvisioner
                         return $service->deleteUser($panelUserId);
                     }
                     break;
+
+                case 'ovpanel':
+                    $service = new OVPanelService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    $result = $service->deleteUser($panelUserId);
+                    return $result['success'];
             }
         } catch (\Exception $e) {
             Log::error("Failed to delete user {$panelUserId}: ".$e->getMessage());

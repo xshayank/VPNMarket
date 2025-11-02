@@ -148,16 +148,47 @@ class ConfigController extends Controller
             ]);
 
             if ($result) {
-                $config->update([
+                $updateData = [
                     'panel_user_id' => $result['panel_user_id'],
                     'subscription_url' => $result['subscription_url'] ?? null,
-                ]);
+                ];
+                
+                // Handle ovpanel specific result
+                if (isset($result['ovpn_content'])) {
+                    // Store .ovpn file
+                    $filename = \Illuminate\Support\Str::uuid().'.ovpn';
+                    $path = "ovpn/{$filename}";
+                    \Illuminate\Support\Facades\Storage::put($path, $result['ovpn_content']);
+
+                    // Generate token and add to update data
+                    $config->generateOvpnToken();
+                    $updateData['ovpn_path'] = $path;
+                    $updateData['ovpn_token'] = $config->ovpn_token;
+                    $updateData['ovpn_token_expires_at'] = $config->ovpn_token_expires_at;
+                }
+
+                $config->update($updateData);
 
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
                     'type' => 'created',
                     'meta' => $result,
                 ]);
+
+                // Log ovpn generation if applicable
+                if (isset($result['ovpn_content'])) {
+                    \App\Models\AuditLog::log(
+                        action: 'config_ovpn_generated',
+                        targetType: \App\Models\ResellerConfig::class,
+                        targetId: $config->id,
+                        meta: [
+                            'reseller_id' => $config->reseller_id,
+                            'panel_id' => $config->panel_id,
+                            'panel_type' => $config->panel_type,
+                            'filename' => $filename,
+                        ]
+                    );
+                }
 
                 session()->flash('success', 'Config created successfully.');
                 session()->flash('subscription_url', $result['subscription_url'] ?? null);

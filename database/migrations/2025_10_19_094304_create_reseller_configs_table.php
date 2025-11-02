@@ -19,7 +19,7 @@ return new class extends Migration
             $table->bigInteger('usage_bytes')->default(0);
             $table->timestamp('expires_at');
             $table->enum('status', ['active', 'disabled', 'expired', 'deleted'])->default('active');
-            $table->enum('panel_type', ['marzban', 'marzneshin', 'xui']);
+            $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'ovpanel']);
             $table->string('panel_user_id')->nullable();
             $table->foreignId('created_by')->constrained('users');
             $table->timestamp('disabled_at')->nullable();

@@ -16,7 +16,7 @@ return new class extends Migration
                 $table->id();
                 $table->string('name');
                 $table->string('url');
-                $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])->default('marzban');
+                $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'v2ray', 'other', 'ovpanel'])->default('marzban');
                 $table->string('username')->nullable();
                 $table->text('password')->nullable(); // Encrypted
                 $table->text('api_token')->nullable(); // Encrypted
@@ -31,7 +31,7 @@ return new class extends Migration
             $columns = Schema::getColumnListing('panels');
             Schema::table('panels', function (Blueprint $table) use ($columns) {
                 if (! in_array('panel_type', $columns)) {
-                    $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])->default('marzban')->after('url');
+                    $table->enum('panel_type', ['marzban', 'marzneshin', 'xui', 'v2ray', 'other', 'ovpanel'])->default('marzban')->after('url');
                 }
                 if (! in_array('api_token', $columns)) {
                     $table->text('api_token')->nullable()->after('password');
