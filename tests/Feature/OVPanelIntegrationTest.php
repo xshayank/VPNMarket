@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\AuditLog;
 use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\get as testGet;
@@ -15,11 +15,11 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Storage::fake('local');
-    
+
     $this->admin = User::factory()->create(['is_admin' => true]);
     $this->user = User::factory()->create(['is_admin' => false]);
     $this->panel = Panel::factory()->create(['panel_type' => 'ovpanel', 'is_active' => true]);
-    
+
     $this->reseller = Reseller::factory()->create([
         'user_id' => $this->user->id,
         'type' => 'traffic',
@@ -52,7 +52,7 @@ test('ovpanel config can be created with ovpn file fields', function () {
         ->and($config->ovpn_path)->toBe('ovpn/test.ovpn')
         ->and($config->ovpn_token)->toBeString()
         ->and(strlen($config->ovpn_token))->toBe(64);
-    
+
     assertDatabaseHas('reseller_configs', [
         'id' => $config->id,
         'panel_type' => 'ovpanel',
@@ -73,7 +73,7 @@ test('isOvpanel method returns true for ovpanel configs', function () {
 
 test('isOvpanel method returns false for non-ovpanel configs', function () {
     $marzbanPanel = Panel::factory()->create(['panel_type' => 'marzban']);
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $this->reseller->id,
         'panel_type' => 'marzban',
@@ -174,7 +174,7 @@ test('ovpn download route returns 404 for invalid token', function () {
 
 test('ovpn download route returns 403 for expired token', function () {
     Storage::put('ovpn/test.ovpn', 'test ovpn content');
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $this->reseller->id,
         'panel_type' => 'ovpanel',
@@ -194,9 +194,9 @@ test('ovpn download route returns file for valid token', function () {
 dev tun
 proto tcp
 remote example.com 1194';
-    
+
     Storage::put('ovpn/test.ovpn', $content);
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $this->reseller->id,
         'panel_type' => 'ovpanel',
@@ -215,7 +215,7 @@ remote example.com 1194';
 
 test('ovpn download logs audit event', function () {
     Storage::put('ovpn/test.ovpn', 'test ovpn content');
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $this->reseller->id,
         'panel_type' => 'ovpanel',
@@ -236,7 +236,7 @@ test('ovpn download logs audit event', function () {
 
 test('authenticated reseller can download their config', function () {
     Storage::put('ovpn/test.ovpn', 'test ovpn content');
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $this->reseller->id,
         'panel_type' => 'ovpanel',
@@ -258,9 +258,9 @@ test('reseller cannot download another resellers config', function () {
         'type' => 'traffic',
         'status' => 'active',
     ]);
-    
+
     Storage::put('ovpn/test.ovpn', 'test ovpn content');
-    
+
     $config = ResellerConfig::factory()->create([
         'reseller_id' => $otherReseller->id,
         'panel_type' => 'ovpanel',

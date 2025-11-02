@@ -148,22 +148,26 @@ class ConfigController extends Controller
             ]);
 
             if ($result) {
+                $updateData = [
+                    'panel_user_id' => $result['panel_user_id'],
+                    'subscription_url' => $result['subscription_url'] ?? null,
+                ];
+                
                 // Handle ovpanel specific result
                 if (isset($result['ovpn_content'])) {
                     // Store .ovpn file
-                    $filename = \Illuminate\Support\Str::uuid() . '.ovpn';
+                    $filename = \Illuminate\Support\Str::uuid().'.ovpn';
                     $path = "ovpn/{$filename}";
                     \Illuminate\Support\Facades\Storage::put($path, $result['ovpn_content']);
-                    
-                    // Generate token
+
+                    // Generate token and add to update data
                     $config->generateOvpnToken();
-                    $config->ovpn_path = $path;
+                    $updateData['ovpn_path'] = $path;
+                    $updateData['ovpn_token'] = $config->ovpn_token;
+                    $updateData['ovpn_token_expires_at'] = $config->ovpn_token_expires_at;
                 }
-                
-                $config->update([
-                    'panel_user_id' => $result['panel_user_id'],
-                    'subscription_url' => $result['subscription_url'] ?? null,
-                ]);
+
+                $config->update($updateData);
 
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,

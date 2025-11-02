@@ -19,17 +19,17 @@ class OVPNDownloadController extends Controller
         // Find config by token
         $config = ResellerConfig::where('ovpn_token', $token)->first();
 
-        if (!$config) {
+        if (! $config) {
             return response()->json(['error' => 'Not found'], 404);
         }
 
         // Check if token is expired
-        if (!$config->isOvpnTokenValid()) {
+        if (! $config->isOvpnTokenValid()) {
             return response()->json(['error' => 'Token expired'], 403);
         }
 
         // Check if ovpn file exists
-        if (!$config->ovpn_path || !Storage::exists($config->ovpn_path)) {
+        if (! $config->ovpn_path || ! Storage::exists($config->ovpn_path)) {
             return response()->json(['error' => 'File not found'], 404);
         }
 
@@ -42,7 +42,7 @@ class OVPNDownloadController extends Controller
                 'reseller_id' => $config->reseller_id,
                 'panel_id' => $config->panel_id,
                 'panel_type' => $config->panel_type,
-                'filename' => $config->external_username . '.ovpn',
+                'filename' => $config->external_username.'.ovpn',
                 'token_used' => true,
             ]
         );
@@ -61,23 +61,23 @@ class OVPNDownloadController extends Controller
 
         // Check authorization - must be config owner or admin
         $user = $request->user();
-        
+
         // If user is not an admin, ensure they own the config through their reseller account
-        if (!$user->is_admin) {
+        if (! $user->is_admin) {
             $reseller = $user->reseller ?? null;
-            
-            if (!$reseller || $config->reseller_id !== $reseller->id) {
+
+            if (! $reseller || $config->reseller_id !== $reseller->id) {
                 abort(403, 'Unauthorized');
             }
         }
 
         // Check if this is an ovpanel config
-        if (!$config->isOvpanel()) {
+        if (! $config->isOvpanel()) {
             return response()->json(['error' => 'Not an OV-Panel config'], 400);
         }
 
         // Check if ovpn file exists
-        if (!$config->ovpn_path || !Storage::exists($config->ovpn_path)) {
+        if (! $config->ovpn_path || ! Storage::exists($config->ovpn_path)) {
             return response()->json(['error' => 'File not found'], 404);
         }
 
@@ -90,7 +90,7 @@ class OVPNDownloadController extends Controller
                 'reseller_id' => $config->reseller_id,
                 'panel_id' => $config->panel_id,
                 'panel_type' => $config->panel_type,
-                'filename' => $config->external_username . '.ovpn',
+                'filename' => $config->external_username.'.ovpn',
                 'authenticated' => true,
             ]
         );
@@ -104,12 +104,12 @@ class OVPNDownloadController extends Controller
      */
     protected function streamOvpnFile(ResellerConfig $config): StreamedResponse
     {
-        $filename = $config->external_username . '.ovpn';
+        $filename = $config->external_username.'.ovpn';
         $path = $config->ovpn_path;
 
         return Storage::download($path, $filename, [
             'Content-Type' => 'application/x-openvpn-profile',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 }
