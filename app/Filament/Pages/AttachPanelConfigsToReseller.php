@@ -39,6 +39,11 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
     public ?array $data = [];
 
+    public static function canAccess(): bool
+    {
+        return auth()->check() && auth()->user()->is_admin;
+    }
+
     public function mount(): void
     {
         $this->form->fill();

@@ -94,6 +94,37 @@ When a reseller views a plan, pricing is calculated in this order:
 4. Plan-level fixed reseller price
 5. Plan hidden if none of the above are set
 
+### 5. Attach Panel Configs to Reseller
+
+Navigate to **Admin Panel > Management Resellers > Attach Panel Configs to Reseller**
+
+This feature allows administrators to import existing configs from Marzban or Marzneshin panels that were created by non-sudo panel admins and attach them to a specific reseller.
+
+**How it works:**
+
+1. **Select Reseller**: Choose a reseller from the list. Only resellers using Marzban or Marzneshin panels are shown.
+2. **Select Panel Admin**: After selecting a reseller, you'll see a list of non-sudo admins from that reseller's panel.
+3. **Select Remote Configs**: Choose which configs/users created by that admin should be imported.
+4. **Import**: The selected configs are imported as local ResellerConfig records without creating new users on the panel.
+
+**Key features:**
+- **Idempotency**: Duplicate configs (based on panel_id + panel_user_id or username) are automatically skipped.
+- **Status mapping**: The remote config status is mapped to local status (active/disabled/expired).
+- **Audit trail**: Each imported config generates:
+  - A ResellerConfigEvent with type 'imported_from_panel'
+  - An AuditLog entry with action 'config_imported_from_panel'
+- **Traffic data**: Usage and limit information is imported from the panel if available.
+
+**Limitations:**
+- Only works with Marzban and Marzneshin panels (not XUI).
+- Only non-sudo panel admins are shown in the list.
+- The import does not provision new users on the panel; it only creates local records for existing remote users.
+
+**Use cases:**
+- Migrating configs from one reseller to another
+- Importing configs that were manually created on the panel
+- Consolidating panel users under reseller management
+
 ## Reseller Panel Features
 
 ### Plan-based Resellers
