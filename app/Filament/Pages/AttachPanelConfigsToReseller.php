@@ -38,9 +38,57 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
     public ?array $data = [];
 
+    /**
+     * Get the page slug for routing.
+     */
+    public static function getSlug(): string
+    {
+        return 'attach-panel-configs-to-reseller';
+    }
+
+    /**
+     * Determine if the page should be registered in navigation.
+     * Only show if user has access.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
+
+    /**
+     * Determine if the current user can access this page.
+     * 
+     * Supports multiple authorization methods:
+     * 1. Spatie permission 'manage.panel-config-imports' (if installed)
+     * 2. Common admin roles: 'super-admin', 'admin' (if Spatie roles installed)
+     * 3. User::is_admin boolean field (fallback)
+     */
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()?->is_admin === true;
+        $user = auth()->user();
+        
+        if (!$user) {
+            return false;
+        }
+
+        // Check if Spatie Permission package is available
+        if (method_exists($user, 'hasPermissionTo')) {
+            // If user has the specific permission, grant access
+            if ($user->hasPermissionTo('manage.panel-config-imports')) {
+                return true;
+            }
+        }
+
+        // Check if Spatie Roles are available
+        if (method_exists($user, 'hasRole')) {
+            // If user has admin or super-admin role, grant access
+            if ($user->hasRole(['super-admin', 'admin'])) {
+                return true;
+            }
+        }
+
+        // Fallback to is_admin boolean field
+        return $user->is_admin === true;
     }
 
     public function mount(): void
