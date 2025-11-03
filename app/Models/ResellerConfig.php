@@ -84,6 +84,6 @@ class ResellerConfig extends Model
     {
         // Config expires when now >= expires_at (start of day)
         // i.e., a config expiring on 2025-11-03 is expired at 2025-11-03 00:00
-        return now() >= $this->expires_at->copy()->startOfDay();
+        return $this->expires_at && now() >= $this->expires_at->copy()->startOfDay();
     }
 }
