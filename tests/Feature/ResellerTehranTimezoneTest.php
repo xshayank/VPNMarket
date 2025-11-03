@@ -7,6 +7,7 @@ use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
+use App\Models\Setting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -278,7 +279,7 @@ class ResellerTehranTimezoneTest extends TestCase
         ]);
 
         // Disable per-config enforcement to test only time expiry
-        \App\Models\Setting::create([
+        Setting::create([
             'key' => 'reseller.allow_config_overrun',
             'value' => 'false',
         ]);
