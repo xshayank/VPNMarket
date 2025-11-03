@@ -9,7 +9,6 @@ use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
-use Filament\Forms\Components\Actions\Action as FormAction;
 use Filament\Forms\Components\MultiSelect;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -185,18 +184,6 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
         }
 
         return [];
-    }
-
-    protected function getFormActions(): array
-    {
-        return [
-            FormAction::make('import')
-                ->label('وارد کردن کانفیگ‌ها')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('success')
-                ->requiresConfirmation()
-                ->action('importConfigs'),
-        ];
     }
 
     public function importConfigs(): void
