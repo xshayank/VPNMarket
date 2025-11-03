@@ -1,10 +1,9 @@
 <?php
 
-
 namespace App\Providers\Filament;
-use App\Filament\Widgets\VpnMarketInfoWidget;
+
 use App\Filament\Pages\AttachPanelConfigsToReseller;
-use Filament\Widgets\AccountWidget;
+use App\Filament\Widgets\VpnMarketInfoWidget;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -59,7 +58,6 @@ class AdminPanelProvider extends PanelProvider
                 Widgets\AccountWidget::class,
                 VpnMarketInfoWidget::class,
 
-
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -76,13 +74,12 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ]);
 
-
         foreach (Module::getOrdered() as $module) {
             if ($module->isEnabled()) {
 
-                $panel->discoverResources(in: $module->getPath() . '/Filament/Resources', for: 'Modules\\' . $module->getName() . '\\Filament\\Resources');
-                $panel->discoverPages(in: $module->getPath() . '/Filament/Pages', for: 'Modules\\' . $module->getName() . '\\Filament\\Pages');
-                $panel->discoverWidgets(in: $module->getPath() . '/Filament/Widgets', for: 'Modules\\' . $module->getName() . '\\Filament\\Widgets');
+                $panel->discoverResources(in: $module->getPath().'/Filament/Resources', for: 'Modules\\'.$module->getName().'\\Filament\\Resources');
+                $panel->discoverPages(in: $module->getPath().'/Filament/Pages', for: 'Modules\\'.$module->getName().'\\Filament\\Pages');
+                $panel->discoverWidgets(in: $module->getPath().'/Filament/Widgets', for: 'Modules\\'.$module->getName().'\\Filament\\Widgets');
             }
         }
 

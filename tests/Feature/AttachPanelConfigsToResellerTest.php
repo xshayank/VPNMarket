@@ -130,12 +130,12 @@ test('form resets panel admin when reseller changes', function () {
 
     $panel1 = Panel::factory()->marzban()->create();
     $panel2 = Panel::factory()->marzneshin()->create();
-    
+
     $reseller1 = Reseller::factory()->create([
         'user_id' => User::factory()->create()->id,
         'panel_id' => $panel1->id,
     ]);
-    
+
     $reseller2 = Reseller::factory()->create([
         'user_id' => User::factory()->create()->id,
         'panel_id' => $panel2->id,
