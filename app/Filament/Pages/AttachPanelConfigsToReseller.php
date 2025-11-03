@@ -80,14 +80,22 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
         // Check if Spatie Permission package is available
         if (method_exists($user, 'hasPermissionTo')) {
-            // If user has the specific permission, grant access
-            if ($user->hasPermissionTo('manage.panel-config-imports')) {
-                return true;
+            try {
+                // If user has the specific permission, grant access
+                if ($user->hasPermissionTo('manage.panel-config-imports')) {
+                    return true;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, continue to other checks
             }
 
-            // Check Shield-generated page permission
-            if ($user->hasPermissionTo('page_AttachPanelConfigsToReseller')) {
-                return true;
+            try {
+                // Check Shield-generated page permission
+                if ($user->hasPermissionTo('page_AttachPanelConfigsToReseller')) {
+                    return true;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, continue to other checks
             }
         }
 
@@ -298,14 +306,47 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
             return;
         }
 
-        // Fetch all configs by admin to get full details
+        // Fetch all configs by admin to get full details and validate ownership
         $allConfigs = $this->fetchConfigsByAdmin($panel, $adminUsername);
         $configsToImport = collect($allConfigs)->whereIn('username', $selectedConfigUsernames);
 
+        // Server-side validation: ensure all selected configs belong to the specified admin
+        $invalidConfigs = $configsToImport->filter(function ($config) use ($adminUsername) {
+            $owner = $config['admin'] ?? $config['owner_username'] ?? null;
+
+            return $owner !== $adminUsername;
+        });
+
+        if ($invalidConfigs->isNotEmpty()) {
+            $invalidUsernames = $invalidConfigs->pluck('username')->join(', ');
+            Notification::make()
+                ->title('خطای اعتبارسنجی')
+                ->body("کانفیگ‌های زیر متعلق به ادمین انتخاب شده نیستند: {$invalidUsernames}")
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // Verify admin exists in the non-sudo admin list
+        $admins = $this->fetchPanelAdmins($panel);
+        $adminExists = collect($admins)->contains('username', $adminUsername);
+
+        if (! $adminExists) {
+            Notification::make()
+                ->title('خطا')
+                ->body('ادمین انتخاب شده یافت نشد یا دسترسی سوپر دارد')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $imported = 0;
         $skipped = 0;
+        $configIds = [];
 
-        DB::transaction(function () use ($reseller, $panel, $adminUsername, $configsToImport, &$imported, &$skipped) {
+        DB::transaction(function () use ($reseller, $panel, $adminUsername, $configsToImport, &$imported, &$skipped, &$configIds) {
             foreach ($configsToImport as $remoteConfig) {
                 $remoteUserId = $remoteConfig['id'];
                 $remoteUsername = $remoteConfig['username'];
@@ -352,32 +393,55 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                     'created_by' => auth()->id(),
                 ]);
 
-                // Create event
+                $configIds[] = $config->id;
+
+                // Create event with admin metadata
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
                     'type' => 'imported_from_panel',
                     'meta' => [
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
-                        'remote_admin_username' => $adminUsername,
+                        'panel_admin_username' => $adminUsername,
+                        'owner_admin' => $remoteConfig['admin'] ?? $remoteConfig['owner_username'] ?? null,
                     ],
                 ]);
 
-                // Create audit log
+                // Create audit log with admin information
                 AuditLog::log(
-                    action: 'config_imported_from_panel',
-                    targetType: 'config',
+                    action: 'panel_config_attached',
+                    targetType: 'reseller_config',
                     targetId: $config->id,
-                    reason: 'manual_import',
+                    reason: 'manual_attach',
                     meta: [
+                        'reseller_id' => $reseller->id,
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
-                        'remote_admin_username' => $adminUsername,
-                        'reseller_id' => $reseller->id,
+                        'selected_admin_username' => $adminUsername,
+                        'config_username' => $remoteUsername,
+                        'config_id' => $config->id,
                     ]
                 );
 
                 $imported++;
+            }
+
+            // Create a summary audit log for the entire attachment operation
+            if ($imported > 0) {
+                AuditLog::log(
+                    action: 'panel_config_attached',
+                    targetType: 'reseller',
+                    targetId: $reseller->id,
+                    reason: 'bulk_attach',
+                    meta: [
+                        'reseller_id' => $reseller->id,
+                        'panel_id' => $panel->id,
+                        'selected_admin_id' => $adminUsername,
+                        'config_ids' => $configIds,
+                        'total_attached' => $imported,
+                        'total_skipped' => $skipped,
+                    ]
+                );
             }
         });
 
