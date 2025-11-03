@@ -106,7 +106,9 @@ class Reseller extends Model
 
         $now = now();
 
-        return $this->window_starts_at <= $now && $now <= $this->window_ends_at;
+        // Window is valid while now < window_ends_at (start of day)
+        // i.e., a window ending on 2025-11-03 becomes invalid at 2025-11-03 00:00
+        return $this->window_starts_at <= $now && $now < $this->window_ends_at->copy()->startOfDay();
     }
 
     /**

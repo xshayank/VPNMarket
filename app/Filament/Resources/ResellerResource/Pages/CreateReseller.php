@@ -20,8 +20,9 @@ class CreateReseller extends CreateRecord
         // Handle window_days - calculate window dates automatically
         if ($data['type'] === 'traffic' && isset($data['window_days']) && $data['window_days'] > 0) {
             $windowDays = (int) $data['window_days'];
-            $data['window_starts_at'] = now();
-            $data['window_ends_at'] = now()->addDays($windowDays);
+            $data['window_starts_at'] = now()->startOfDay();
+            // Normalize to start of day for calendar-day boundaries
+            $data['window_ends_at'] = now()->addDays($windowDays)->startOfDay();
             unset($data['window_days']); // Remove virtual field
         }
 

@@ -73,11 +73,12 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     /**
      * Get time expiry grace in minutes
      * 
-     * @return int Grace minutes (0 = no grace)
+     * @return int Grace minutes (always 0 for calendar-day enforcement)
      */
     protected function getTimeExpiryGraceMinutes(): int
     {
-        return (int) Setting::get('reseller.time_expiry_grace_minutes', 0);
+        // Time-expiry grace is not used with calendar-day enforcement
+        return 0;
     }
 
     public function handle(): void
@@ -181,20 +182,17 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     }
 
     /**
-     * Check if a datetime is expired considering grace period
+     * Check if a datetime is expired considering grace period (calendar-day basis)
      * 
      * @param \Carbon\Carbon $expiresAt
-     * @param int $graceMinutes
+     * @param int $graceMinutes (ignored - always 0)
      * @return bool
      */
     protected function isExpiredByTimeWithGrace($expiresAt, int $graceMinutes): bool
     {
-        if ($graceMinutes <= 0) {
-            return now() >= $expiresAt;
-        }
-        
-        $expiresAtWithGrace = $expiresAt->copy()->addMinutes($graceMinutes);
-        return now() >= $expiresAtWithGrace;
+        // Calendar-day expiration: expired when now >= expiresAt (start of day)
+        // Grace is not applied for time expiry
+        return now() >= $expiresAt->copy()->startOfDay();
     }
 
     protected function fetchConfigUsage(ResellerConfig $config): ?int
