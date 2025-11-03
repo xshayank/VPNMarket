@@ -387,4 +387,224 @@ class ConfigController extends Controller
 
         return back()->with('success', 'Config deleted successfully.');
     }
+
+    public function edit(Request $request, ResellerConfig $config)
+    {
+        $reseller = $request->user()->reseller;
+
+        if ($config->reseller_id !== $reseller->id) {
+            abort(403);
+        }
+
+        return view('reseller::configs.edit', [
+            'reseller' => $reseller,
+            'config' => $config,
+        ]);
+    }
+
+    public function update(Request $request, ResellerConfig $config)
+    {
+        $reseller = $request->user()->reseller;
+
+        if ($config->reseller_id !== $reseller->id) {
+            abort(403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'traffic_limit_gb' => 'required|numeric|min:0.1',
+            'expires_at' => 'required|date|after_or_equal:today',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
+        $expiresAt = \Carbon\Carbon::parse($request->input('expires_at'))->startOfDay();
+
+        // Validation: traffic limit cannot be below current usage
+        if ($trafficLimitBytes < $config->usage_bytes) {
+            return back()->with('error', 'Traffic limit cannot be set below current usage (' . round($config->usage_bytes / (1024 * 1024 * 1024), 2) . ' GB).');
+        }
+
+        // Validation: expiry date must not exceed reseller's window_ends_at
+        if ($reseller->window_ends_at && $expiresAt->greaterThan($reseller->window_ends_at->copy()->startOfDay())) {
+            return back()->with('error', 'Expiry date cannot exceed your reseller window end date (' . $reseller->window_ends_at->format('Y-m-d') . ').');
+        }
+
+        // Store old values for audit
+        $oldTrafficLimit = $config->traffic_limit_bytes;
+        $oldExpiresAt = $config->expires_at;
+
+        DB::transaction(function () use ($config, $trafficLimitBytes, $expiresAt, $oldTrafficLimit, $oldExpiresAt, $request) {
+            // Update local config
+            $config->update([
+                'traffic_limit_bytes' => $trafficLimitBytes,
+                'expires_at' => $expiresAt,
+            ]);
+
+            // Try to update on remote panel
+            $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+            
+            if ($config->panel_id) {
+                try {
+                    $panel = Panel::findOrFail($config->panel_id);
+                    $provisioner = new ResellerProvisioner;
+                    
+                    $remoteResult = $provisioner->updateUserLimits(
+                        $panel->panel_type,
+                        $panel->getCredentials(),
+                        $config->panel_user_id,
+                        $trafficLimitBytes,
+                        $expiresAt
+                    );
+                    
+                    if (!$remoteResult['success']) {
+                        Log::warning("Failed to update config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Exception updating config {$config->id} on panel: " . $e->getMessage());
+                    $remoteResult['last_error'] = $e->getMessage();
+                }
+            }
+
+            ResellerConfigEvent::create([
+                'reseller_config_id' => $config->id,
+                'type' => 'edited',
+                'meta' => [
+                    'user_id' => $request->user()->id,
+                    'old_traffic_limit_bytes' => $oldTrafficLimit,
+                    'new_traffic_limit_bytes' => $trafficLimitBytes,
+                    'old_expires_at' => $oldExpiresAt?->toDateTimeString(),
+                    'new_expires_at' => $expiresAt->toDateTimeString(),
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                ],
+            ]);
+
+            // Create audit log entry
+            AuditLog::log(
+                action: 'reseller_config_edited',
+                targetType: 'config',
+                targetId: $config->id,
+                reason: 'reseller_action',
+                meta: [
+                    'old_traffic_limit_gb' => round($oldTrafficLimit / (1024 * 1024 * 1024), 2),
+                    'new_traffic_limit_gb' => round($trafficLimitBytes / (1024 * 1024 * 1024), 2),
+                    'old_expires_at' => $oldExpiresAt?->format('Y-m-d'),
+                    'new_expires_at' => $expiresAt->format('Y-m-d'),
+                    'remote_success' => $remoteResult['success'],
+                    'reseller_id' => $config->reseller_id,
+                ],
+                actorType: 'user',
+                actorId: $request->user()->id
+            );
+
+            if (!$remoteResult['success']) {
+                session()->flash('warning', 'Config updated locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
+            } else {
+                session()->flash('success', 'Config updated successfully.');
+            }
+        });
+
+        return redirect()->route('reseller.configs.index');
+    }
+
+    public function resetUsage(Request $request, ResellerConfig $config)
+    {
+        $reseller = $request->user()->reseller;
+
+        if ($config->reseller_id !== $reseller->id) {
+            abort(403);
+        }
+
+        // Check if config can be reset (24h rate limit)
+        if (!$config->canResetUsage()) {
+            $lastResetAt = \Carbon\Carbon::parse($config->getLastResetAt());
+            $nextResetAt = $lastResetAt->copy()->addHours(24);
+            return back()->with('error', 'Usage can only be reset once per 24 hours. Next reset available at: ' . $nextResetAt->format('Y-m-d H:i:s'));
+        }
+
+        $toSettle = $config->usage_bytes;
+
+        DB::transaction(function () use ($config, $toSettle, $request) {
+            // Settle current usage
+            $meta = $config->meta ?? [];
+            $currentSettled = (int) data_get($meta, 'settled_usage_bytes', 0);
+            $newSettled = $currentSettled + $toSettle;
+            
+            $meta['settled_usage_bytes'] = $newSettled;
+            $meta['last_reset_at'] = now()->toDateTimeString();
+
+            // Reset local usage
+            $config->update([
+                'usage_bytes' => 0,
+                'meta' => $meta,
+            ]);
+
+            // Try to reset on remote panel
+            $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+            
+            if ($config->panel_id) {
+                try {
+                    $panel = Panel::findOrFail($config->panel_id);
+                    $provisioner = new ResellerProvisioner;
+                    
+                    $remoteResult = $provisioner->resetUserUsage(
+                        $panel->panel_type,
+                        $panel->getCredentials(),
+                        $config->panel_user_id
+                    );
+                    
+                    if (!$remoteResult['success']) {
+                        Log::warning("Failed to reset usage for config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Exception resetting usage for config {$config->id} on panel: " . $e->getMessage());
+                    $remoteResult['last_error'] = $e->getMessage();
+                }
+            }
+
+            ResellerConfigEvent::create([
+                'reseller_config_id' => $config->id,
+                'type' => 'usage_reset',
+                'meta' => [
+                    'user_id' => $request->user()->id,
+                    'bytes_settled' => $toSettle,
+                    'new_settled_total' => $newSettled,
+                    'last_reset_at' => $meta['last_reset_at'],
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                ],
+            ]);
+
+            // Create audit log entry
+            AuditLog::log(
+                action: 'config_usage_reset',
+                targetType: 'config',
+                targetId: $config->id,
+                reason: 'reseller_action',
+                meta: [
+                    'bytes_settled' => $toSettle,
+                    'bytes_settled_gb' => round($toSettle / (1024 * 1024 * 1024), 2),
+                    'new_settled_total' => $newSettled,
+                    'last_reset_at' => $meta['last_reset_at'],
+                    'remote_success' => $remoteResult['success'],
+                    'reseller_id' => $config->reseller_id,
+                ],
+                actorType: 'user',
+                actorId: $request->user()->id
+            );
+
+            if (!$remoteResult['success']) {
+                session()->flash('warning', 'Usage reset locally (settled ' . round($toSettle / (1024 * 1024 * 1024), 2) . ' GB), but remote panel reset failed after ' . $remoteResult['attempts'] . ' attempts.');
+            } else {
+                session()->flash('success', 'Usage reset successfully. Settled ' . round($toSettle / (1024 * 1024 * 1024), 2) . ' GB to your account.');
+            }
+        });
+
+        return back();
+    }
 }
