@@ -192,6 +192,9 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     {
         // Calendar-day expiration: expired when now >= expiresAt (start of day)
         // Grace is not applied for time expiry
+        if (!$expiresAt) {
+            return false;
+        }
         return now() >= $expiresAt->copy()->startOfDay();
     }
 
