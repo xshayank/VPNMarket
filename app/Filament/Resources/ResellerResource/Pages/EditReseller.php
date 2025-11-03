@@ -13,6 +13,72 @@ class EditReseller extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('extend_window')
+                ->label('تمدید بازه (Extend Window)')
+                ->icon('heroicon-o-calendar')
+                ->color('info')
+                ->visible(fn () => $this->record->type === 'traffic')
+                ->requiresConfirmation()
+                ->modalHeading('تمدید بازه زمانی (Extend Time Window)')
+                ->modalDescription('آیا مطمئن هستید که می‌خواهید بازه زمانی این ریسلر را تمدید کنید؟ / Are you sure you want to extend this reseller\'s time window?')
+                ->modalSubmitActionLabel('تمدید (Extend)')
+                ->modalCancelActionLabel('انصراف (Cancel)')
+                ->form([
+                    \Filament\Forms\Components\TextInput::make('days_to_extend')
+                        ->label('افزایش روز (Extend by days)')
+                        ->numeric()
+                        ->required()
+                        ->minValue(1)
+                        ->maxValue(3650)
+                        ->integer()
+                        ->helperText('تعداد روزی که می‌خواهید به بازه زمانی اضافه کنید'),
+                ])
+                ->action(function (array $data) {
+                    try {
+                        $daysToExtend = (int) $data['days_to_extend'];
+                        $oldEndDate = $this->record->window_ends_at;
+
+                        // Use model method to get base date
+                        $baseDate = $this->record->getExtendWindowBaseDate();
+                        $newEndDate = $baseDate->copy()->addDays($daysToExtend);
+
+                        $this->record->update([
+                            'window_ends_at' => $newEndDate,
+                            'window_starts_at' => $this->record->window_starts_at ?? now(),
+                        ]);
+
+                        // Create audit log
+                        \App\Models\AuditLog::log(
+                            action: 'reseller_window_extended',
+                            targetType: 'reseller',
+                            targetId: $this->record->id,
+                            reason: 'admin_action',
+                            meta: [
+                                'old_window_ends_at' => $oldEndDate?->toDateTimeString(),
+                                'new_window_ends_at' => $newEndDate->toDateTimeString(),
+                                'days_added' => $daysToExtend,
+                            ]
+                        );
+
+                        // If reseller was suspended and now has remaining quota and valid window,
+                        // dispatch job to re-enable configs
+                        if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('بازه زمانی با موفقیت تمدید شد')
+                            ->body("{$daysToExtend} روز به بازه زمانی ریسلر اضافه شد")
+                            ->send();
+                    } catch (\Exception $e) {
+                        \Filament\Notifications\Notification::make()
+                            ->danger()
+                            ->title('خطا در تمدید بازه')
+                            ->body('خطایی رخ داده است: '.$e->getMessage())
+                            ->send();
+                    }
+                }),
             Actions\Action::make('reset_usage')
                 ->label('بازنشانی مصرف (Reset Usage)')
                 ->icon('heroicon-o-arrow-path')

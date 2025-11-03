@@ -102,13 +102,24 @@ class ResellerResource extends Resource
                             ->minValue(0)
                             ->helperText('تعداد کانفیگ‌هایی که می‌توان ایجاد کرد. 0 یا خالی = نامحدود'),
 
+                        Forms\Components\TextInput::make('window_days')
+                            ->label('مدت بازه (روز)')
+                            ->helperText('Window duration (days) - تعداد روزهای بازه زمانی')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(3650)
+                            ->integer()
+                            ->visible(fn (string $operation) => $operation === 'create'),
+
                         Forms\Components\DateTimePicker::make('window_starts_at')
                             ->label('تاریخ شروع (اختیاری)')
-                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد'),
+                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد')
+                            ->visible(fn (string $operation) => $operation === 'edit'),
 
                         Forms\Components\DateTimePicker::make('window_ends_at')
                             ->label('تاریخ پایان (اختیاری)')
-                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد'),
+                            ->helperText('اگر خالی باشد، محدودیت زمانی ندارد')
+                            ->visible(fn (string $operation) => $operation === 'edit'),
 
                         Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
                             ->description('سرویسهای مرزنشین مجاز برای این ریسلر')
@@ -402,29 +413,63 @@ class ResellerResource extends Resource
                     ->icon('heroicon-o-calendar')
                     ->color('info')
                     ->visible(fn (Reseller $record): bool => $record->type === 'traffic')
+                    ->requiresConfirmation()
+                    ->modalHeading('تمدید بازه زمانی')
+                    ->modalDescription('آیا مطمئن هستید که می‌خواهید بازه زمانی این ریسلر را تمدید کنید؟')
+                    ->modalSubmitActionLabel('تمدید')
+                    ->modalCancelActionLabel('انصراف')
                     ->form([
-                        Forms\Components\TextInput::make('days')
-                            ->label('تعداد روز')
+                        Forms\Components\TextInput::make('days_to_extend')
+                            ->label('افزایش روز (Extend by days)')
                             ->numeric()
                             ->required()
                             ->minValue(1)
-                            ->maxValue(365)
+                            ->maxValue(3650)
+                            ->integer()
                             ->helperText('تعداد روزی که می‌خواهید به بازه زمانی اضافه کنید'),
                     ])
                     ->action(function (Reseller $record, array $data) {
-                        $newEndDate = $record->window_ends_at->addDays($data['days']);
-                        $record->update([
-                            'window_ends_at' => $newEndDate,
-                        ]);
+                        try {
+                            $daysToExtend = (int) $data['days_to_extend'];
+                            $oldEndDate = $record->window_ends_at;
 
-                        // Dispatch job to re-enable configs if reseller recovered
-                        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                            // Use model method to get base date
+                            $baseDate = $record->getExtendWindowBaseDate();
+                            $newEndDate = $baseDate->copy()->addDays($daysToExtend);
 
-                        Notification::make()
-                            ->success()
-                            ->title('بازه زمانی با موفقیت تمدید شد')
-                            ->body("{$data['days']} روز به بازه زمانی ریسلر اضافه شد")
-                            ->send();
+                            $record->update([
+                                'window_ends_at' => $newEndDate,
+                                'window_starts_at' => $record->window_starts_at ?? now(),
+                            ]);
+
+                            // Create audit log
+                            \App\Models\AuditLog::log(
+                                action: 'reseller_window_extended',
+                                targetType: 'reseller',
+                                targetId: $record->id,
+                                reason: 'admin_action',
+                                meta: [
+                                    'old_window_ends_at' => $oldEndDate?->toDateTimeString(),
+                                    'new_window_ends_at' => $newEndDate->toDateTimeString(),
+                                    'days_added' => $daysToExtend,
+                                ]
+                            );
+
+                            // Dispatch job to re-enable configs if reseller recovered
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+
+                            Notification::make()
+                                ->success()
+                                ->title('بازه زمانی با موفقیت تمدید شد')
+                                ->body("{$daysToExtend} روز به بازه زمانی ریسلر اضافه شد")
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('خطا در تمدید بازه')
+                                ->body('خطایی رخ داده است: '.$e->getMessage())
+                                ->send();
+                        }
                     }),
 
                 Tables\Actions\Action::make('reset_usage')
