@@ -10,6 +10,14 @@ use Illuminate\Validation\Rule;
 class PanelsController extends Controller
 {
     /**
+     * Instantiate a new controller instance.
+     */
+    public function __construct()
+    {
+        $this->authorizeResource(Panel::class, 'panel');
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -185,6 +193,8 @@ class PanelsController extends Controller
      */
     public function testConnection(Panel $panel)
     {
+        $this->authorize('testConnection', $panel);
+
         // This is a placeholder for connectivity testing
         // Actual implementation would depend on panel type
         return response()->json([

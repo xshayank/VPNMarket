@@ -12,10 +12,7 @@ class AuditLogsController extends Controller
      */
     public function index(Request $request)
     {
-        // Ensure user is admin
-        if (!$request->user() || !$request->user()->isAdmin()) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $this->authorize('viewAny', AuditLog::class);
 
         $query = AuditLog::query();
 
