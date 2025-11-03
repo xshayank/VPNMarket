@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Helpers\OwnerExtraction;
 use App\Models\AuditLog;
 use App\Models\Panel;
 use App\Models\Reseller;
@@ -312,7 +313,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
         // Server-side validation: ensure all selected configs belong to the specified admin
         $invalidConfigs = $configsToImport->filter(function ($config) use ($adminUsername) {
-            $owner = $config['admin'] ?? $config['owner_username'] ?? null;
+            $owner = OwnerExtraction::ownerUsername($config);
 
             return $owner !== $adminUsername;
         });
@@ -403,7 +404,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
                         'panel_admin_username' => $adminUsername,
-                        'owner_admin' => $remoteConfig['admin'] ?? $remoteConfig['owner_username'] ?? null,
+                        'owner_admin' => OwnerExtraction::ownerUsername($remoteConfig),
                     ],
                 ]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\OwnerExtraction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -388,24 +389,24 @@ class MarzneshinService
 
                 // Map and filter users - ensure we only return configs owned by the specified admin
                 $configs = array_map(function ($user) {
+                    $ownerUsername = OwnerExtraction::ownerUsername($user);
+                    
                     return [
                         'id' => $user['id'] ?? null,
                         'username' => $user['username'],
                         'status' => $user['status'] ?? 'active',
                         'used_traffic' => $user['used_traffic'] ?? 0,
                         'data_limit' => $user['data_limit'] ?? null,
-                        'admin' => $user['admin'] ?? null,
-                        'owner_username' => $user['admin'] ?? null,
+                        'admin' => $ownerUsername,
+                        'owner_username' => $ownerUsername,
                     ];
                 }, $users);
 
                 // Client-side filter as safety net in case API doesn't support admin parameter
-                // Filter by admin username or owner fields
-                return array_filter($configs, function ($config) use ($adminUsername) {
-                    $owner = $config['admin'] ?? $config['owner_username'] ?? null;
-
-                    return $owner === $adminUsername;
-                });
+                // Filter by admin username using the extracted owner
+                return array_values(array_filter($configs, function ($config) use ($adminUsername) {
+                    return $config['admin'] === $adminUsername;
+                }));
             }
 
             Log::warning('Marzneshin List Configs by Admin failed:', ['status' => $response->status()]);
