@@ -404,7 +404,6 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
                         'panel_admin_username' => $adminUsername,
-                        'attached_from_admin_username' => $adminUsername,
                         'owner_admin' => OwnerExtraction::ownerUsername($remoteConfig),
                     ],
                 ]);

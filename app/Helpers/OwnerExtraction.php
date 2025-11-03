@@ -11,7 +11,7 @@ class OwnerExtraction
      * - admin / admin_username
      * - owner / owner_username
      * - created_by / created_by_username
-     * - meta.owner
+     * - meta.owner / meta.owner_username
      * 
      * @param array $record API response record (user/config object)
      * @return string|null Owner username or null if not found
