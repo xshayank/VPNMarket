@@ -14,6 +14,7 @@ class PanelsController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', Panel::class);
         $panels = Panel::all()->map(function ($panel) {
             return [
                 'id' => $panel->id,
@@ -41,6 +42,8 @@ class PanelsController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Panel::class);
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'url' => 'required|url|max:255',
@@ -85,6 +88,8 @@ class PanelsController extends Controller
      */
     public function show(Panel $panel)
     {
+        $this->authorize('view', $panel);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -108,6 +113,8 @@ class PanelsController extends Controller
      */
     public function update(Request $request, Panel $panel)
     {
+        $this->authorize('update', $panel);
+
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'url' => 'sometimes|required|url|max:255',
@@ -164,6 +171,8 @@ class PanelsController extends Controller
      */
     public function destroy(Panel $panel)
     {
+        $this->authorize('delete', $panel);
+
         // Check if panel has associated plans
         if ($panel->plans()->count() > 0) {
             return response()->json([
@@ -185,6 +194,8 @@ class PanelsController extends Controller
      */
     public function testConnection(Panel $panel)
     {
+        $this->authorize('testConnection', $panel);
+
         // This is a placeholder for connectivity testing
         // Actual implementation would depend on panel type
         return response()->json([

@@ -579,4 +579,24 @@ class ResellerResource extends Resource
             'edit' => Pages\EditReseller::route('/{record}/edit'),
         ];
     }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        
+        $user = auth()->user();
+        
+        // Super admins and admins see all resellers
+        if ($user->hasAnyRole(['super-admin', 'admin'])) {
+            return $query;
+        }
+        
+        // Resellers can only see their own record
+        if ($user->hasRole('reseller') && $user->reseller) {
+            return $query->where('id', $user->reseller->id);
+        }
+        
+        // Regular users see nothing
+        return $query->whereRaw('1 = 0');
+    }
 }

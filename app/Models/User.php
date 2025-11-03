@@ -9,11 +9,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Modules\Ticketing\Models\Ticket;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
+
+    /**
+     * The guard name for Spatie Permission
+     */
+    protected $guard_name = 'web';
 
     /**
      * The attributes that are mass assignable.
@@ -25,6 +31,7 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'is_admin',
+        'is_super_admin',
         'bot_state',
         'telegram_chat_id',
         'balance',
@@ -55,12 +62,23 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->is_admin;
+        // Super admins and admins can access the admin panel
+        // Resellers and users can access their respective panels if implemented
+        if ($panel->getId() === 'admin') {
+            return $this->hasAnyRole(['super-admin', 'admin']);
+        }
+        
+        return false;
     }
 
     public function isAdmin(): bool
     {
-        return (bool) $this->is_admin;
+        return $this->hasAnyRole(['super-admin', 'admin']) || (bool) $this->is_admin;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('super-admin');
     }
 
     public function referrals()

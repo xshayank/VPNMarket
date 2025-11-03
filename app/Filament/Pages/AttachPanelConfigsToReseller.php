@@ -60,8 +60,9 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
      * 
      * Supports multiple authorization methods:
      * 1. Spatie permission 'manage.panel-config-imports' (if installed)
-     * 2. Common admin roles: 'super-admin', 'admin' (if Spatie roles installed)
-     * 3. User::is_admin boolean field (fallback)
+     * 2. Shield-generated page permission (if installed)
+     * 3. Common admin roles: 'super-admin', 'admin' (if Spatie roles installed)
+     * 4. User::is_admin boolean field (fallback)
      * 
      * Note: Using method_exists() for feature detection is intentional and efficient.
      * This method is only called once per request by Filament, and the checks are
@@ -80,6 +81,11 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
         if (method_exists($user, 'hasPermissionTo')) {
             // If user has the specific permission, grant access
             if ($user->hasPermissionTo('manage.panel-config-imports')) {
+                return true;
+            }
+            
+            // Check Shield-generated page permission
+            if ($user->hasPermissionTo('page_AttachPanelConfigsToReseller')) {
                 return true;
             }
         }
