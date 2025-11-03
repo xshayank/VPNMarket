@@ -157,9 +157,24 @@ class RbacSeeder extends Seeder
             $adminRole->givePermissionTo($perms);
         }
 
+        // Grant all Shield-generated permissions to admin
+        $shieldPermissions = Permission::where(function ($query) {
+            $query->where('name', 'like', 'view_%')
+                  ->orWhere('name', 'like', 'create_%')
+                  ->orWhere('name', 'like', 'update_%')
+                  ->orWhere('name', 'like', 'delete_%')
+                  ->orWhere('name', 'like', 'restore_%')
+                  ->orWhere('name', 'like', 'replicate_%')
+                  ->orWhere('name', 'like', 'reorder_%')
+                  ->orWhere('name', 'like', 'force_delete_%')
+                  ->orWhere('name', 'like', 'page_%')
+                  ->orWhere('name', 'like', 'widget_%');
+        })->get();
+        
+        $adminRole->givePermissionTo($shieldPermissions);
+
         // Reseller gets limited permissions
         $resellerPermissions = [
-            'configs.view',
             'configs.view_own',
             'configs.create_own',
             'configs.update_own',
