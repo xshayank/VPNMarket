@@ -101,7 +101,8 @@ class ConfigController extends Controller
         $panel = Panel::findOrFail($request->panel_id);
         $expiresDays = $request->integer('expires_days');
         $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
-        $expiresAt = now()->addDays($expiresDays);
+        // Normalize to start of day for calendar-day boundaries
+        $expiresAt = now()->addDays($expiresDays)->startOfDay();
 
         // Validate Marzneshin service whitelist
         if ($panel->panel_type === 'marzneshin' && $reseller->marzneshin_allowed_service_ids) {

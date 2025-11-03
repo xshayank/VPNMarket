@@ -40,11 +40,12 @@ class EditReseller extends EditRecord
 
                         // Use model method to get base date
                         $baseDate = $this->record->getExtendWindowBaseDate();
-                        $newEndDate = $baseDate->copy()->addDays($daysToExtend);
+                        // Normalize to start of day for calendar-day boundaries
+                        $newEndDate = $baseDate->copy()->addDays($daysToExtend)->startOfDay();
 
                         $this->record->update([
                             'window_ends_at' => $newEndDate,
-                            'window_starts_at' => $this->record->window_starts_at ?? now(),
+                            'window_starts_at' => $this->record->window_starts_at ?? now()->startOfDay(),
                         ]);
 
                         // Create audit log
