@@ -171,4 +171,80 @@ class MarzbanService
             return false;
         }
     }
+
+    /**
+     * List all admins from the panel
+     */
+    public function listAdmins(): array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return [];
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl.'/api/admins');
+
+            if ($response->successful()) {
+                $admins = $response->json();
+                // Filter to only non-sudo admins
+                return array_filter($admins, function ($admin) {
+                    return !($admin['is_sudo'] ?? false);
+                });
+            }
+
+            Log::warning('Marzban List Admins failed:', ['status' => $response->status()]);
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Marzban List Admins Exception:', ['message' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * List configs/users created by a specific admin
+     */
+    public function listConfigsByAdmin(string $adminUsername): array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return [];
+            }
+        }
+
+        try {
+            // Marzban API uses /api/users endpoint with optional filters
+            // We'll fetch all users and filter by admin if the API provides that info
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl.'/api/users', [
+                    'admin' => $adminUsername,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                // Handle both direct array and paginated response
+                $users = $data['users'] ?? $data;
+                
+                return array_map(function ($user) {
+                    return [
+                        'id' => $user['id'] ?? null,
+                        'username' => $user['username'],
+                        'status' => $user['status'] ?? 'active',
+                        'used_traffic' => $user['used_traffic'] ?? 0,
+                        'data_limit' => $user['data_limit'] ?? null,
+                    ];
+                }, $users);
+            }
+
+            Log::warning('Marzban List Configs by Admin failed:', ['status' => $response->status()]);
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Marzban List Configs by Admin Exception:', ['message' => $e->getMessage()]);
+            return [];
+        }
+    }
 }
