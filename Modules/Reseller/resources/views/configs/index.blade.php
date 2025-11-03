@@ -86,6 +86,18 @@
                                                     QR
                                                 </button>
                                             @endif
+                                            <a href="{{ route('reseller.configs.edit', $config) }}" 
+                                                class="w-full sm:w-auto px-2 md:px-3 py-2 md:py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 text-xs md:text-sm min-h-[40px] sm:min-h-0 flex items-center justify-center"
+                                                title="ویرایش محدودیت‌ها">
+                                                ویرایش
+                                            </a>
+                                            <form action="{{ route('reseller.configs.resetUsage', $config) }}" method="POST" class="w-full sm:w-auto" 
+                                                onsubmit="return confirm('آیا از بازنشانی مصرف ترافیک اطمینان دارید؟ مقدار مصرف شده به حساب شما منتقل خواهد شد.')">
+                                                @csrf
+                                                <button type="submit" class="w-full px-2 md:px-3 py-2 md:py-1 bg-teal-500 text-white rounded hover:bg-teal-600 text-xs md:text-sm min-h-[40px] sm:min-h-0">
+                                                    ریست ترافیک
+                                                </button>
+                                            </form>
                                             @if ($config->isActive())
                                                 <form action="{{ route('reseller.configs.disable', $config) }}" method="POST" class="w-full sm:w-auto">
                                                     @csrf

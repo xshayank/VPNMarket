@@ -32,6 +32,9 @@ Route::prefix('reseller')
         Route::get('/configs', [ConfigController::class, 'index'])->name('configs.index');
         Route::get('/configs/create', [ConfigController::class, 'create'])->name('configs.create');
         Route::post('/configs', [ConfigController::class, 'store'])->name('configs.store');
+        Route::get('/configs/{config}/edit', [ConfigController::class, 'edit'])->name('configs.edit');
+        Route::put('/configs/{config}', [ConfigController::class, 'update'])->name('configs.update');
+        Route::post('/configs/{config}/reset-usage', [ConfigController::class, 'resetUsage'])->name('configs.resetUsage');
         Route::post('/configs/{config}/disable', [ConfigController::class, 'disable'])->name('configs.disable');
         Route::post('/configs/{config}/enable', [ConfigController::class, 'enable'])->name('configs.enable');
         Route::delete('/configs/{config}', [ConfigController::class, 'destroy'])->name('configs.destroy');

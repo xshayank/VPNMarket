@@ -464,4 +464,125 @@ class ResellerProvisioner
 
         return false;
     }
+
+    /**
+     * Update user limits (traffic and expiry) on a panel with retry logic
+     * 
+     * @param string $panelType
+     * @param array $credentials
+     * @param string $panelUserId
+     * @param int $trafficLimitBytes
+     * @param \Carbon\Carbon $expiresAt
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
+     */
+    public function updateUserLimits(string $panelType, array $credentials, string $panelUserId, int $trafficLimitBytes, $expiresAt): array
+    {
+        return $this->retryOperation(function () use ($panelType, $credentials, $panelUserId, $trafficLimitBytes, $expiresAt) {
+            switch ($panelType) {
+                case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        return $service->updateUser($panelUserId, [
+                            'data_limit' => $trafficLimitBytes,
+                            'expire' => $expiresAt->timestamp,
+                        ]);
+                    }
+                    break;
+
+                case 'marzneshin':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        return $service->updateUser($panelUserId, [
+                            'data_limit' => $trafficLimitBytes,
+                            'expire' => $expiresAt->getTimestamp(),
+                        ]);
+                    }
+                    break;
+
+                case 'xui':
+                    $service = new XUIService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    if ($service->login()) {
+                        return $service->updateUser($panelUserId, [
+                            'total' => $trafficLimitBytes,
+                            'expiryTime' => $expiresAt->timestamp * 1000, // X-UI uses milliseconds
+                        ]);
+                    }
+                    break;
+            }
+
+            return false;
+        }, "update user limits for {$panelUserId}");
+    }
+
+    /**
+     * Reset user usage on a panel with retry logic
+     * 
+     * @param string $panelType
+     * @param array $credentials
+     * @param string $panelUserId
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
+     */
+    public function resetUserUsage(string $panelType, array $credentials, string $panelUserId): array
+    {
+        return $this->retryOperation(function () use ($panelType, $credentials, $panelUserId) {
+            switch ($panelType) {
+                case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        // Reset usage by setting used_traffic to 0
+                        return $service->resetUserUsage($panelUserId);
+                    }
+                    break;
+
+                case 'marzneshin':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        return $service->resetUserUsage($panelUserId);
+                    }
+                    break;
+
+                case 'xui':
+                    $service = new XUIService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    if ($service->login()) {
+                        // X-UI resets usage by setting up and down to 0
+                        return $service->resetUserUsage($panelUserId);
+                    }
+                    break;
+            }
+
+            return false;
+        }, "reset user usage for {$panelUserId}");
+    }
 }

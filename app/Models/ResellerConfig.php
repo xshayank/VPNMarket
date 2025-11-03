@@ -26,6 +26,7 @@ class ResellerConfig extends Model
         'panel_id',
         'created_by',
         'disabled_at',
+        'meta',
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class ResellerConfig extends Model
         'usage_bytes' => 'integer',
         'expires_at' => 'datetime',
         'disabled_at' => 'datetime',
+        'meta' => 'array',
     ];
 
     public function reseller(): BelongsTo
@@ -85,5 +87,35 @@ class ResellerConfig extends Model
         // Config expires when now >= expires_at (start of day)
         // i.e., a config expiring on 2025-11-03 is expired at 2025-11-03 00:00
         return $this->expires_at && now() >= $this->expires_at->copy()->startOfDay();
+    }
+
+    public function getSettledUsageBytes(): int
+    {
+        return (int) data_get($this->meta, 'settled_usage_bytes', 0);
+    }
+
+    public function getTotalUsageBytes(): int
+    {
+        return $this->usage_bytes + $this->getSettledUsageBytes();
+    }
+
+    public function getLastResetAt(): ?string
+    {
+        return data_get($this->meta, 'last_reset_at');
+    }
+
+    public function canResetUsage(): bool
+    {
+        $lastResetAt = $this->getLastResetAt();
+        if (!$lastResetAt) {
+            return true;
+        }
+
+        try {
+            $lastReset = \Carbon\Carbon::parse($lastResetAt);
+            return now()->diffInHours($lastReset) >= 24;
+        } catch (\Exception $e) {
+            return true; // If parsing fails, allow reset
+        }
     }
 }
