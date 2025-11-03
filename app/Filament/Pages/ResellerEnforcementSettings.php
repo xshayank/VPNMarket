@@ -106,13 +106,14 @@ class ResellerEnforcementSettings extends Page implements HasForms
                                         }),
                                     
                                     TextInput::make('reseller.time_expiry_grace_minutes')
-                                        ->label('فرصت Grace زمانی (دقیقه)')
-                                        ->helperText('فرصت اضافی پس از انقضای زمان کانفیگ (۰ = بدون فرصت)')
+                                        ->label('فرصت Grace زمانی (دقیقه) - غیرفعال')
+                                        ->helperText('⚠️ این تنظیم غیرفعال است. انقضای زمانی بر اساس مرز روز تقویمی (00:00 تهران) اعمال می‌شود.')
                                         ->numeric()
                                         ->minValue(0)
                                         ->maxValue(1440) // Max 1 day
                                         ->default(0)
-                                        ->required()
+                                        ->disabled()
+                                        ->dehydrated(false)
                                         ->suffix('دقیقه'),
                                 ])->columns(3),
                         ]),
@@ -142,11 +143,23 @@ class ResellerEnforcementSettings extends Page implements HasForms
                                                     <li>محدودیت موثر = ۱۰۰ + max(۱۰۰ × ۰.۰۲, ۰.۰۵) = ۱۰۰ + ۲ = ۱۰۲ گیگابایت</li>
                                                 </ul>
                                                 
+                                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 my-4">
+                                                    <h4 class="text-yellow-800 dark:text-yellow-300 font-semibold">⚠️ تغییر در انقضای زمانی</h4>
+                                                    <p class="text-yellow-700 dark:text-yellow-400">
+                                                        از نسخه جدید، انقضای زمانی بر اساس <strong>مرز روز تقویمی در منطقه زمانی تهران</strong> اعمال می‌شود:
+                                                    </p>
+                                                    <ul class="text-yellow-700 dark:text-yellow-400">
+                                                        <li>کانفیگ با تاریخ انقضای 2025-11-03 دقیقاً در ساعت 00:00 منقضی می‌شود (نه در ساعت 14:30 یا هر زمان دیگری)</li>
+                                                        <li>بازه زمانی فروشنده که در 2025-11-03 تمام می‌شود، دقیقاً در نیمه‌شب معتبر نیست</li>
+                                                        <li><strong>Grace زمانی دیگر اعمال نمی‌شود</strong> (همیشه 0)</li>
+                                                    </ul>
+                                                </div>
+                                                
                                                 <h4>تنظیمات پیشنهادی:</h4>
                                                 <ul>
-                                                    <li><strong>درصد Grace:</strong> ۲٪ (برای محدودیت‌های بزرگ)</li>
-                                                    <li><strong>حداقل Grace:</strong> ۵۰ مگابایت (برای محدودیت‌های کوچک)</li>
-                                                    <li><strong>Grace زمانی:</strong> ۰ دقیقه (بدون فرصت) یا ۳۰ دقیقه (برای انعطاف بیشتر)</li>
+                                                    <li><strong>درصد Grace:</strong> ۲٪ (برای محدودیت‌های بزرگ ترافیک)</li>
+                                                    <li><strong>حداقل Grace:</strong> ۵۰ مگابایت (برای محدودیت‌های کوچک ترافیک)</li>
+                                                    <li><strong>Grace زمانی:</strong> غیرفعال شده (انقضای زمانی بر اساس مرز روز)</li>
                                                 </ul>
                                             </div>
                                         ')),
