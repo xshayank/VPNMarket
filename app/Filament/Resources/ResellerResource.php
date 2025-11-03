@@ -432,15 +432,15 @@ class ResellerResource extends Resource
                         try {
                             $daysToExtend = (int) $data['days_to_extend'];
                             $oldEndDate = $record->window_ends_at;
-                            
+
                             // Determine base date: max of now or current window_ends_at
                             $now = now();
-                            $baseDate = $record->window_ends_at && $record->window_ends_at->gt($now) 
-                                ? $record->window_ends_at 
+                            $baseDate = $record->window_ends_at && $record->window_ends_at->gt($now)
+                                ? $record->window_ends_at
                                 : $now;
-                            
+
                             $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-                            
+
                             $record->update([
                                 'window_ends_at' => $newEndDate,
                                 'window_starts_at' => $record->window_starts_at ?? $now,

@@ -94,14 +94,14 @@ test('extend window action handles null end date', function () {
     // Simulate the extend action
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at;
-    
+
     $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now) 
-        ? $reseller->window_ends_at 
+    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
+        ? $reseller->window_ends_at
         : $now;
-    
+
     $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-    
+
     $reseller->update([
         'window_ends_at' => $newEndDate,
         'window_starts_at' => $reseller->window_starts_at ?? $now,
@@ -111,7 +111,7 @@ test('extend window action handles null end date', function () {
 
     expect($reseller->window_ends_at)->not->toBeNull();
     expect($reseller->window_starts_at)->not->toBeNull();
-    
+
     // The end date should be approximately 7 days from now
     $expectedEnd = $now->copy()->addDays($daysToExtend);
     expect($reseller->window_ends_at->diffInSeconds($expectedEnd))->toBeLessThan(2);
@@ -138,14 +138,14 @@ test('extend window action handles past end date', function () {
     // Simulate the extend action
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at;
-    
+
     $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now) 
-        ? $reseller->window_ends_at 
+    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
+        ? $reseller->window_ends_at
         : $now;
-    
+
     $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-    
+
     $reseller->update([
         'window_ends_at' => $newEndDate,
         'window_starts_at' => $reseller->window_starts_at ?? $now,
@@ -154,7 +154,7 @@ test('extend window action handles past end date', function () {
     $reseller->refresh();
 
     expect($reseller->window_ends_at->isFuture())->toBeTrue();
-    
+
     // The end date should be approximately 7 days from now (not from past date)
     $expectedEnd = $now->copy()->addDays($daysToExtend);
     expect($reseller->window_ends_at->diffInSeconds($expectedEnd))->toBeLessThan(2);
@@ -181,14 +181,14 @@ test('extend window action handles future end date', function () {
     // Simulate the extend action
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at->copy();
-    
+
     $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now) 
-        ? $reseller->window_ends_at 
+    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
+        ? $reseller->window_ends_at
         : $now;
-    
+
     $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-    
+
     $reseller->update([
         'window_ends_at' => $newEndDate,
         'window_starts_at' => $reseller->window_starts_at ?? $now,
@@ -218,14 +218,14 @@ test('extend window action creates audit log', function () {
     // Simulate the extend action
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at;
-    
+
     $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now) 
-        ? $reseller->window_ends_at 
+    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
+        ? $reseller->window_ends_at
         : $now;
-    
+
     $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-    
+
     $reseller->update([
         'window_ends_at' => $newEndDate,
         'window_starts_at' => $reseller->window_starts_at ?? $now,
