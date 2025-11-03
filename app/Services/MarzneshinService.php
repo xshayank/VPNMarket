@@ -147,7 +147,7 @@ class MarzneshinService
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
-        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+        $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
         return rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
@@ -322,6 +322,88 @@ class MarzneshinService
             Log::error('Marzneshin Delete User Exception:', ['message' => $e->getMessage()]);
 
             return false;
+        }
+    }
+
+    /**
+     * List all admins from the panel
+     */
+    public function listAdmins(): array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return [];
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl.'/api/admins');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                // Handle paginated response
+                $admins = $data['items'] ?? $data;
+
+                // Filter to only non-sudo admins
+                return array_filter($admins, function ($admin) {
+                    return ! ($admin['is_sudo'] ?? false);
+                });
+            }
+
+            Log::warning('Marzneshin List Admins failed:', ['status' => $response->status()]);
+
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Marzneshin List Admins Exception:', ['message' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    /**
+     * List configs/users created by a specific admin
+     */
+    public function listConfigsByAdmin(string $adminUsername): array
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return [];
+            }
+        }
+
+        try {
+            // Marzneshin API uses /api/users endpoint with optional filters
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get($this->baseUrl.'/api/users', [
+                    'admin' => $adminUsername,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                // Handle paginated response
+                $users = $data['items'] ?? $data;
+
+                return array_map(function ($user) {
+                    return [
+                        'id' => $user['id'] ?? null,
+                        'username' => $user['username'],
+                        'status' => $user['status'] ?? 'active',
+                        'used_traffic' => $user['used_traffic'] ?? 0,
+                        'data_limit' => $user['data_limit'] ?? null,
+                    ];
+                }, $users);
+            }
+
+            Log::warning('Marzneshin List Configs by Admin failed:', ['status' => $response->status()]);
+
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Marzneshin List Configs by Admin Exception:', ['message' => $e->getMessage()]);
+
+            return [];
         }
     }
 }
