@@ -390,6 +390,9 @@ class ConfigController extends Controller
 
     public function edit(Request $request, ResellerConfig $config)
     {
+        // Use policy authorization
+        $this->authorize('update', $config);
+        
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {
@@ -404,6 +407,9 @@ class ConfigController extends Controller
 
     public function update(Request $request, ResellerConfig $config)
     {
+        // Use policy authorization
+        $this->authorize('update', $config);
+        
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {
@@ -513,6 +519,9 @@ class ConfigController extends Controller
 
     public function resetUsage(Request $request, ResellerConfig $config)
     {
+        // Use policy authorization
+        $this->authorize('resetUsage', $config);
+        
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {

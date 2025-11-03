@@ -152,4 +152,22 @@ class ResellerConfigPolicy
     {
         return $user->hasPermissionTo('configs.sync_usage');
     }
+
+    /**
+     * Determine whether the user can reset usage for the config.
+     */
+    public function resetUsage(User $user, ResellerConfig $resellerConfig): bool
+    {
+        // Admins can reset any config
+        if ($user->hasPermissionTo('configs.reset_usage')) {
+            return true;
+        }
+
+        // Resellers can only reset their own configs
+        if ($user->hasPermissionTo('configs.reset_usage_own') && $user->reseller) {
+            return $resellerConfig->reseller_id === $user->reseller->id;
+        }
+
+        return false;
+    }
 }

@@ -156,4 +156,21 @@ class XUIService
             return false;
         }
     }
+
+    public function resetUserUsage(string $userId): bool
+    {
+        try {
+            $response = $this->getClient()->post($this->baseUrl.$this->basePath."/panel/inbound/resetClientTraffic/{$userId}");
+
+            Log::info('XUI Reset User Usage Response:', $response->json() ?? ['raw' => $response->body()]);
+
+            $result = $response->json();
+
+            return isset($result['success']) && $result['success'] === true;
+        } catch (\Exception $e) {
+            Log::error('XUI Reset User Usage Exception:', ['message' => $e->getMessage()]);
+
+            return false;
+        }
+    }
 }

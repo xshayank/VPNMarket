@@ -326,6 +326,29 @@ class MarzneshinService
         }
     }
 
+    public function resetUserUsage(string $username): bool
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return false;
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->post($this->baseUrl."/api/users/{$username}/reset");
+
+            Log::info('Marzneshin Reset User Usage Response:', $response->json() ?? ['raw' => $response->body()]);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('Marzneshin Reset User Usage Exception:', ['message' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
     /**
      * List all admins from the panel
      */

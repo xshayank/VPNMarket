@@ -183,6 +183,29 @@ class MarzbanService
         }
     }
 
+    public function resetUserUsage(string $username): bool
+    {
+        if (! $this->accessToken) {
+            if (! $this->login()) {
+                return false;
+            }
+        }
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->post($this->baseUrl."/api/user/{$username}/reset");
+
+            Log::info('Marzban Reset User Usage Response:', $response->json() ?? ['raw' => $response->body()]);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::error('Marzban Reset User Usage Exception:', ['message' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
     /**
      * List all admins from the panel
      */
