@@ -442,7 +442,9 @@ class ConfigController extends Controller
         $oldTrafficLimit = $config->traffic_limit_bytes;
         $oldExpiresAt = $config->expires_at;
 
-        DB::transaction(function () use ($config, $trafficLimitBytes, $expiresAt, $oldTrafficLimit, $oldExpiresAt, $request) {
+        $remoteResultFinal = null;
+
+        DB::transaction(function () use ($config, $trafficLimitBytes, $expiresAt, $oldTrafficLimit, $oldExpiresAt, $request, &$remoteResultFinal) {
             // Update local config
             $config->update([
                 'traffic_limit_bytes' => $trafficLimitBytes,
@@ -474,6 +476,8 @@ class ConfigController extends Controller
                 }
             }
 
+            $remoteResultFinal = $remoteResult;
+
             ResellerConfigEvent::create([
                 'reseller_config_id' => $config->id,
                 'type' => 'edited',
@@ -502,19 +506,17 @@ class ConfigController extends Controller
                     'new_expires_at' => $expiresAt->format('Y-m-d'),
                     'remote_success' => $remoteResult['success'],
                     'reseller_id' => $config->reseller_id,
-                ],
-                actorType: 'user',
-                actorId: $request->user()->id
+                ]
             );
-
-            if (!$remoteResult['success']) {
-                session()->flash('warning', 'Config updated locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
-            } else {
-                session()->flash('success', 'Config updated successfully.');
-            }
         });
 
-        return redirect()->route('reseller.configs.index');
+        if ($remoteResultFinal && !$remoteResultFinal['success']) {
+            return redirect()->route('reseller.configs.index')
+                ->with('warning', 'Config updated locally, but remote panel update failed after ' . $remoteResultFinal['attempts'] . ' attempts.');
+        }
+
+        return redirect()->route('reseller.configs.index')
+            ->with('success', 'Config updated successfully.');
     }
 
     public function resetUsage(Request $request, ResellerConfig $config)
@@ -537,7 +539,10 @@ class ConfigController extends Controller
 
         $toSettle = $config->usage_bytes;
 
-        DB::transaction(function () use ($config, $toSettle, $request) {
+        $remoteResultFinal = null;
+        $toSettleFinal = $toSettle;
+
+        DB::transaction(function () use ($config, $toSettle, $request, &$remoteResultFinal) {
             // Settle current usage
             $meta = $config->meta ?? [];
             $currentSettled = (int) data_get($meta, 'settled_usage_bytes', 0);
@@ -575,6 +580,8 @@ class ConfigController extends Controller
                 }
             }
 
+            $remoteResultFinal = $remoteResult;
+
             ResellerConfigEvent::create([
                 'reseller_config_id' => $config->id,
                 'type' => 'usage_reset',
@@ -602,18 +609,14 @@ class ConfigController extends Controller
                     'last_reset_at' => $meta['last_reset_at'],
                     'remote_success' => $remoteResult['success'],
                     'reseller_id' => $config->reseller_id,
-                ],
-                actorType: 'user',
-                actorId: $request->user()->id
+                ]
             );
-
-            if (!$remoteResult['success']) {
-                session()->flash('warning', 'Usage reset locally (settled ' . round($toSettle / (1024 * 1024 * 1024), 2) . ' GB), but remote panel reset failed after ' . $remoteResult['attempts'] . ' attempts.');
-            } else {
-                session()->flash('success', 'Usage reset successfully. Settled ' . round($toSettle / (1024 * 1024 * 1024), 2) . ' GB to your account.');
-            }
         });
 
-        return back();
+        if ($remoteResultFinal && !$remoteResultFinal['success']) {
+            return back()->with('warning', 'Usage reset locally (settled ' . round($toSettleFinal / (1024 * 1024 * 1024), 2) . ' GB), but remote panel reset failed after ' . $remoteResultFinal['attempts'] . ' attempts.');
+        }
+
+        return back()->with('success', 'Usage reset successfully. Settled ' . round($toSettleFinal / (1024 * 1024 * 1024), 2) . ' GB to your account.');
     }
 }

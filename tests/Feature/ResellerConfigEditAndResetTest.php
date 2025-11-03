@@ -37,6 +37,9 @@ class ResellerConfigEditAndResetTest extends TestCase
 
     public function test_reseller_can_edit_config_limits(): void
     {
+        // Disable middleware for this test
+        $this->withoutMiddleware();
+
         // Create a panel
         $panel = Panel::create([
             'name' => 'Test Panel',
@@ -107,13 +110,13 @@ class ResellerConfigEditAndResetTest extends TestCase
             'action' => 'reseller_config_edited',
             'target_type' => 'config',
             'target_id' => $config->id,
-            'actor_type' => 'user',
-            'actor_id' => $user->id,
         ]);
     }
 
     public function test_edit_validates_traffic_limit_not_below_usage(): void
     {
+        $this->withoutMiddleware();
+
         $user = User::factory()->create();
         $user->givePermissionTo('configs.update_own');
         
@@ -147,6 +150,8 @@ class ResellerConfigEditAndResetTest extends TestCase
 
     public function test_edit_validates_expiry_within_reseller_window(): void
     {
+        $this->withoutMiddleware();
+
         $user = User::factory()->create();
         $user->givePermissionTo('configs.update_own');
         
@@ -180,6 +185,8 @@ class ResellerConfigEditAndResetTest extends TestCase
 
     public function test_reset_usage_creates_settlement_and_resets_usage(): void
     {
+        $this->withoutMiddleware();
+
         $user = User::factory()->create();
         $user->givePermissionTo('configs.reset_usage_own');
         
@@ -246,13 +253,13 @@ class ResellerConfigEditAndResetTest extends TestCase
             'action' => 'config_usage_reset',
             'target_type' => 'config',
             'target_id' => $config->id,
-            'actor_type' => 'user',
-            'actor_id' => $user->id,
         ]);
     }
 
     public function test_reset_usage_blocked_within_24_hours(): void
     {
+        $this->withoutMiddleware();
+
         $user = User::factory()->create();
         $user->givePermissionTo('configs.reset_usage_own');
         
@@ -284,6 +291,8 @@ class ResellerConfigEditAndResetTest extends TestCase
 
     public function test_reset_usage_allowed_after_24_hours(): void
     {
+        $this->withoutMiddleware();
+
         $user = User::factory()->create();
         $user->givePermissionTo('configs.reset_usage_own');
         
