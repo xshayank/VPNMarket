@@ -147,7 +147,7 @@ class MarzneshinService
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
-        $baseHost = !empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+        $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
         return rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
@@ -345,17 +345,19 @@ class MarzneshinService
                 $data = $response->json();
                 // Handle paginated response
                 $admins = $data['items'] ?? $data;
-                
+
                 // Filter to only non-sudo admins
                 return array_filter($admins, function ($admin) {
-                    return !($admin['is_sudo'] ?? false);
+                    return ! ($admin['is_sudo'] ?? false);
                 });
             }
 
             Log::warning('Marzneshin List Admins failed:', ['status' => $response->status()]);
+
             return [];
         } catch (\Exception $e) {
             Log::error('Marzneshin List Admins Exception:', ['message' => $e->getMessage()]);
+
             return [];
         }
     }
@@ -383,7 +385,7 @@ class MarzneshinService
                 $data = $response->json();
                 // Handle paginated response
                 $users = $data['items'] ?? $data;
-                
+
                 return array_map(function ($user) {
                     return [
                         'id' => $user['id'] ?? null,
@@ -396,9 +398,11 @@ class MarzneshinService
             }
 
             Log::warning('Marzneshin List Configs by Admin failed:', ['status' => $response->status()]);
+
             return [];
         } catch (\Exception $e) {
             Log::error('Marzneshin List Configs by Admin Exception:', ['message' => $e->getMessage()]);
+
             return [];
         }
     }

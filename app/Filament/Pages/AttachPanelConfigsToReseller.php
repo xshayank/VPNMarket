@@ -65,8 +65,9 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                                 ->mapWithKeys(function ($reseller) {
                                     $panelName = $reseller->panel->name ?? 'N/A';
                                     $userName = $reseller->user->name ?? $reseller->user->username ?? 'N/A';
+
                                     return [
-                                        $reseller->id => "{$userName} - {$panelName} ({$reseller->panel->panel_type})"
+                                        $reseller->id => "{$userName} - {$panelName} ({$reseller->panel->panel_type})",
                                     ];
                                 });
                         })
@@ -82,16 +83,17 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         ->label('ادمین پنل')
                         ->options(function (Get $get) {
                             $resellerId = $get('reseller_id');
-                            if (!$resellerId) {
+                            if (! $resellerId) {
                                 return [];
                             }
 
                             $reseller = Reseller::with('panel')->find($resellerId);
-                            if (!$reseller || !$reseller->panel) {
+                            if (! $reseller || ! $reseller->panel) {
                                 return [];
                             }
 
                             $admins = $this->fetchPanelAdmins($reseller->panel);
+
                             return collect($admins)->mapWithKeys(function ($admin) {
                                 return [$admin['username'] => $admin['username']];
                             });
@@ -109,21 +111,23 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         ->options(function (Get $get) {
                             $resellerId = $get('reseller_id');
                             $adminUsername = $get('panel_admin');
-                            
-                            if (!$resellerId || !$adminUsername) {
+
+                            if (! $resellerId || ! $adminUsername) {
                                 return [];
                             }
 
                             $reseller = Reseller::with('panel')->find($resellerId);
-                            if (!$reseller || !$reseller->panel) {
+                            if (! $reseller || ! $reseller->panel) {
                                 return [];
                             }
 
                             $configs = $this->fetchConfigsByAdmin($reseller->panel, $adminUsername);
+
                             return collect($configs)->mapWithKeys(function ($config) {
                                 $status = $config['status'] ?? 'unknown';
+
                                 return [
-                                    $config['username'] => "{$config['username']} ({$status})"
+                                    $config['username'] => "{$config['username']} ({$status})",
                                 ];
                             });
                         })
@@ -147,6 +151,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                 $credentials['password'],
                 $credentials['extra']['node_hostname'] ?? ''
             );
+
             return $service->listAdmins();
         } elseif ($panel->panel_type === 'marzneshin') {
             $service = new MarzneshinService(
@@ -155,6 +160,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                 $credentials['password'],
                 $credentials['extra']['node_hostname'] ?? ''
             );
+
             return $service->listAdmins();
         }
 
@@ -172,6 +178,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                 $credentials['password'],
                 $credentials['extra']['node_hostname'] ?? ''
             );
+
             return $service->listConfigsByAdmin($adminUsername);
         } elseif ($panel->panel_type === 'marzneshin') {
             $service = new MarzneshinService(
@@ -180,6 +187,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                 $credentials['password'],
                 $credentials['extra']['node_hostname'] ?? ''
             );
+
             return $service->listConfigsByAdmin($adminUsername);
         }
 
@@ -199,12 +207,13 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
         $panel = $reseller->panel;
 
         // Validate panel type
-        if (!in_array($panel->panel_type, ['marzban', 'marzneshin'])) {
+        if (! in_array($panel->panel_type, ['marzban', 'marzneshin'])) {
             Notification::make()
                 ->title('خطا')
                 ->body('این عملیات فقط برای پنل‌های Marzban و Marzneshin پشتیبانی می‌شود')
                 ->danger()
                 ->send();
+
             return;
         }
 
@@ -230,6 +239,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
                 if ($exists) {
                     $skipped++;
+
                     continue;
                 }
 
