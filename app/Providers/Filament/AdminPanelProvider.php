@@ -1,9 +1,9 @@
 <?php
 
-
 namespace App\Providers\Filament;
+
+use App\Filament\Pages\AttachPanelConfigsToReseller;
 use App\Filament\Widgets\VpnMarketInfoWidget;
-use Filament\Widgets\AccountWidget;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -50,13 +50,13 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 Pages\Dashboard::class,
+                AttachPanelConfigsToReseller::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
 
                 Widgets\AccountWidget::class,
                 VpnMarketInfoWidget::class,
-
 
             ])
             ->middleware([
@@ -74,13 +74,12 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ]);
 
-
         foreach (Module::getOrdered() as $module) {
             if ($module->isEnabled()) {
 
-                $panel->discoverResources(in: $module->getPath() . '/Filament/Resources', for: 'Modules\\' . $module->getName() . '\\Filament\\Resources');
-                $panel->discoverPages(in: $module->getPath() . '/Filament/Pages', for: 'Modules\\' . $module->getName() . '\\Filament\\Pages');
-                $panel->discoverWidgets(in: $module->getPath() . '/Filament/Widgets', for: 'Modules\\' . $module->getName() . '\\Filament\\Widgets');
+                $panel->discoverResources(in: $module->getPath().'/Filament/Resources', for: 'Modules\\'.$module->getName().'\\Filament\\Resources');
+                $panel->discoverPages(in: $module->getPath().'/Filament/Pages', for: 'Modules\\'.$module->getName().'\\Filament\\Pages');
+                $panel->discoverWidgets(in: $module->getPath().'/Filament/Widgets', for: 'Modules\\'.$module->getName().'\\Filament\\Widgets');
             }
         }
 
