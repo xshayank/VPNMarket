@@ -3,6 +3,7 @@
 
 namespace App\Providers\Filament;
 use App\Filament\Widgets\VpnMarketInfoWidget;
+use App\Filament\Pages\AttachPanelConfigsToReseller;
 use Filament\Widgets\AccountWidget;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
@@ -50,6 +51,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 Pages\Dashboard::class,
+                AttachPanelConfigsToReseller::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
