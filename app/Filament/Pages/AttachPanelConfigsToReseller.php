@@ -40,7 +40,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()->is_admin;
+        return auth()->check() && auth()->user()?->is_admin === true;
     }
 
     public function mount(): void
