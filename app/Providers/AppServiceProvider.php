@@ -30,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register policies
         Gate::policy(AuditLog::class, AuditLogPolicy::class);
+        Gate::policy(Reseller::class, \App\Policies\ResellerPolicy::class);
+        Gate::policy(ResellerConfig::class, \App\Policies\ResellerConfigPolicy::class);
+        Gate::policy(\App\Models\Panel::class, \App\Policies\PanelPolicy::class);
 
         // Register observers for audit safety net
         ResellerConfig::observe(ResellerConfigObserver::class);
