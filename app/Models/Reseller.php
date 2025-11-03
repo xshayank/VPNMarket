@@ -104,6 +104,11 @@ class Reseller extends Model
             return true;
         }
 
+        // Ensure window_starts_at is set
+        if (! $this->window_starts_at) {
+            return false;
+        }
+
         $now = now();
 
         // Window is valid while now < window_ends_at (start of day)
