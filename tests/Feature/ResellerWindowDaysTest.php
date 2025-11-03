@@ -5,6 +5,20 @@ use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\User;
 
+/**
+ * Helper function to extend a reseller's window (simulates the action logic)
+ */
+function extendResellerWindow(Reseller $reseller, int $daysToExtend): void
+{
+    $baseDate = $reseller->getExtendWindowBaseDate();
+    $newEndDate = $baseDate->copy()->addDays($daysToExtend);
+
+    $reseller->update([
+        'window_ends_at' => $newEndDate,
+        'window_starts_at' => $reseller->window_starts_at ?? now(),
+    ]);
+}
+
 test('reseller create with window_days sets window range correctly', function () {
     $user = User::factory()->create();
     $panel = Panel::factory()->create(['panel_type' => 'marzban']);
@@ -91,21 +105,9 @@ test('extend window action handles null end date', function () {
 
     expect($reseller->window_ends_at)->toBeNull();
 
-    // Simulate the extend action
+    // Simulate the extend action using helper
     $daysToExtend = 7;
-    $oldEndDate = $reseller->window_ends_at;
-
-    $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
-        ? $reseller->window_ends_at
-        : $now;
-
-    $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-
-    $reseller->update([
-        'window_ends_at' => $newEndDate,
-        'window_starts_at' => $reseller->window_starts_at ?? $now,
-    ]);
+    extendResellerWindow($reseller, $daysToExtend);
 
     $reseller->refresh();
 
@@ -113,7 +115,7 @@ test('extend window action handles null end date', function () {
     expect($reseller->window_starts_at)->not->toBeNull();
 
     // The end date should be approximately 7 days from now
-    $expectedEnd = $now->copy()->addDays($daysToExtend);
+    $expectedEnd = now()->copy()->addDays($daysToExtend);
     expect($reseller->window_ends_at->diffInSeconds($expectedEnd))->toBeLessThan(2);
 });
 
@@ -135,21 +137,10 @@ test('extend window action handles past end date', function () {
 
     expect($reseller->window_ends_at->isPast())->toBeTrue();
 
-    // Simulate the extend action
+    // Simulate the extend action using helper
     $daysToExtend = 7;
-    $oldEndDate = $reseller->window_ends_at;
-
     $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
-        ? $reseller->window_ends_at
-        : $now;
-
-    $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-
-    $reseller->update([
-        'window_ends_at' => $newEndDate,
-        'window_starts_at' => $reseller->window_starts_at ?? $now,
-    ]);
+    extendResellerWindow($reseller, $daysToExtend);
 
     $reseller->refresh();
 
@@ -178,21 +169,10 @@ test('extend window action handles future end date', function () {
 
     expect($reseller->window_ends_at->isFuture())->toBeTrue();
 
-    // Simulate the extend action
+    // Simulate the extend action using helper
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at->copy();
-
-    $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
-        ? $reseller->window_ends_at
-        : $now;
-
-    $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-
-    $reseller->update([
-        'window_ends_at' => $newEndDate,
-        'window_starts_at' => $reseller->window_starts_at ?? $now,
-    ]);
+    extendResellerWindow($reseller, $daysToExtend);
 
     $reseller->refresh();
 
@@ -215,21 +195,14 @@ test('extend window action creates audit log', function () {
         'window_ends_at' => now()->addDays(10),
     ]);
 
-    // Simulate the extend action
+    // Simulate the extend action using helper
     $daysToExtend = 7;
     $oldEndDate = $reseller->window_ends_at;
 
-    $now = now();
-    $baseDate = $reseller->window_ends_at && $reseller->window_ends_at->gt($now)
-        ? $reseller->window_ends_at
-        : $now;
+    extendResellerWindow($reseller, $daysToExtend);
 
+    $baseDate = $oldEndDate ?: now();
     $newEndDate = $baseDate->copy()->addDays($daysToExtend);
-
-    $reseller->update([
-        'window_ends_at' => $newEndDate,
-        'window_starts_at' => $reseller->window_starts_at ?? $now,
-    ]);
 
     // Create audit log
     AuditLog::log(

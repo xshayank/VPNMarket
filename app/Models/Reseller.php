@@ -86,7 +86,7 @@ class Reseller extends Model
 
     public function hasTrafficRemaining(): bool
     {
-        if (!$this->isTrafficBased()) {
+        if (! $this->isTrafficBased()) {
             return false;
         }
 
@@ -95,16 +95,30 @@ class Reseller extends Model
 
     public function isWindowValid(): bool
     {
-        if (!$this->isTrafficBased()) {
+        if (! $this->isTrafficBased()) {
             return false;
         }
 
         // If window_ends_at is null, treat as unlimited (always valid)
-        if (!$this->window_ends_at) {
+        if (! $this->window_ends_at) {
             return true;
         }
 
         $now = now();
+
         return $this->window_starts_at <= $now && $now <= $this->window_ends_at;
+    }
+
+    /**
+     * Get the base date for extending the window.
+     * Returns the later of: current window_ends_at or now()
+     */
+    public function getExtendWindowBaseDate(): \Illuminate\Support\Carbon
+    {
+        $now = now();
+
+        return $this->window_ends_at && $this->window_ends_at->gt($now)
+            ? $this->window_ends_at
+            : $now;
     }
 }

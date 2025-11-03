@@ -38,17 +38,13 @@ class EditReseller extends EditRecord
                         $daysToExtend = (int) $data['days_to_extend'];
                         $oldEndDate = $this->record->window_ends_at;
 
-                        // Determine base date: max of now or current window_ends_at
-                        $now = now();
-                        $baseDate = $this->record->window_ends_at && $this->record->window_ends_at->gt($now)
-                            ? $this->record->window_ends_at
-                            : $now;
-
+                        // Use model method to get base date
+                        $baseDate = $this->record->getExtendWindowBaseDate();
                         $newEndDate = $baseDate->copy()->addDays($daysToExtend);
 
                         $this->record->update([
                             'window_ends_at' => $newEndDate,
-                            'window_starts_at' => $this->record->window_starts_at ?? $now,
+                            'window_starts_at' => $this->record->window_starts_at ?? now(),
                         ]);
 
                         // Create audit log
