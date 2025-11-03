@@ -75,13 +75,10 @@
                             name="expires_at" 
                             value="{{ old('expires_at', $config->expires_at->format('Y-m-d')) }}"
                             min="{{ now()->format('Y-m-d') }}"
-                            @if($reseller->window_ends_at)
-                            max="{{ $reseller->window_ends_at->format('Y-m-d') }}"
-                            @endif
                             class="w-full px-4 py-3 md:py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-right" 
                             required>
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 text-right">
-                            حداکثر: {{ $reseller->window_ends_at ? $reseller->window_ends_at->format('Y-m-d') : 'نامحدود' }} (پایان پنجره نمایندگی)
+                            حداقل: امروز (تاریخ به ساعت 00:00 ذخیره می‌شود)
                         </p>
                     </div>
 

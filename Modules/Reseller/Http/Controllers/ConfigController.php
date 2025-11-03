@@ -433,11 +433,6 @@ class ConfigController extends Controller
             return back()->with('error', 'Traffic limit cannot be set below current usage (' . round($config->usage_bytes / (1024 * 1024 * 1024), 2) . ' GB).');
         }
 
-        // Validation: expiry date must not exceed reseller's window_ends_at
-        if ($reseller->window_ends_at && $expiresAt->greaterThan($reseller->window_ends_at->copy()->startOfDay())) {
-            return back()->with('error', 'Expiry date cannot exceed your reseller window end date (' . $reseller->window_ends_at->format('Y-m-d') . ').');
-        }
-
         // Store old values for audit
         $oldTrafficLimit = $config->traffic_limit_bytes;
         $oldExpiresAt = $config->expires_at;

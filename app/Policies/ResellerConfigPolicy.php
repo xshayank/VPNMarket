@@ -158,14 +158,24 @@ class ResellerConfigPolicy
      */
     public function resetUsage(User $user, ResellerConfig $resellerConfig): bool
     {
-        // Admins can reset any config
-        if ($user->hasPermissionTo('configs.reset_usage')) {
-            return true;
-        }
+        try {
+            // Admins can reset any config
+            if ($user->hasPermissionTo('configs.reset_usage')) {
+                return true;
+            }
 
-        // Resellers can only reset their own configs
-        if ($user->hasPermissionTo('configs.reset_usage_own') && $user->reseller) {
-            return $resellerConfig->reseller_id === $user->reseller->id;
+            // Resellers can only reset their own configs
+            if ($user->hasPermissionTo('configs.reset_usage_own') && $user->reseller) {
+                return $resellerConfig->reseller_id === $user->reseller->id;
+            }
+        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+            // If permission doesn't exist, log warning and deny access gracefully
+            \Log::warning('Permission does not exist for resetUsage policy check', [
+                'user_id' => $user->id,
+                'config_id' => $resellerConfig->id,
+                'exception' => $e->getMessage(),
+            ]);
+            return false;
         }
 
         return false;

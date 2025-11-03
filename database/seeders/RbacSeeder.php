@@ -54,6 +54,8 @@ class RbacSeeder extends Seeder
             'configs.enable',
             'configs.disable',
             'configs.sync_usage',
+            'configs.reset_usage',
+            'configs.reset_usage_own',
             
             // User management permissions
             'users.view_any',
@@ -182,6 +184,7 @@ class RbacSeeder extends Seeder
             'configs.enable',
             'configs.disable',
             'configs.sync_usage',
+            'configs.reset_usage_own',
             'resellers.view_own',
             'resellers.update_own',
             'orders.view_own',
