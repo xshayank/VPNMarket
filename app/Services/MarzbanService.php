@@ -259,6 +259,7 @@ class MarzbanService
                 // Filter by admin username or owner fields
                 return array_filter($configs, function ($config) use ($adminUsername) {
                     $owner = $config['admin'] ?? $config['owner_username'] ?? null;
+
                     return $owner === $adminUsername;
                 });
             }

@@ -313,6 +313,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
         // Server-side validation: ensure all selected configs belong to the specified admin
         $invalidConfigs = $configsToImport->filter(function ($config) use ($adminUsername) {
             $owner = $config['admin'] ?? $config['owner_username'] ?? null;
+
             return $owner !== $adminUsername;
         });
 
