@@ -70,14 +70,23 @@ test('reseller can reset usage with configs.reset_usage_own permission', functio
         'expires_at' => now()->addDays(10),
     ]);
 
+    // Reload user to ensure fresh data
+    $user = User::find($user->id);
+    
+    // Verify reseller relationship exists
+    expect($user->reseller)->not->toBeNull();
+    expect($user->reseller->id)->toBe($reseller->id);
+    
+    // Verify permission
+    expect($user->hasPermissionTo('configs.reset_usage_own'))->toBeTrue();
+    
+    // Verify ownership
+    expect($config->reseller_id)->toBe($user->reseller->id);
+
     // Test policy authorization
     expect($user->can('resetUsage', $config))->toBeTrue();
 
-    // Test actual reset (we'll mock the provisioner to avoid external calls)
-    $this->actingAs($user);
-
-    // Note: In a real scenario, this would call the actual endpoint
-    // For this test, we're just verifying the policy check passes
+    // Test canResetUsage helper
     expect($config->canResetUsage())->toBeTrue();
 });
 
@@ -216,12 +225,12 @@ test('usage reset cooldown is enforced', function () {
     // Should not be able to reset within 24 hours
     expect($config->canResetUsage())->toBeFalse();
 
-    // Update to 25 hours ago
-    $config->update([
-        'meta' => [
-            'last_reset_at' => now()->subHours(25)->toDateTimeString(),
-        ],
-    ]);
+    // Update to 25 hours ago - need to refresh the model
+    $config->meta = [
+        'last_reset_at' => now()->subHours(25)->toDateTimeString(),
+    ];
+    $config->save();
+    $config->refresh();
 
     // Should be able to reset after 24 hours
     expect($config->canResetUsage())->toBeTrue();

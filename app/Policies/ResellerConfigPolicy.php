@@ -80,14 +80,37 @@ class ResellerConfigPolicy
      */
     public function update(User $user, ResellerConfig $resellerConfig): bool
     {
-        // Admins can update any config
-        if ($user->hasPermissionTo('configs.update')) {
-            return true;
-        }
+        try {
+            // Check if user has admin-level update permission
+            try {
+                if ($user->hasPermissionTo('configs.update')) {
+                    return true;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, continue to check own permission
+            }
 
-        // Resellers can only update their own configs
-        if ($user->hasPermissionTo('configs.update_own') && $user->reseller) {
-            return $resellerConfig->reseller_id === $user->reseller->id;
+            // Check if user has reseller-level update permission for own configs
+            try {
+                if ($user->hasPermissionTo('configs.update_own') && $user->reseller) {
+                    return $resellerConfig->reseller_id === $user->reseller->id;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, log and deny
+                \Log::warning('Permission configs.update_own does not exist for update policy check', [
+                    'user_id' => $user->id,
+                    'config_id' => $resellerConfig->id,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Catch any other unexpected exceptions
+            \Log::error('Unexpected exception in update policy check', [
+                'user_id' => $user->id,
+                'config_id' => $resellerConfig->id,
+                'exception' => $e->getMessage(),
+            ]);
+            return false;
         }
 
         return false;
@@ -159,18 +182,31 @@ class ResellerConfigPolicy
     public function resetUsage(User $user, ResellerConfig $resellerConfig): bool
     {
         try {
-            // Admins can reset any config
-            if ($user->hasPermissionTo('configs.reset_usage')) {
-                return true;
+            // Check if user has admin-level reset permission
+            try {
+                if ($user->hasPermissionTo('configs.reset_usage')) {
+                    return true;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, continue to check own permission
             }
 
-            // Resellers can only reset their own configs
-            if ($user->hasPermissionTo('configs.reset_usage_own') && $user->reseller) {
-                return $resellerConfig->reseller_id === $user->reseller->id;
+            // Check if user has reseller-level reset permission for own configs
+            try {
+                if ($user->hasPermissionTo('configs.reset_usage_own') && $user->reseller) {
+                    return $resellerConfig->reseller_id === $user->reseller->id;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // Permission doesn't exist, log and deny
+                \Log::warning('Permission configs.reset_usage_own does not exist for resetUsage policy check', [
+                    'user_id' => $user->id,
+                    'config_id' => $resellerConfig->id,
+                    'exception' => $e->getMessage(),
+                ]);
             }
-        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
-            // If permission doesn't exist, log warning and deny access gracefully
-            \Log::warning('Permission does not exist for resetUsage policy check', [
+        } catch (\Exception $e) {
+            // Catch any other unexpected exceptions
+            \Log::error('Unexpected exception in resetUsage policy check', [
                 'user_id' => $user->id,
                 'config_id' => $resellerConfig->id,
                 'exception' => $e->getMessage(),
