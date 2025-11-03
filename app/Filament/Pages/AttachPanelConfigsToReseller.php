@@ -62,6 +62,11 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
      * 1. Spatie permission 'manage.panel-config-imports' (if installed)
      * 2. Common admin roles: 'super-admin', 'admin' (if Spatie roles installed)
      * 3. User::is_admin boolean field (fallback)
+     * 
+     * Note: Using method_exists() for feature detection is intentional and efficient.
+     * This method is only called once per request by Filament, and the checks are
+     * lightweight. This approach ensures forward compatibility without requiring
+     * package installation or interface implementation.
      */
     public static function canAccess(): bool
     {

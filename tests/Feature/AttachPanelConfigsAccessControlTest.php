@@ -1,5 +1,7 @@
 <?php
 
+namespace Tests\Feature;
+
 use App\Filament\Pages\AttachPanelConfigsToReseller;
 use App\Models\User;
 

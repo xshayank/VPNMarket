@@ -69,7 +69,13 @@ class AttachPanelConfigsPermissionSeeder extends Seeder
 
         } catch (\Exception $e) {
             $this->command->error("Error during seeding: " . $e->getMessage());
-            $this->command->error("Stack trace: " . $e->getTraceAsString());
+            // Log full error details to Laravel log file for debugging
+            \Log::error("AttachPanelConfigsPermissionSeeder failed", [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            $this->command->info("Full error details have been logged to storage/logs/");
         }
     }
 }
