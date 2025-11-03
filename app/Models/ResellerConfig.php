@@ -113,7 +113,7 @@ class ResellerConfig extends Model
 
         try {
             $lastReset = \Carbon\Carbon::parse($lastResetAt);
-            return now()->diffInHours($lastReset) >= 24;
+            return $lastReset->diffInHours(now()) >= 24;
         } catch (\Exception $e) {
             return true; // If parsing fails, allow reset
         }
