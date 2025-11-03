@@ -18,6 +18,7 @@ use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AttachPanelConfigsToReseller extends Page implements HasForms
@@ -57,13 +58,13 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
     /**
      * Determine if the current user can access this page.
-     * 
+     *
      * Supports multiple authorization methods:
      * 1. Spatie permission 'manage.panel-config-imports' (if installed)
      * 2. Shield-generated page permission (if installed)
      * 3. Common admin roles: 'super-admin', 'admin' (if Spatie roles installed)
      * 4. User::is_admin boolean field (fallback)
-     * 
+     *
      * Note: Using method_exists() for feature detection is intentional and efficient.
      * This method is only called once per request by Filament, and the checks are
      * lightweight. This approach ensures forward compatibility without requiring
@@ -72,8 +73,8 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        
-        if (!$user) {
+
+        if (! $user) {
             return false;
         }
 
@@ -83,7 +84,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
             if ($user->hasPermissionTo('manage.panel-config-imports')) {
                 return true;
             }
-            
+
             // Check Shield-generated page permission
             if ($user->hasPermissionTo('page_AttachPanelConfigsToReseller')) {
                 return true;
@@ -111,7 +112,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
     {
         return $form->schema([
             Section::make('انتخاب ریسلر و ادمین پنل')
-                ->description('ابتدا ریسلر را انتخاب کنید، سپس ادمین پنل و کانفیگ‌های مورد نظر را انتخاب کنید')
+                ->description('ابتدا ریسلر را انتخاب کنید، سپس ادمین پنل (بدون دسترسی سوپر) را انتخاب کنید. کانفیگ‌های متعلق به آن ادمین نمایش داده می‌شوند.')
                 ->schema([
                     Select::make('reseller_id')
                         ->label('ریسلر')
@@ -139,7 +140,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         }),
 
                     Select::make('panel_admin')
-                        ->label('ادمین پنل')
+                        ->label('ادمین پنل (بدون دسترسی سوپر)')
                         ->options(function (Get $get) {
                             $resellerId = $get('reseller_id');
                             if (! $resellerId) {
@@ -192,8 +193,15 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                         })
                         ->required()
                         ->searchable()
-                        ->visible(fn (Get $get) => $get('panel_admin') !== null)
-                        ->helperText('کانفیگ‌هایی که قبلاً وارد شده‌اند، به صورت خودکار نادیده گرفته می‌شوند'),
+                        ->disabled(fn (Get $get) => $get('panel_admin') === null)
+                        ->visible(fn (Get $get) => $get('reseller_id') !== null)
+                        ->helperText(function (Get $get) {
+                            if ($get('panel_admin') === null) {
+                                return 'ابتدا مدیر (بدون دسترسی سوپر) را انتخاب کنید';
+                            }
+
+                            return 'کانفیگ‌هایی که قبلاً وارد شده‌اند، به صورت خودکار نادیده گرفته می‌شوند';
+                        }),
                 ])
                 ->columns(1),
         ])->statePath('data');
@@ -201,56 +209,70 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
 
     protected function fetchPanelAdmins(Panel $panel): array
     {
-        $credentials = $panel->getCredentials();
+        // Cache for 60 seconds to avoid repeated API calls during form interactions
+        return cache()->remember(
+            "panel_admins_{$panel->id}",
+            60,
+            function () use ($panel) {
+                $credentials = $panel->getCredentials();
 
-        if ($panel->panel_type === 'marzban') {
-            $service = new MarzbanService(
-                $credentials['url'],
-                $credentials['username'],
-                $credentials['password'],
-                $credentials['extra']['node_hostname'] ?? ''
-            );
+                if ($panel->panel_type === 'marzban') {
+                    $service = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
 
-            return $service->listAdmins();
-        } elseif ($panel->panel_type === 'marzneshin') {
-            $service = new MarzneshinService(
-                $credentials['url'],
-                $credentials['username'],
-                $credentials['password'],
-                $credentials['extra']['node_hostname'] ?? ''
-            );
+                    return $service->listAdmins();
+                } elseif ($panel->panel_type === 'marzneshin') {
+                    $service = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
 
-            return $service->listAdmins();
-        }
+                    return $service->listAdmins();
+                }
 
-        return [];
+                return [];
+            }
+        );
     }
 
     protected function fetchConfigsByAdmin(Panel $panel, string $adminUsername): array
     {
-        $credentials = $panel->getCredentials();
+        // Cache for 30 seconds to avoid repeated API calls during config selection
+        return cache()->remember(
+            "panel_configs_{$panel->id}_{$adminUsername}",
+            30,
+            function () use ($panel, $adminUsername) {
+                $credentials = $panel->getCredentials();
 
-        if ($panel->panel_type === 'marzban') {
-            $service = new MarzbanService(
-                $credentials['url'],
-                $credentials['username'],
-                $credentials['password'],
-                $credentials['extra']['node_hostname'] ?? ''
-            );
+                if ($panel->panel_type === 'marzban') {
+                    $service = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
 
-            return $service->listConfigsByAdmin($adminUsername);
-        } elseif ($panel->panel_type === 'marzneshin') {
-            $service = new MarzneshinService(
-                $credentials['url'],
-                $credentials['username'],
-                $credentials['password'],
-                $credentials['extra']['node_hostname'] ?? ''
-            );
+                    return $service->listConfigsByAdmin($adminUsername);
+                } elseif ($panel->panel_type === 'marzneshin') {
+                    $service = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
 
-            return $service->listConfigsByAdmin($adminUsername);
-        }
+                    return $service->listConfigsByAdmin($adminUsername);
+                }
 
-        return [];
+                return [];
+            }
+        );
     }
 
     public function importConfigs(): void

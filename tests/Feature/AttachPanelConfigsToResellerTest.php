@@ -101,14 +101,22 @@ test('panel admin field becomes visible after selecting reseller', function () {
         ->assertFormFieldIsVisible('panel_admin');
 });
 
-test('remote configs field is hidden initially', function () {
+test('remote configs field is visible but disabled initially', function () {
     $this->actingAs($this->admin);
 
+    $panel = Panel::factory()->marzban()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => User::factory()->create()->id,
+        'panel_id' => $panel->id,
+    ]);
+
     Livewire::test(AttachPanelConfigsToReseller::class)
-        ->assertFormFieldIsHidden('remote_configs');
+        ->fillForm(['reseller_id' => $reseller->id])
+        ->assertFormFieldIsVisible('remote_configs')
+        ->assertFormFieldIsDisabled('remote_configs');
 });
 
-test('remote configs field becomes visible after selecting panel admin', function () {
+test('remote configs field becomes enabled after selecting panel admin', function () {
     $this->actingAs($this->admin);
 
     $panel = Panel::factory()->marzban()->create();
@@ -122,7 +130,8 @@ test('remote configs field becomes visible after selecting panel admin', functio
             'reseller_id' => $reseller->id,
             'panel_admin' => 'test_admin',
         ])
-        ->assertFormFieldIsVisible('remote_configs');
+        ->assertFormFieldIsVisible('remote_configs')
+        ->assertFormFieldIsEnabled('remote_configs');
 });
 
 test('form resets panel admin when reseller changes', function () {
