@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\ResellerConfig;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
+use Illuminate\Support\Facades\Log;
 
 class ResellerConfigPolicy
 {
@@ -97,7 +98,7 @@ class ResellerConfigPolicy
                 }
             } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
                 // Permission doesn't exist, log and deny
-                \Log::warning('Permission configs.update_own does not exist for update policy check', [
+                Log::warning('Permission configs.update_own does not exist for update policy check', [
                     'user_id' => $user->id,
                     'config_id' => $resellerConfig->id,
                     'exception' => $e->getMessage(),
@@ -105,7 +106,7 @@ class ResellerConfigPolicy
             }
         } catch (\Exception $e) {
             // Catch any other unexpected exceptions
-            \Log::error('Unexpected exception in update policy check', [
+            Log::error('Unexpected exception in update policy check', [
                 'user_id' => $user->id,
                 'config_id' => $resellerConfig->id,
                 'exception' => $e->getMessage(),
@@ -198,7 +199,7 @@ class ResellerConfigPolicy
                 }
             } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
                 // Permission doesn't exist, log and deny
-                \Log::warning('Permission configs.reset_usage_own does not exist for resetUsage policy check', [
+                Log::warning('Permission configs.reset_usage_own does not exist for resetUsage policy check', [
                     'user_id' => $user->id,
                     'config_id' => $resellerConfig->id,
                     'exception' => $e->getMessage(),
@@ -206,7 +207,7 @@ class ResellerConfigPolicy
             }
         } catch (\Exception $e) {
             // Catch any other unexpected exceptions
-            \Log::error('Unexpected exception in resetUsage policy check', [
+            Log::error('Unexpected exception in resetUsage policy check', [
                 'user_id' => $user->id,
                 'config_id' => $resellerConfig->id,
                 'exception' => $e->getMessage(),

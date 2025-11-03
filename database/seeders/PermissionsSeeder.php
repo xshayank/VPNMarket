@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Log;
 
 class PermissionsSeeder extends Seeder
 {
@@ -89,7 +90,7 @@ class PermissionsSeeder extends Seeder
         } catch (\Exception $e) {
             $this->command->error("Error during seeding: " . $e->getMessage());
             // Log full error details to Laravel log file for debugging
-            \Log::error("PermissionsSeeder failed", [
+            Log::error("PermissionsSeeder failed", [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),

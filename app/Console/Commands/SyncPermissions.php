@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class SyncPermissions extends Command
 {
@@ -125,7 +126,7 @@ class SyncPermissions extends Command
 
         } catch (\Exception $e) {
             $this->error("Error syncing permissions: " . $e->getMessage());
-            \Log::error("SyncPermissions command failed", [
+            Log::error("SyncPermissions command failed", [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
