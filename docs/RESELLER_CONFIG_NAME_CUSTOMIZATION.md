@@ -59,8 +59,8 @@ Two new columns have been added to the `reseller_configs` table:
 
 ```sql
 ALTER TABLE reseller_configs 
-ADD COLUMN prefix VARCHAR(255) NULL AFTER comment,
-ADD COLUMN custom_name VARCHAR(255) NULL AFTER prefix;
+ADD COLUMN prefix VARCHAR(50) NULL AFTER comment,
+ADD COLUMN custom_name VARCHAR(100) NULL AFTER prefix;
 ```
 
 ## Installation
