@@ -128,6 +128,9 @@ class SyncResellerConfigUsage extends Command
      */
     protected function formatBytes(int $bytes): string
     {
-        return number_format($bytes / (1024 * 1024), 2).' MB';
+        $sign = $bytes < 0 ? '-' : '';
+        $abs = abs($bytes);
+
+        return $sign.number_format($abs / (1024 * 1024), 2).' MB';
     }
 }

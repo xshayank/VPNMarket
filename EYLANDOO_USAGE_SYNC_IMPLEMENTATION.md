@@ -81,7 +81,7 @@ return $this->fetchEylandooUsage($credentials, $username, $config->id);
 
 **Features**:
 - Displays comprehensive config and panel information
-- Uses reflection to call the same `fetchConfigUsage()` method as the scheduled job
+- Calls the same `fetchConfigUsage()` method used by the scheduled job
 - Shows before/after usage values and delta
 - Returns meaningful exit codes (0=success, 1=failure)
 - Provides actionable error messages
