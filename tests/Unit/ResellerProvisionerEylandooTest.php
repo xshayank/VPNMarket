@@ -40,7 +40,6 @@ test('provisionEylandoo accepts node_ids parameter', function () {
     ]);
 
     $provisioner = new ResellerProvisioner();
-    $credentials = $panel->getCredentials();
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user', [
         'node_ids' => [1, 2, 3],
