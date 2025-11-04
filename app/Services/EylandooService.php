@@ -290,6 +290,69 @@ class EylandooService
     }
 
     /**
+     * Get user subscription details from the dedicated subscription endpoint
+     *
+     * @param  string  $username  Username to fetch subscription for
+     * @return array|null Subscription data or null on failure
+     */
+    public function getUserSubscription(string $username): ?array
+    {
+        try {
+            $response = $this->client()->get($this->baseUrl."/api/v1/users/{$username}/sub");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('Eylandoo Get User Subscription failed:', ['status' => $response->status(), 'username' => $username]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Eylandoo Get User Subscription Exception:', ['message' => $e->getMessage(), 'username' => $username]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Extract subscription URL from the subscription endpoint response
+     * 
+     * @param array|null $subResponse Response from /api/v1/users/{username}/sub endpoint
+     * @return string|null The extracted subscription URL or null if not found
+     */
+    public function extractSubscriptionUrlFromSub(?array $subResponse): ?string
+    {
+        if (!$subResponse) {
+            return null;
+        }
+
+        // Try various known response shapes for subscription URL
+        $configUrl = null;
+        
+        // Shape 1: subscription_url at root
+        if (isset($subResponse['subscription_url'])) {
+            $configUrl = $subResponse['subscription_url'];
+        }
+        // Shape 2: data.subscription_url
+        elseif (isset($subResponse['data']['subscription_url'])) {
+            $configUrl = $subResponse['data']['subscription_url'];
+        }
+        // Shape 3: url field
+        elseif (isset($subResponse['url'])) {
+            $configUrl = $subResponse['url'];
+        }
+
+        // Convert to absolute URL if relative
+        if ($configUrl && !preg_match('#^https?://#i', $configUrl)) {
+            // Use nodeHostname if set, otherwise fall back to baseUrl
+            $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
+            $configUrl = rtrim($baseHost, '/').'/'.ltrim($configUrl, '/');
+        }
+
+        return $configUrl;
+    }
+
+    /**
      * Extract subscription/config URL from API response (various shapes)
      * 
      * @param array $userApiResponse API response from Eylandoo

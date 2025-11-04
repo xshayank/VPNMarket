@@ -326,18 +326,16 @@ class ResellerProvisioner
                 $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
             }
             
-            // If no subscription URL in create response, fetch user details
+            // If no subscription URL in create response, fetch from dedicated subscription endpoint
             if (empty($subscriptionUrl)) {
-                Log::info("No subscription URL in create response for {$username}, fetching user details");
+                Log::info("No subscription URL in create response for {$username}, fetching from /sub endpoint");
                 
-                $userInfo = $service->getUser($username);
-                if ($userInfo) {
-                    Log::info('Eylandoo user info response:', ['userInfo' => $userInfo]);
+                $subResponse = $service->getUserSubscription($username);
+                if ($subResponse) {
+                    Log::info('Eylandoo subscription endpoint response:', ['subResponse' => $subResponse]);
                     
-                    // Build absolute subscription URL from user info
-                    if ($service->extractSubscriptionUrl($userInfo)) {
-                        $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($userInfo);
-                    }
+                    // Extract subscription URL from /sub response
+                    $subscriptionUrl = $service->extractSubscriptionUrlFromSub($subResponse);
                 }
             }
 
