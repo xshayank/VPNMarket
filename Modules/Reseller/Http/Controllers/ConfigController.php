@@ -84,7 +84,10 @@ class ConfigController extends Controller
                         $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
                     }
                 } catch (\Exception $e) {
-                    Log::error("Failed to fetch Eylandoo nodes for panel {$panel->id}: " . $e->getMessage());
+                    Log::error('Failed to fetch Eylandoo nodes for panel', [
+                        'panel_id' => $panel->id,
+                        'error' => $e->getMessage()
+                    ]);
                 }
             }
         }

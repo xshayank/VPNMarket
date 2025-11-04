@@ -330,7 +330,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
         $user = $service->getUser($username);
         
-        if (!$user) {
+        if (! $user) {
             return null;
         }
         

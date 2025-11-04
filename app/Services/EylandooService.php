@@ -295,9 +295,13 @@ class EylandooService
     public function buildAbsoluteSubscriptionUrl(array $userApiResponse): string
     {
         // Eylandoo returns config_url in the users array
-        $configUrl = $userApiResponse['data']['users'][0]['config_url'] 
-            ?? $userApiResponse['data']['config_url'] 
-            ?? '';
+        $configUrl = '';
+        
+        if (isset($userApiResponse['data']['users'][0]['config_url'])) {
+            $configUrl = $userApiResponse['data']['users'][0]['config_url'];
+        } elseif (isset($userApiResponse['data']['config_url'])) {
+            $configUrl = $userApiResponse['data']['config_url'];
+        }
 
         // If the URL is already absolute, return as is
         if (preg_match('#^https?://#i', $configUrl)) {
