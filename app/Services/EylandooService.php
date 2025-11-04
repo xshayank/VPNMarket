@@ -123,10 +123,9 @@ class EylandooService
     public function getUserUsageBytes(string $username): ?int
     {
         try {
-            $url = $this->baseUrl."/api/v1/users/{$username}";
             Log::info('Eylandoo usage fetch: calling endpoint', [
                 'username' => $username,
-                'url' => $url,
+                'endpoint' => "/api/v1/users/{$username}",
             ]);
 
             $userResponse = $this->getUser($username);
