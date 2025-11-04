@@ -342,14 +342,7 @@ class EylandooService
             $configUrl = $subResponse['url'];
         }
 
-        // Convert to absolute URL if relative
-        if ($configUrl && !preg_match('#^https?://#i', $configUrl)) {
-            // Use nodeHostname if set, otherwise fall back to baseUrl
-            $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
-            $configUrl = rtrim($baseHost, '/').'/'.ltrim($configUrl, '/');
-        }
-
-        return $configUrl;
+        return $this->makeAbsoluteUrl($configUrl);
     }
 
     /**
@@ -390,16 +383,31 @@ class EylandooService
     {
         $configUrl = $this->extractSubscriptionUrl($userApiResponse) ?? '';
 
+        return $this->makeAbsoluteUrl($configUrl) ?? '';
+    }
+
+    /**
+     * Convert a relative URL to absolute URL using base hostname
+     * 
+     * @param string|null $url URL to convert (can be relative or absolute)
+     * @return string|null Absolute URL or null if input is null/empty
+     */
+    protected function makeAbsoluteUrl(?string $url): ?string
+    {
+        if (!$url) {
+            return null;
+        }
+
         // If the URL is already absolute, return as is
-        if (preg_match('#^https?://#i', $configUrl)) {
-            return $configUrl;
+        if (preg_match('#^https?://#i', $url)) {
+            return $url;
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
         $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
-        return rtrim($baseHost, '/').'/'.ltrim($configUrl, '/');
+        return rtrim($baseHost, '/').'/'.ltrim($url, '/');
     }
 
     /**
