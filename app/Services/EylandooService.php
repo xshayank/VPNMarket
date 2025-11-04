@@ -337,12 +337,12 @@ class EylandooService
             $configUrl = $subResponse['subResponse']['sub_url'];
         }
         // Shape 2: subscription_url at root
-        elseif (isset($subResponse['subscription_url'])) {
-            $configUrl = $subResponse['subscription_url'];
+        elseif (isset($subResponse['sub_url'])) {
+            $configUrl = $subResponse['sub_url'];
         }
         // Shape 3: data.subscription_url
-        elseif (isset($subResponse['data']['subscription_url'])) {
-            $configUrl = $subResponse['data']['subscription_url'];
+        elseif (isset($subResponse['data']['sub_url'])) {
+            $configUrl = $subResponse['data']['sub_url'];
         }
         // Shape 4: url field
         elseif (isset($subResponse['url'])) {
