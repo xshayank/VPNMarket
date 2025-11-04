@@ -96,12 +96,12 @@ class EylandooService
         try {
             $encodedUsername = rawurlencode($username);
             $endpoint = "/api/v1/users/{$encodedUsername}";
-            
+
             Log::debug('Eylandoo Get User: requesting endpoint', [
                 'username' => $username,
                 'endpoint' => $endpoint,
             ]);
-            
+
             $response = $this->client()->get($this->baseUrl.$endpoint);
 
             if ($response->successful()) {
@@ -196,7 +196,7 @@ class EylandooService
         // Collect wrappers to search (include root and known wrapper keys)
         $wrappers = ['root' => $resp];
         $wrapperKeys = ['userInfo', 'data', 'user', 'result', 'stats'];
-        
+
         foreach ($wrapperKeys as $key) {
             if (isset($resp[$key]) && is_array($resp[$key])) {
                 $wrappers[$key] = $resp[$key];
