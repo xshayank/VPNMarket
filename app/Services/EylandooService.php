@@ -100,7 +100,11 @@ class EylandooService
                 return $response->json();
             }
 
-            Log::warning('Eylandoo Get User failed:', ['status' => $response->status(), 'username' => $username]);
+            Log::warning('Eylandoo Get User failed:', [
+                'status' => $response->status(),
+                'username' => $username,
+                'body_preview' => substr($response->body(), 0, 500),
+            ]);
 
             return null;
         } catch (\Exception $e) {
@@ -134,6 +138,32 @@ class EylandooService
 
                 return max(0, $usage);
             }
+
+            // Priority 2: Sum of userInfo.upload_bytes + userInfo.download_bytes
+            if (isset($userResponse['userInfo']['upload_bytes']) && isset($userResponse['userInfo']['download_bytes'])) {
+                $upload = (int) $userResponse['userInfo']['upload_bytes'];
+                $download = (int) $userResponse['userInfo']['download_bytes'];
+                $usage = $upload + $download;
+                Log::info('Eylandoo usage from userInfo.upload_bytes + download_bytes', [
+                    'username' => $username,
+                    'upload_bytes' => $upload,
+                    'download_bytes' => $download,
+                    'total_usage_bytes' => $usage,
+                ]);
+
+                return max(0, $usage);
+            }
+
+            // Priority 3: Fallback to data.data_used (older API shape)
+            if (isset($userResponse['data']['data_used'])) {
+                $usage = (int) $userResponse['data']['data_used'];
+                Log::info('Eylandoo usage from data.data_used', ['username' => $username, 'usage_bytes' => $usage]);
+
+                return max(0, $usage);
+            }
+
+            // Valid response but no usage fields - user hasn't used any traffic yet
+            Log::info('Eylandoo usage: no traffic data fields found, returning 0', ['username' => $username]);
 
             return 0;
         } catch (\Exception $e) {
