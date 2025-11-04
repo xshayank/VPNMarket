@@ -135,27 +135,6 @@ class EylandooService
                 return max(0, $usage);
             }
 
-            // Priority 2: userInfo.upload_bytes + userInfo.download_bytes
-            if (isset($userResponse['userInfo']['upload_bytes']) && isset($userResponse['userInfo']['download_bytes'])) {
-                $upload = (int) $userResponse['userInfo']['upload_bytes'];
-                $download = (int) $userResponse['userInfo']['download_bytes'];
-                $usage = $upload + $download;
-                Log::info('Eylandoo usage from userInfo upload+download', ['username' => $username, 'usage_bytes' => $usage]);
-
-                return max(0, $usage);
-            }
-
-            // Priority 3: Fallback to data.data_used (older shape or different API versions)
-            if (isset($userResponse['data']['data_used'])) {
-                $usage = (int) $userResponse['data']['data_used'];
-                Log::info('Eylandoo usage from data.data_used', ['username' => $username, 'usage_bytes' => $usage]);
-
-                return max(0, $usage);
-            }
-
-            // No usage keys found, but response was successful - return 0
-            Log::info('Eylandoo usage: no traffic data in response, returning 0', ['username' => $username]);
-
             return 0;
         } catch (\Exception $e) {
             Log::error('Eylandoo Get User Usage Exception:', ['message' => $e->getMessage(), 'username' => $username]);
