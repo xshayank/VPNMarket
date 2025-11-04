@@ -22,7 +22,7 @@ class PanelFactory extends Factory
         return [
             'name' => fake()->words(2, true),
             'url' => fake()->url(),
-            'panel_type' => fake()->randomElement(['marzban', 'marzneshin', 'xui']),
+            'panel_type' => fake()->randomElement(['marzban', 'marzneshin', 'xui', 'eylandoo']),
             'username' => fake()->userName(),
             'password' => fake()->password(),
             'api_token' => null,
@@ -64,6 +64,20 @@ class PanelFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'panel_type' => 'xui',
+        ]);
+    }
+
+    /**
+     * Indicate that the panel is of type eylandoo.
+     */
+    public function eylandoo(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'panel_type' => 'eylandoo',
+            'api_token' => fake()->uuid(),
+            'extra' => [
+                'node_hostname' => 'https://node.example.com',
+            ],
         ]);
     }
 }

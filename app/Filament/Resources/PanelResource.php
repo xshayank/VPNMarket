@@ -3,15 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PanelResource\Pages;
-use App\Filament\Resources\PanelResource\RelationManagers;
 use App\Models\Panel;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PanelResource extends Resource
 {
@@ -48,6 +45,7 @@ class PanelResource extends Resource
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
                         'v2ray' => 'V2Ray',
+                        'eylandoo' => 'Eylandoo',
                         'other' => 'سایر',
                     ])
                     ->required()
@@ -95,6 +93,7 @@ class PanelResource extends Resource
                         'marzneshin' => 'info',
                         'xui' => 'warning',
                         'v2ray' => 'primary',
+                        'eylandoo' => 'primary',
                         'other' => 'gray',
                         default => 'gray',
                     })
@@ -103,6 +102,7 @@ class PanelResource extends Resource
                         'marzneshin' => 'مرزنشین',
                         'xui' => 'سنایی / X-UI',
                         'v2ray' => 'V2Ray',
+                        'eylandoo' => 'Eylandoo',
                         'other' => 'سایر',
                         default => $state,
                     }),

@@ -9,21 +9,23 @@ class PermissionsSeeder extends Seeder
 {
     /**
      * Run the database seeds.
-     * 
-     * This seeder creates the 'configs.reset_usage' and 'configs.reset_usage_own' permissions
-     * and assigns them to appropriate roles if Spatie Permission package is installed.
-     * 
+     *
+     * This seeder creates the 'configs.reset_usage', 'configs.reset_usage_own',
+     * and 'panels.use.eylandoo' permissions and assigns them to appropriate roles
+     * if Spatie Permission package is installed.
+     *
      * To run this seeder:
      * php artisan db:seed --class=PermissionsSeeder
-     * 
+     *
      * If Filament Shield is installed, refresh cache after seeding:
      * php artisan shield:cache
      */
     public function run(): void
     {
         // Check if Spatie Permission package is installed
-        if (!class_exists(\Spatie\Permission\Models\Permission::class)) {
+        if (! class_exists(\Spatie\Permission\Models\Permission::class)) {
             $this->command->info('Spatie Permission package not installed. Skipping permission creation.');
+
             return;
         }
 
@@ -42,8 +44,14 @@ class PermissionsSeeder extends Seeder
                 ['guard_name' => 'web']
             );
 
+            $eylandooPanelPermission = $permissionClass::firstOrCreate(
+                ['name' => 'panels.use.eylandoo'],
+                ['guard_name' => 'web']
+            );
+
             $this->command->info("Permission 'configs.reset_usage' created/updated successfully.");
             $this->command->info("Permission 'configs.reset_usage_own' created/updated successfully.");
+            $this->command->info("Permission 'panels.use.eylandoo' created/updated successfully.");
 
             // Try to assign to admin roles if they exist
             $adminRoles = ['super-admin', 'admin'];
@@ -54,9 +62,13 @@ class PermissionsSeeder extends Seeder
             foreach ($adminRoles as $roleName) {
                 $role = $roleClass::where('name', $roleName)->where('guard_name', 'web')->first();
                 if ($role) {
-                    if (!$role->hasPermissionTo($resetUsagePermission)) {
+                    if (! $role->hasPermissionTo($resetUsagePermission)) {
                         $role->givePermissionTo($resetUsagePermission);
                         $assignedRoles[] = $roleName;
+                    }
+                    // Also assign eylandoo panel permission to admins
+                    if (! $role->hasPermissionTo($eylandooPanelPermission)) {
+                        $role->givePermissionTo($eylandooPanelPermission);
                     }
                 }
             }
@@ -65,37 +77,37 @@ class PermissionsSeeder extends Seeder
             foreach ($resellerRoles as $roleName) {
                 $role = $roleClass::where('name', $roleName)->where('guard_name', 'web')->first();
                 if ($role) {
-                    if (!$role->hasPermissionTo($resetUsageOwnPermission)) {
+                    if (! $role->hasPermissionTo($resetUsageOwnPermission)) {
                         $role->givePermissionTo($resetUsageOwnPermission);
                         $assignedRoles[] = $roleName;
                     }
                 }
             }
 
-            if (!empty($assignedRoles)) {
-                $this->command->info("Permissions assigned to roles: " . implode(', ', $assignedRoles));
+            if (! empty($assignedRoles)) {
+                $this->command->info('Permissions assigned to roles: '.implode(', ', $assignedRoles));
             } else {
                 $this->command->warn("No 'admin', 'super-admin', or 'reseller' roles found. Please assign the permissions manually.");
             }
 
             // Clear permission cache
             app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-            $this->command->info("Permission cache cleared.");
+            $this->command->info('Permission cache cleared.');
 
-            $this->command->info("✓ Seeding completed successfully!");
-            $this->command->info("  Next steps:");
-            $this->command->info("  1. If using Filament Shield, run: php artisan shield:cache");
-            $this->command->info("  2. Re-login to refresh user permissions");
+            $this->command->info('✓ Seeding completed successfully!');
+            $this->command->info('  Next steps:');
+            $this->command->info('  1. If using Filament Shield, run: php artisan shield:cache');
+            $this->command->info('  2. Re-login to refresh user permissions');
 
         } catch (\Exception $e) {
-            $this->command->error("Error during seeding: " . $e->getMessage());
+            $this->command->error('Error during seeding: '.$e->getMessage());
             // Log full error details to Laravel log file for debugging
-            Log::error("PermissionsSeeder failed", [
+            Log::error('PermissionsSeeder failed', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            $this->command->info("Full error details have been logged to storage/logs/");
+            $this->command->info('Full error details have been logged to storage/logs/');
         }
     }
 }

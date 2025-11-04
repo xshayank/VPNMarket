@@ -22,8 +22,8 @@ class PanelsController extends Controller
                 'url' => $panel->url,
                 'panel_type' => $panel->panel_type,
                 'username' => $panel->username,
-                'has_password' => !empty($panel->password),
-                'has_api_token' => !empty($panel->api_token),
+                'has_password' => ! empty($panel->password),
+                'has_api_token' => ! empty($panel->api_token),
                 'extra' => $panel->extra,
                 'is_active' => $panel->is_active,
                 'created_at' => $panel->created_at,
@@ -47,7 +47,7 @@ class PanelsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'url' => 'required|url|max:255',
-            'panel_type' => ['required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])],
+            'panel_type' => ['required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'eylandoo', 'other'])],
             'username' => 'nullable|string|max:255',
             'password' => 'nullable|string',
             'api_token' => 'nullable|string',
@@ -73,8 +73,8 @@ class PanelsController extends Controller
                 'url' => $panel->url,
                 'panel_type' => $panel->panel_type,
                 'username' => $panel->username,
-                'has_password' => !empty($panel->password),
-                'has_api_token' => !empty($panel->api_token),
+                'has_password' => ! empty($panel->password),
+                'has_api_token' => ! empty($panel->api_token),
                 'extra' => $panel->extra,
                 'is_active' => $panel->is_active,
                 'created_at' => $panel->created_at,
@@ -98,8 +98,8 @@ class PanelsController extends Controller
                 'url' => $panel->url,
                 'panel_type' => $panel->panel_type,
                 'username' => $panel->username,
-                'has_password' => !empty($panel->password),
-                'has_api_token' => !empty($panel->api_token),
+                'has_password' => ! empty($panel->password),
+                'has_api_token' => ! empty($panel->api_token),
                 'extra' => $panel->extra,
                 'is_active' => $panel->is_active,
                 'created_at' => $panel->created_at,
@@ -118,7 +118,7 @@ class PanelsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'url' => 'sometimes|required|url|max:255',
-            'panel_type' => ['sometimes', 'required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'other'])],
+            'panel_type' => ['sometimes', 'required', Rule::in(['marzban', 'marzneshin', 'xui', 'v2ray', 'eylandoo', 'other'])],
             'username' => 'nullable|string|max:255',
             'password' => 'nullable|string',
             'api_token' => 'nullable|string',
@@ -134,14 +134,14 @@ class PanelsController extends Controller
         }
 
         $data = $validator->validated();
-        
+
         // Only update password if provided
-        if (!isset($data['password']) || $data['password'] === '') {
+        if (! isset($data['password']) || $data['password'] === '') {
             unset($data['password']);
         }
-        
+
         // Only update api_token if provided
-        if (!isset($data['api_token']) || $data['api_token'] === '') {
+        if (! isset($data['api_token']) || $data['api_token'] === '') {
             unset($data['api_token']);
         }
 
@@ -156,8 +156,8 @@ class PanelsController extends Controller
                 'url' => $panel->url,
                 'panel_type' => $panel->panel_type,
                 'username' => $panel->username,
-                'has_password' => !empty($panel->password),
-                'has_api_token' => !empty($panel->api_token),
+                'has_password' => ! empty($panel->password),
+                'has_api_token' => ! empty($panel->api_token),
                 'extra' => $panel->extra,
                 'is_active' => $panel->is_active,
                 'created_at' => $panel->created_at,
