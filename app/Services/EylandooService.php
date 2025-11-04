@@ -193,8 +193,9 @@ class EylandooService
             ];
         }
 
-        // Collect wrappers to search (include root and known wrapper keys)
-        $wrappers = ['root' => $resp];
+        // Collect wrappers to search (include root response and known wrapper keys)
+        // Using __root__ to clearly indicate this represents top-level response data
+        $wrappers = ['__root__' => $resp];
         $wrapperKeys = ['userInfo', 'data', 'user', 'result', 'stats'];
 
         foreach ($wrapperKeys as $key) {
@@ -281,13 +282,16 @@ class EylandooService
             }
         }
 
-        // Choose the maximum non-null value from all candidates
+        // Choose the maximum non-null value from all candidates (O(n) efficiency)
         if (! empty($candidates)) {
-            usort($candidates, function ($a, $b) {
-                return $b['bytes'] <=> $a['bytes'];
-            });
+            $maxCandidate = $candidates[0];
+            foreach ($candidates as $candidate) {
+                if ($candidate['bytes'] > $maxCandidate['bytes']) {
+                    $maxCandidate = $candidate;
+                }
+            }
 
-            return $candidates[0]; // Return the candidate with the maximum bytes
+            return $maxCandidate;
         }
 
         // No usage fields found - valid response but no traffic yet (return 0)
