@@ -346,8 +346,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             Log::info("Eylandoo usage for user {$username}: 0 bytes (valid, no traffic)");
         }
 
-        // Clamp to >= 0 for safety (getUserUsageBytes already does this, but being defensive)
-        return max(0, $usage);
+        return $usage;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void
