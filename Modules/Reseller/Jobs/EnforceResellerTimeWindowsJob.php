@@ -26,13 +26,12 @@ class EnforceResellerTimeWindowsJob implements ShouldQueue
         $now = now()->timezone(config('app.timezone', 'Asia/Tehran'))->startOfMinute();
 
         // Find active resellers whose window has expired
+        // Use DB query to filter instead of loading all into memory
         $expiredResellers = Reseller::where('type', 'traffic')
             ->where('status', 'active')
             ->whereNotNull('window_ends_at')
-            ->get()
-            ->filter(function ($reseller) use ($now) {
-                return $reseller->window_ends_at->startOfMinute()->lte($now);
-            });
+            ->where('window_ends_at', '<=', $now)
+            ->get();
 
         Log::info("Found {$expiredResellers->count()} resellers with expired windows");
 
@@ -45,13 +44,12 @@ class EnforceResellerTimeWindowsJob implements ShouldQueue
         }
 
         // Find suspended resellers whose window has been extended
+        // Use DB query to filter instead of loading all into memory
         $eligibleResellers = Reseller::where('type', 'traffic')
             ->where('status', 'suspended')
             ->whereNotNull('window_ends_at')
-            ->get()
-            ->filter(function ($reseller) use ($now) {
-                return $reseller->window_ends_at->startOfMinute()->gt($now);
-            });
+            ->where('window_ends_at', '>', $now)
+            ->get();
 
         Log::info("Found {$eligibleResellers->count()} resellers eligible for reactivation");
 

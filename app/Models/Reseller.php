@@ -130,16 +130,36 @@ class Reseller extends Model
     }
 
     /**
+     * Get a timezone-aware now instance
+     */
+    private function getAppTimezoneNow(): \Illuminate\Support\Carbon
+    {
+        return now()->timezone(config('app.timezone', 'Asia/Tehran'));
+    }
+
+    /**
+     * Convert window_ends_at to app timezone
+     */
+    private function getWindowEndInAppTimezone(): ?\Illuminate\Support\Carbon
+    {
+        if (!$this->window_ends_at) {
+            return null;
+        }
+
+        return $this->window_ends_at->copy()->timezone(config('app.timezone', 'Asia/Tehran'));
+    }
+
+    /**
      * Get time remaining in seconds, clamped to 0 when expired
      */
     public function getTimeRemainingSeconds(): int
     {
-        if (!$this->window_ends_at) {
+        $windowEnd = $this->getWindowEndInAppTimezone();
+        if (!$windowEnd) {
             return 0;
         }
 
-        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'));
-        $windowEnd = $this->window_ends_at->copy()->timezone(config('app.timezone', 'Asia/Tehran'));
+        $now = $this->getAppTimezoneNow();
         
         // If window_ends_at is in the past, return 0
         if ($windowEnd->lte($now)) {
@@ -154,12 +174,12 @@ class Reseller extends Model
      */
     public function getTimeRemainingDays(): int
     {
-        if (!$this->window_ends_at) {
+        $windowEnd = $this->getWindowEndInAppTimezone();
+        if (!$windowEnd) {
             return 0;
         }
 
-        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'));
-        $windowEnd = $this->window_ends_at->copy()->timezone(config('app.timezone', 'Asia/Tehran'));
+        $now = $this->getAppTimezoneNow();
         
         // If window_ends_at is in the past, return 0
         if ($windowEnd->lte($now)) {

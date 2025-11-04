@@ -17,6 +17,26 @@ class ResellerTimeWindowEnforcer
     }
 
     /**
+     * Get the current time in app timezone with minute precision
+     */
+    private function getAppTimezoneNow(): \Illuminate\Support\Carbon
+    {
+        return now()->timezone(config('app.timezone', 'Asia/Tehran'))->startOfMinute();
+    }
+
+    /**
+     * Get panel for config with caching to avoid duplicate queries
+     */
+    private function getPanel(int $panelId, array &$panelCache): ?Panel
+    {
+        if (!isset($panelCache[$panelId])) {
+            $panelCache[$panelId] = Panel::find($panelId);
+        }
+        
+        return $panelCache[$panelId];
+    }
+
+    /**
      * Suspend reseller if their time window has expired
      */
     public function suspendIfExpired(Reseller $reseller): bool
@@ -32,7 +52,13 @@ class ResellerTimeWindowEnforcer
         }
 
         // Check if window has expired
-        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'))->startOfMinute();
+        $now = $this->getAppTimezoneNow();
+        
+        if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->gt($now)) {
+            return false;
+        }
+
+        Log::info("Suspending reseller {$reseller->id} due to expired time window");
         
         if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->gt($now)) {
             return false;
@@ -79,7 +105,7 @@ class ResellerTimeWindowEnforcer
         }
 
         // Check if window is now valid
-        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'))->startOfMinute();
+        $now = $this->getAppTimezoneNow();
         
         if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->lte($now)) {
             return false;
@@ -127,6 +153,7 @@ class ResellerTimeWindowEnforcer
 
         $disabledCount = 0;
         $failedCount = 0;
+        $panelCache = [];
 
         foreach ($configs as $config) {
             try {
@@ -151,6 +178,13 @@ class ResellerTimeWindowEnforcer
                     'meta' => $meta,
                 ]);
 
+                // Get panel type with caching
+                $panelType = null;
+                if ($config->panel_id) {
+                    $panel = $this->getPanel($config->panel_id, $panelCache);
+                    $panelType = $panel?->panel_type;
+                }
+
                 // Create config event
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
@@ -161,7 +195,7 @@ class ResellerTimeWindowEnforcer
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
                         'panel_id' => $config->panel_id,
-                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                        'panel_type_used' => $panelType,
                     ],
                 ]);
 
@@ -177,7 +211,7 @@ class ResellerTimeWindowEnforcer
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
                         'panel_id' => $config->panel_id,
-                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                        'panel_type_used' => $panelType,
                     ],
                     actorType: null,
                     actorId: null  // System action
@@ -215,6 +249,7 @@ class ResellerTimeWindowEnforcer
 
         $enabledCount = 0;
         $failedCount = 0;
+        $panelCache = [];
 
         foreach ($configs as $config) {
             try {
@@ -239,6 +274,13 @@ class ResellerTimeWindowEnforcer
                     'meta' => $meta,
                 ]);
 
+                // Get panel type with caching
+                $panelType = null;
+                if ($config->panel_id) {
+                    $panel = $this->getPanel($config->panel_id, $panelCache);
+                    $panelType = $panel?->panel_type;
+                }
+
                 // Create config event
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
@@ -249,7 +291,7 @@ class ResellerTimeWindowEnforcer
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
                         'panel_id' => $config->panel_id,
-                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                        'panel_type_used' => $panelType,
                     ],
                 ]);
 
@@ -265,7 +307,7 @@ class ResellerTimeWindowEnforcer
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
                         'panel_id' => $config->panel_id,
-                        'panel_type_used' => $config->panel_id ? Panel::find($config->panel_id)?->panel_type : null,
+                        'panel_type_used' => $panelType,
                     ],
                     actorType: null,
                     actorId: null  // System action
