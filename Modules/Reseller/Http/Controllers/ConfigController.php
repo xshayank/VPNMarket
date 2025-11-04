@@ -85,6 +85,8 @@ class ConfigController extends Controller
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_days' => 'required|integer|min:1',
             'comment' => 'nullable|string|max:200',
+            'prefix' => 'nullable|string|max:50|regex:/^[a-zA-Z0-9_-]+$/',
+            'custom_name' => 'nullable|string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
             'service_ids' => 'nullable|array',
             'service_ids.*' => 'integer',
         ]);
@@ -119,11 +121,17 @@ class ConfigController extends Controller
         DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
             $provisioner = new ResellerProvisioner;
 
+            // Get prefix and custom_name from request (if user has permissions)
+            $prefix = $request->input('prefix');
+            $customName = $request->input('custom_name');
+
             // Create config record first
             $config = ResellerConfig::create([
                 'reseller_id' => $reseller->id,
                 'external_username' => '', // Will be set after provisioning
                 'comment' => $request->input('comment'),
+                'prefix' => $prefix,
+                'custom_name' => $customName,
                 'traffic_limit_bytes' => $trafficLimitBytes,
                 'usage_bytes' => 0,
                 'expires_at' => $expiresAt,
@@ -133,7 +141,7 @@ class ConfigController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            $username = $provisioner->generateUsername($reseller, 'config', $config->id);
+            $username = $provisioner->generateUsername($reseller, 'config', $config->id, null, $prefix, $customName);
             $config->update(['external_username' => $username]);
 
             // Provision on panel - use a non-persisted Plan model instance
@@ -185,24 +193,24 @@ class ConfigController extends Controller
 
         // Try to disable on remote panel first
         $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-        
+
         if ($config->panel_id) {
             try {
                 $panel = Panel::findOrFail($config->panel_id);
                 $provisioner = new ResellerProvisioner;
-                
+
                 // Use panel->panel_type instead of config->panel_type
                 $remoteResult = $provisioner->disableUser(
                     $panel->panel_type,
                     $panel->getCredentials(),
                     $config->panel_user_id
                 );
-                
-                if (!$remoteResult['success']) {
+
+                if (! $remoteResult['success']) {
                     Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                 }
             } catch (\Exception $e) {
-                Log::error("Exception disabling config {$config->id} on panel: " . $e->getMessage());
+                Log::error("Exception disabling config {$config->id} on panel: ".$e->getMessage());
                 $remoteResult['last_error'] = $e->getMessage();
             }
         }
@@ -241,8 +249,8 @@ class ConfigController extends Controller
             ]
         );
 
-        if (!$remoteResult['success']) {
-            return back()->with('warning', 'Config disabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
+        if (! $remoteResult['success']) {
+            return back()->with('warning', 'Config disabled locally, but remote panel update failed after '.$remoteResult['attempts'].' attempts.');
         }
 
         return back()->with('success', 'Config disabled successfully.');
@@ -267,24 +275,24 @@ class ConfigController extends Controller
 
         // Try to enable on remote panel first
         $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-        
+
         if ($config->panel_id) {
             try {
                 $panel = Panel::findOrFail($config->panel_id);
                 $provisioner = new ResellerProvisioner;
-                
+
                 // Use panel->panel_type instead of config->panel_type
                 $remoteResult = $provisioner->enableUser(
                     $panel->panel_type,
                     $panel->getCredentials(),
                     $config->panel_user_id
                 );
-                
-                if (!$remoteResult['success']) {
+
+                if (! $remoteResult['success']) {
                     Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                 }
             } catch (\Exception $e) {
-                Log::error("Exception enabling config {$config->id} on panel: " . $e->getMessage());
+                Log::error("Exception enabling config {$config->id} on panel: ".$e->getMessage());
                 $remoteResult['last_error'] = $e->getMessage();
             }
         }
@@ -323,8 +331,8 @@ class ConfigController extends Controller
             ]
         );
 
-        if (!$remoteResult['success']) {
-            return back()->with('warning', 'Config enabled locally, but remote panel update failed after ' . $remoteResult['attempts'] . ' attempts.');
+        if (! $remoteResult['success']) {
+            return back()->with('warning', 'Config enabled locally, but remote panel update failed after '.$remoteResult['attempts'].' attempts.');
         }
 
         return back()->with('success', 'Config enabled successfully.');
@@ -345,14 +353,14 @@ class ConfigController extends Controller
                 $panel = Panel::findOrFail($config->panel_id);
                 $provisioner = new ResellerProvisioner;
                 $success = $provisioner->deleteUser($config->panel_type, $panel->getCredentials(), $config->panel_user_id);
-                
-                if (!$success) {
+
+                if (! $success) {
                     $remoteFailed = true;
                     Log::warning("Failed to delete config {$config->id} on remote panel {$panel->id}");
                 }
             } catch (\Exception $e) {
                 $remoteFailed = true;
-                Log::error("Exception deleting config {$config->id} on panel: " . $e->getMessage());
+                Log::error("Exception deleting config {$config->id} on panel: ".$e->getMessage());
             }
         }
 
@@ -392,7 +400,7 @@ class ConfigController extends Controller
     {
         // Use policy authorization
         $this->authorize('update', $config);
-        
+
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {
@@ -409,7 +417,7 @@ class ConfigController extends Controller
     {
         // Use policy authorization
         $this->authorize('update', $config);
-        
+
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {
@@ -430,7 +438,7 @@ class ConfigController extends Controller
 
         // Validation: traffic limit cannot be below current usage
         if ($trafficLimitBytes < $config->usage_bytes) {
-            return back()->with('error', 'Traffic limit cannot be set below current usage (' . round($config->usage_bytes / (1024 * 1024 * 1024), 2) . ' GB).');
+            return back()->with('error', 'Traffic limit cannot be set below current usage ('.round($config->usage_bytes / (1024 * 1024 * 1024), 2).' GB).');
         }
 
         // Store old values for audit
@@ -448,12 +456,12 @@ class ConfigController extends Controller
 
             // Try to update on remote panel
             $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-            
+
             if ($config->panel_id) {
                 try {
                     $panel = Panel::findOrFail($config->panel_id);
                     $provisioner = new ResellerProvisioner;
-                    
+
                     $remoteResult = $provisioner->updateUserLimits(
                         $panel->panel_type,
                         $panel->getCredentials(),
@@ -461,12 +469,12 @@ class ConfigController extends Controller
                         $trafficLimitBytes,
                         $expiresAt
                     );
-                    
-                    if (!$remoteResult['success']) {
+
+                    if (! $remoteResult['success']) {
                         Log::warning("Failed to update config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     }
                 } catch (\Exception $e) {
-                    Log::error("Exception updating config {$config->id} on panel: " . $e->getMessage());
+                    Log::error("Exception updating config {$config->id} on panel: ".$e->getMessage());
                     $remoteResult['last_error'] = $e->getMessage();
                 }
             }
@@ -505,9 +513,9 @@ class ConfigController extends Controller
             );
         });
 
-        if ($remoteResultFinal && !$remoteResultFinal['success']) {
+        if ($remoteResultFinal && ! $remoteResultFinal['success']) {
             return redirect()->route('reseller.configs.index')
-                ->with('warning', 'Config updated locally, but remote panel update failed after ' . $remoteResultFinal['attempts'] . ' attempts.');
+                ->with('warning', 'Config updated locally, but remote panel update failed after '.$remoteResultFinal['attempts'].' attempts.');
         }
 
         return redirect()->route('reseller.configs.index')
@@ -518,7 +526,7 @@ class ConfigController extends Controller
     {
         // Use policy authorization
         $this->authorize('resetUsage', $config);
-        
+
         $reseller = $request->user()->reseller;
 
         if ($config->reseller_id !== $reseller->id) {
@@ -526,10 +534,11 @@ class ConfigController extends Controller
         }
 
         // Check if config can be reset (24h rate limit)
-        if (!$config->canResetUsage()) {
+        if (! $config->canResetUsage()) {
             $lastResetAt = \Carbon\Carbon::parse($config->getLastResetAt());
             $nextResetAt = $lastResetAt->copy()->addHours(24);
-            return back()->with('error', 'Usage can only be reset once per 24 hours. Next reset available at: ' . $nextResetAt->format('Y-m-d H:i:s'));
+
+            return back()->with('error', 'Usage can only be reset once per 24 hours. Next reset available at: '.$nextResetAt->format('Y-m-d H:i:s'));
         }
 
         $toSettle = $config->usage_bytes;
@@ -542,7 +551,7 @@ class ConfigController extends Controller
             $meta = $config->meta ?? [];
             $currentSettled = (int) data_get($meta, 'settled_usage_bytes', 0);
             $newSettled = $currentSettled + $toSettle;
-            
+
             $meta['settled_usage_bytes'] = $newSettled;
             $meta['last_reset_at'] = now()->toDateTimeString();
 
@@ -554,23 +563,23 @@ class ConfigController extends Controller
 
             // Try to reset on remote panel
             $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-            
+
             if ($config->panel_id) {
                 try {
                     $panel = Panel::findOrFail($config->panel_id);
                     $provisioner = new ResellerProvisioner;
-                    
+
                     $remoteResult = $provisioner->resetUserUsage(
                         $panel->panel_type,
                         $panel->getCredentials(),
                         $config->panel_user_id
                     );
-                    
-                    if (!$remoteResult['success']) {
+
+                    if (! $remoteResult['success']) {
                         Log::warning("Failed to reset usage for config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     }
                 } catch (\Exception $e) {
-                    Log::error("Exception resetting usage for config {$config->id} on panel: " . $e->getMessage());
+                    Log::error("Exception resetting usage for config {$config->id} on panel: ".$e->getMessage());
                     $remoteResult['last_error'] = $e->getMessage();
                 }
             }
@@ -608,10 +617,10 @@ class ConfigController extends Controller
             );
         });
 
-        if ($remoteResultFinal && !$remoteResultFinal['success']) {
-            return back()->with('warning', 'Usage reset locally (settled ' . round($toSettleFinal / (1024 * 1024 * 1024), 2) . ' GB), but remote panel reset failed after ' . $remoteResultFinal['attempts'] . ' attempts.');
+        if ($remoteResultFinal && ! $remoteResultFinal['success']) {
+            return back()->with('warning', 'Usage reset locally (settled '.round($toSettleFinal / (1024 * 1024 * 1024), 2).' GB), but remote panel reset failed after '.$remoteResultFinal['attempts'].' attempts.');
         }
 
-        return back()->with('success', 'Usage reset successfully. Settled ' . round($toSettleFinal / (1024 * 1024 * 1024), 2) . ' GB to your account.');
+        return back()->with('success', 'Usage reset successfully. Settled '.round($toSettleFinal / (1024 * 1024 * 1024), 2).' GB to your account.');
     }
 }

@@ -16,16 +16,16 @@ class ResellerProvisioner
     /**
      * Retry an operation with exponential backoff
      * Attempts: 0s, 1s, 3s (3 total attempts)
-     * 
-     * @param callable $operation The operation to retry (should return bool)
-     * @param string $description Description for logging (no sensitive data)
+     *
+     * @param  callable  $operation  The operation to retry (should return bool)
+     * @param  string  $description  Description for logging (no sensitive data)
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     protected function retryOperation(callable $operation, string $description): array
     {
         $maxAttempts = 3;
         $lastError = null;
-        
+
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
                 // Exponential backoff: 0s, 1s, 3s
@@ -38,9 +38,9 @@ class ResellerProvisioner
                     }
                     usleep($delay * 1000000); // Convert to microseconds
                 }
-                
+
                 $result = $operation();
-                
+
                 if ($result) {
                     return [
                         'success' => true,
@@ -48,16 +48,16 @@ class ResellerProvisioner
                         'last_error' => null,
                     ];
                 }
-                
-                $lastError = "Operation returned false";
+
+                $lastError = 'Operation returned false';
             } catch (\Exception $e) {
                 $lastError = $e->getMessage();
                 Log::warning("Attempt {$attempt}/{$maxAttempts} to {$description} failed: {$lastError}");
             }
         }
-        
+
         Log::error("All {$maxAttempts} attempts to {$description} failed. Last error: {$lastError}");
-        
+
         return [
             'success' => false,
             'attempts' => $maxAttempts,
@@ -68,8 +68,8 @@ class ResellerProvisioner
     /**
      * Apply rate limiting with micro-sleeps to evenly distribute operations
      * Rate: 3 operations per second
-     * 
-     * @param int $operationCount Current operation count (0-indexed)
+     *
+     * @param  int  $operationCount  Current operation count (0-indexed)
      */
     public function applyRateLimit(int $operationCount): void
     {
@@ -81,10 +81,24 @@ class ResellerProvisioner
 
     /**
      * Create a username following the reseller naming convention
+     *
+     * @param  Reseller  $reseller  The reseller instance
+     * @param  string  $type  Type of resource ('order', 'config', etc.)
+     * @param  int  $id  The resource ID
+     * @param  int|null  $index  Optional index (for orders)
+     * @param  string|null  $customPrefix  Optional custom prefix to use for this specific config
+     * @param  string|null  $customName  Optional custom name that completely overrides the generator
+     * @return string The generated username
      */
-    public function generateUsername(Reseller $reseller, string $type, int $id, ?int $index = null): string
+    public function generateUsername(Reseller $reseller, string $type, int $id, ?int $index = null, ?string $customPrefix = null, ?string $customName = null): string
     {
-        $prefix = $reseller->username_prefix ?? Setting::where('key', 'reseller.username_prefix')->value('value') ?? 'resell';
+        // If custom name is provided, use it directly (overrides everything)
+        if ($customName) {
+            return $customName;
+        }
+
+        // Use custom prefix if provided, otherwise fall back to reseller's default prefix
+        $prefix = $customPrefix ?? $reseller->username_prefix ?? Setting::where('key', 'reseller.username_prefix')->value('value') ?? 'resell';
 
         if ($type === 'order') {
             return "{$prefix}_{$reseller->id}_order_{$id}_{$index}";
@@ -250,7 +264,7 @@ class ResellerProvisioner
 
     /**
      * Disable a user on a panel with retry logic
-     * 
+     *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function disableUser(string $panelType, array $credentials, string $panelUserId): array
@@ -302,7 +316,7 @@ class ResellerProvisioner
 
     /**
      * Enable a user on a panel with retry logic
-     * 
+     *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function enableUser(string $panelType, array $credentials, string $panelUserId): array
@@ -354,7 +368,7 @@ class ResellerProvisioner
 
     /**
      * Enable a config on its panel (convenience wrapper for enableUser)
-     * 
+     *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function enableConfig(\App\Models\ResellerConfig $config): array
@@ -385,7 +399,7 @@ class ResellerProvisioner
 
     /**
      * Disable a config on its panel (convenience wrapper for disableUser)
-     * 
+     *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function disableConfig(\App\Models\ResellerConfig $config): array
@@ -467,12 +481,8 @@ class ResellerProvisioner
 
     /**
      * Update user limits (traffic and expiry) on a panel with retry logic
-     * 
-     * @param string $panelType
-     * @param array $credentials
-     * @param string $panelUserId
-     * @param int $trafficLimitBytes
-     * @param \Carbon\Carbon $expiresAt
+     *
+     * @param  \Carbon\Carbon  $expiresAt
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function updateUserLimits(string $panelType, array $credentials, string $panelUserId, int $trafficLimitBytes, $expiresAt): array
@@ -532,10 +542,7 @@ class ResellerProvisioner
 
     /**
      * Reset user usage on a panel with retry logic
-     * 
-     * @param string $panelType
-     * @param array $credentials
-     * @param string $panelUserId
+     *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function resetUserUsage(string $panelType, array $credentials, string $panelUserId): array

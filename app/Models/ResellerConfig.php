@@ -16,6 +16,8 @@ class ResellerConfig extends Model
         'reseller_id',
         'external_username',
         'comment',
+        'prefix',
+        'custom_name',
         'traffic_limit_bytes',
         'usage_bytes',
         'expires_at',

@@ -67,6 +67,28 @@
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">می‌توانید توضیحات کوتاهی برای شناسایی بهتر این کانفیگ وارد کنید</p>
                     </div>
 
+                    @can('configs.set_prefix')
+                        <div class="mb-4 md:mb-6">
+                            <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">پیشوند سفارشی (اختیاری)</label>
+                            <input type="text" name="prefix" maxlength="50" 
+                                class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
+                                placeholder="مثال: myprefix"
+                                pattern="[a-zA-Z0-9_-]+">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">نام نهایی: prefix_resellerId_cfg_configId (فقط حروف انگلیسی، اعداد، خط تیره و زیرخط مجاز است)</p>
+                        </div>
+                    @endcan
+
+                    @can('configs.set_custom_name')
+                        <div class="mb-4 md:mb-6">
+                            <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">نام سفارشی کامل (اختیاری)</label>
+                            <input type="text" name="custom_name" maxlength="100" 
+                                class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
+                                placeholder="مثال: custom_username"
+                                pattern="[a-zA-Z0-9_-]+">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">این نام به طور کامل جایگزین نام خودکار می‌شود (فقط حروف انگلیسی، اعداد، خط تیره و زیرخط مجاز است)</p>
+                        </div>
+                    @endcan
+
                     @if (count($marzneshin_services) > 0)
                         <div class="mb-4 md:mb-6">
                             <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">سرویس‌های Marzneshin (اختیاری)</label>
