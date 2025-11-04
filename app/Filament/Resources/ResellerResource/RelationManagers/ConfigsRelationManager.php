@@ -14,7 +14,6 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 class ConfigsRelationManager extends RelationManager
@@ -62,17 +61,19 @@ class ConfigsRelationManager extends RelationManager
                         $usedGB = round($usageBytes / (1024 * 1024 * 1024), 2);
                         $limitGB = round($record->traffic_limit_bytes / (1024 * 1024 * 1024), 2);
                         $percent = $record->traffic_limit_bytes > 0 ? round(($usageBytes / $record->traffic_limit_bytes) * 100, 1) : 0;
+
                         return "{$usedGB} / {$limitGB} GB ({$percent}%)";
                     })
                     ->html()
                     ->description(function (ResellerConfig $record): string {
                         $usageBytes = $record->usage_bytes ?? 0;
-                        $percent = $record->traffic_limit_bytes > 0 
-                            ? round(($usageBytes / $record->traffic_limit_bytes) * 100, 1) 
+                        $percent = $record->traffic_limit_bytes > 0
+                            ? round(($usageBytes / $record->traffic_limit_bytes) * 100, 1)
                             : 0;
-                        
+
                         // Generate progress bar HTML
                         $colorClass = $percent >= 90 ? 'bg-red-500' : ($percent >= 70 ? 'bg-yellow-500' : 'bg-green-500');
+
                         return "<div class='mt-1'><div class='w-full bg-gray-200 rounded-full h-2'><div class='{$colorClass} h-2 rounded-full' style='width: {$percent}%'></div></div></div>";
                     }),
 
@@ -106,9 +107,9 @@ class ConfigsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('connections')
                     ->label('اتصالات همزمان')
-                    ->formatStateUsing(fn (?int $state): string => $state ? (string)$state : '-')
+                    ->formatStateUsing(fn (?int $state): string => $state ? (string) $state : '-')
                     ->toggleable(isToggledHiddenByDefault: true)
-                    ->visible(fn (ResellerConfig $record): bool => $record->panel_type === 'eylandoo'),
+                    ->visible(fn (?ResellerConfig $record): bool => ($record?->panel_type) === 'eylandoo'),
 
                 Tables\Columns\TextColumn::make('panel_user_id')
                     ->label('شناسه پنل')
@@ -147,7 +148,7 @@ class ConfigsRelationManager extends RelationManager
                     ->label('غیرفعال')
                     ->icon('heroicon-o-pause')
                     ->color('warning')
-                    ->visible(fn (ResellerConfig $record): bool => $record->status === 'active')
+                    ->visible(fn (?ResellerConfig $record): bool => ($record?->status) === 'active')
                     ->requiresConfirmation()
                     ->action(function (ResellerConfig $record) {
                         $this->disableConfig($record);
@@ -157,7 +158,7 @@ class ConfigsRelationManager extends RelationManager
                     ->label('فعال')
                     ->icon('heroicon-o-play')
                     ->color('success')
-                    ->visible(fn (ResellerConfig $record): bool => $record->status === 'disabled')
+                    ->visible(fn (?ResellerConfig $record): bool => ($record?->status) === 'disabled')
                     ->requiresConfirmation()
                     ->action(function (ResellerConfig $record) {
                         $this->enableConfig($record);
@@ -170,7 +171,7 @@ class ConfigsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->action(function (ResellerConfig $record) {
                         $record->update(['usage_bytes' => 0]);
-                        
+
                         ResellerConfigEvent::create([
                             'reseller_config_id' => $record->id,
                             'type' => 'usage_reset',
@@ -281,22 +282,22 @@ class ConfigsRelationManager extends RelationManager
             $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
             $panel = null;
             $panelTypeUsed = null;
-            
+
             if ($config->panel_id && $config->panel_user_id) {
                 // Try relationship first, fall back to Panel::find()
                 $panel = $config->panel ?? \App\Models\Panel::find($config->panel_id);
                 if ($panel) {
                     $panelTypeUsed = $panel->panel_type;
                     $credentials = $panel->getCredentials();
-                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-                    
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+
                     $remoteResult = $provisioner->disableUser(
                         $panel->panel_type,
                         $credentials,
                         $config->panel_user_id
                     );
 
-                    if (!$remoteResult['success']) {
+                    if (! $remoteResult['success']) {
                         Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     } else {
                         Log::info("Config {$config->id} disabled successfully on panel {$panel->id}", [
@@ -348,7 +349,7 @@ class ConfigsRelationManager extends RelationManager
                 ->title('کانفیگ با موفقیت غیرفعال شد')
                 ->send();
         } catch (\Exception $e) {
-            Log::error("Error disabling config: ".$e->getMessage(), ['config_id' => $config->id]);
+            Log::error('Error disabling config: '.$e->getMessage(), ['config_id' => $config->id]);
             Notification::make()
                 ->danger()
                 ->title('خطا در غیرفعال‌سازی کانفیگ')
@@ -364,22 +365,22 @@ class ConfigsRelationManager extends RelationManager
             $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
             $panel = null;
             $panelTypeUsed = null;
-            
+
             if ($config->panel_id && $config->panel_user_id) {
                 // Try relationship first, fall back to Panel::find()
                 $panel = $config->panel ?? \App\Models\Panel::find($config->panel_id);
                 if ($panel) {
                     $panelTypeUsed = $panel->panel_type;
                     $credentials = $panel->getCredentials();
-                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-                    
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+
                     $remoteResult = $provisioner->enableUser(
                         $panel->panel_type,
                         $credentials,
                         $config->panel_user_id
                     );
 
-                    if (!$remoteResult['success']) {
+                    if (! $remoteResult['success']) {
                         Log::warning("Failed to enable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     } else {
                         Log::info("Config {$config->id} enabled successfully on panel {$panel->id}", [
@@ -431,7 +432,7 @@ class ConfigsRelationManager extends RelationManager
                 ->title('کانفیگ با موفقیت فعال شد')
                 ->send();
         } catch (\Exception $e) {
-            Log::error("Error enabling config: ".$e->getMessage(), ['config_id' => $config->id]);
+            Log::error('Error enabling config: '.$e->getMessage(), ['config_id' => $config->id]);
             Notification::make()
                 ->danger()
                 ->title('خطا در فعال‌سازی کانفیگ')
@@ -445,16 +446,16 @@ class ConfigsRelationManager extends RelationManager
         try {
             if ($config->panel && $config->panel_user_id) {
                 $credentials = $config->panel->getCredentials();
-                $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-                
+                $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+
                 $success = $provisioner->deleteUser(
                     $config->panel_type,
                     $credentials,
                     $config->panel_user_id
                 );
 
-                if (!$success) {
-                    Log::warning("Failed to delete config on panel", ['config_id' => $config->id]);
+                if (! $success) {
+                    Log::warning('Failed to delete config on panel', ['config_id' => $config->id]);
                 }
             }
 
@@ -484,7 +485,7 @@ class ConfigsRelationManager extends RelationManager
                 ->title('کانفیگ با موفقیت حذف شد')
                 ->send();
         } catch (\Exception $e) {
-            Log::error("Error deleting config: ".$e->getMessage(), ['config_id' => $config->id]);
+            Log::error('Error deleting config: '.$e->getMessage(), ['config_id' => $config->id]);
             Notification::make()
                 ->danger()
                 ->title('خطا در حذف کانفیگ')
@@ -497,10 +498,10 @@ class ConfigsRelationManager extends RelationManager
     {
         try {
             $newExpiry = $config->expires_at->addDays($days);
-            
+
             if ($config->panel && $config->panel_user_id) {
                 $credentials = $config->panel->getCredentials();
-                
+
                 switch ($config->panel_type) {
                     case 'marzban':
                         $service = new MarzbanService(
@@ -564,7 +565,7 @@ class ConfigsRelationManager extends RelationManager
                 ->body("{$days} روز به زمان کانفیگ اضافه شد")
                 ->send();
         } catch (\Exception $e) {
-            Log::error("Error extending config time: ".$e->getMessage(), ['config_id' => $config->id]);
+            Log::error('Error extending config time: '.$e->getMessage(), ['config_id' => $config->id]);
             Notification::make()
                 ->danger()
                 ->title('خطا در تمدید زمان')
@@ -578,10 +579,10 @@ class ConfigsRelationManager extends RelationManager
         try {
             $additionalBytes = $trafficGB * 1024 * 1024 * 1024;
             $newLimit = $config->traffic_limit_bytes + $additionalBytes;
-            
+
             if ($config->panel && $config->panel_user_id) {
                 $credentials = $config->panel->getCredentials();
-                
+
                 switch ($config->panel_type) {
                     case 'marzban':
                         $service = new MarzbanService(
@@ -645,7 +646,7 @@ class ConfigsRelationManager extends RelationManager
                 ->body("{$trafficGB} گیگابایت به ترافیک کانفیگ اضافه شد")
                 ->send();
         } catch (\Exception $e) {
-            Log::error("Error increasing config traffic: ".$e->getMessage(), ['config_id' => $config->id]);
+            Log::error('Error increasing config traffic: '.$e->getMessage(), ['config_id' => $config->id]);
             Notification::make()
                 ->danger()
                 ->title('خطا در افزایش ترافیک')
