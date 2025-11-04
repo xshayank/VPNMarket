@@ -386,3 +386,133 @@ test('createUser includes nodes when provided', function () {
             && $body['nodes'] === [1, 3, 5];
     });
 });
+
+test('createUser omits nodes when empty array provided', function () {
+    Http::fake([
+        '*/api/v1/users' => Http::response([
+            'success' => true,
+            'created_users' => ['testuser'],
+            'message' => '1 user(s) created successfully.',
+        ], 201),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $userData = [
+        'username' => 'testuser',
+        'expire' => 1735689600,
+        'data_limit' => 10737418240,
+        'max_clients' => 2,
+        'nodes' => [], // Empty array
+    ];
+
+    $result = $service->createUser($userData);
+
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $request->url() === 'https://example.com/api/v1/users'
+            && !isset($body['nodes']); // nodes key should not be present
+    });
+});
+
+test('createUser omits nodes when not provided', function () {
+    Http::fake([
+        '*/api/v1/users' => Http::response([
+            'success' => true,
+            'created_users' => ['testuser'],
+            'message' => '1 user(s) created successfully.',
+        ], 201),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $userData = [
+        'username' => 'testuser',
+        'expire' => 1735689600,
+        'data_limit' => 10737418240,
+        'max_clients' => 2,
+        // nodes not provided at all
+    ];
+
+    $result = $service->createUser($userData);
+
+    expect($result)->toBeArray()
+        ->and($result['success'])->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $request->url() === 'https://example.com/api/v1/users'
+            && !isset($body['nodes']); // nodes key should not be present
+    });
+});
+
+test('extractSubscriptionUrl extracts from data.subscription_url', function () {
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $response = [
+        'data' => [
+            'subscription_url' => '/sub/testuser',
+        ],
+    ];
+
+    $result = $service->extractSubscriptionUrl($response);
+
+    expect($result)->toBe('/sub/testuser');
+});
+
+test('extractSubscriptionUrl extracts from data.users[0].config_url', function () {
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $response = [
+        'data' => [
+            'users' => [
+                [
+                    'config_url' => '/config/testuser',
+                ],
+            ],
+        ],
+    ];
+
+    $result = $service->extractSubscriptionUrl($response);
+
+    expect($result)->toBe('/config/testuser');
+});
+
+test('extractSubscriptionUrl returns null when not found', function () {
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $response = [
+        'data' => [
+            'username' => 'testuser',
+        ],
+    ];
+
+    $result = $service->extractSubscriptionUrl($response);
+
+    expect($result)->toBeNull();
+});

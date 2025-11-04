@@ -281,19 +281,70 @@ class ResellerProvisioner
 
         $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
         $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
+        
+        // Accept both 'max_clients' and 'connections' parameters
         $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
-        $nodes = $options['nodes'] ?? [];
-
-        $result = $service->createUser([
+        
+        // Accept both 'nodes' and 'node_ids' parameters and normalize to array
+        $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
+        
+        // Only include nodes if array is non-empty
+        $userData = [
             'username' => $username,
             'expire' => $expiresAt->timestamp,
             'data_limit' => $trafficLimit,
             'max_clients' => $maxClients,
-            'nodes' => $nodes,
-        ]);
+        ];
+        
+        // Only add nodes if the array is non-empty
+        if (!empty($nodes) && is_array($nodes)) {
+            $userData['nodes'] = $nodes;
+        }
 
-        if ($result && isset($result['data'])) {
-            $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
+        $result = $service->createUser($userData);
+
+        Log::info('Eylandoo provision result:', ['result' => $result, 'username' => $username]);
+
+        // Detect success: either result.success === true or created_users contains username
+        $success = false;
+        if ($result) {
+            // Check for success flag
+            if (isset($result['success']) && $result['success'] === true) {
+                $success = true;
+            }
+            // Or check if created_users array contains this username
+            elseif (isset($result['created_users']) && is_array($result['created_users']) && in_array($username, $result['created_users'])) {
+                $success = true;
+            }
+        }
+
+        if ($success) {
+            $subscriptionUrl = null;
+            
+            // First, try to extract subscription URL from create response
+            $subscriptionUrl = $service->extractSubscriptionUrl($result);
+            
+            // If no subscription URL in create response, fetch user details
+            if (empty($subscriptionUrl)) {
+                Log::info("No subscription URL in create response for {$username}, fetching user details");
+                
+                $userInfo = $service->getUser($username);
+                if ($userInfo) {
+                    Log::info('Eylandoo user info response:', ['userInfo' => $userInfo]);
+                    
+                    // Try to extract subscription URL from user info
+                    $subscriptionUrl = $service->extractSubscriptionUrl($userInfo);
+                }
+            }
+            
+            // Build absolute URL if we have a subscription URL
+            if (!empty($subscriptionUrl)) {
+                // If it's already absolute, use as-is; otherwise build absolute URL
+                if (!preg_match('#^https?://#i', $subscriptionUrl)) {
+                    $baseHost = !empty($nodeHostname) ? $nodeHostname : $credentials['url'];
+                    $subscriptionUrl = rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
+                }
+            }
 
             return [
                 'username' => $username,
