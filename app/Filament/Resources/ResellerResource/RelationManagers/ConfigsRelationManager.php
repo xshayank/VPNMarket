@@ -109,7 +109,7 @@ class ConfigsRelationManager extends RelationManager
                     ->label('اتصالات همزمان')
                     ->formatStateUsing(fn (?int $state): string => $state ? (string) $state : '-')
                     ->toggleable(isToggledHiddenByDefault: true)
-                    ->visible(fn (?ResellerConfig $record): bool => ($record?->panel_type) === 'eylandoo'),
+                    ->visible(fn (?ResellerConfig $record): bool => $record?->panel_type === 'eylandoo'),
 
                 Tables\Columns\TextColumn::make('panel_user_id')
                     ->label('شناسه پنل')
@@ -148,7 +148,7 @@ class ConfigsRelationManager extends RelationManager
                     ->label('غیرفعال')
                     ->icon('heroicon-o-pause')
                     ->color('warning')
-                    ->visible(fn (?ResellerConfig $record): bool => ($record?->status) === 'active')
+                    ->visible(fn (?ResellerConfig $record): bool => $record?->status === 'active')
                     ->requiresConfirmation()
                     ->action(function (ResellerConfig $record) {
                         $this->disableConfig($record);
@@ -158,7 +158,7 @@ class ConfigsRelationManager extends RelationManager
                     ->label('فعال')
                     ->icon('heroicon-o-play')
                     ->color('success')
-                    ->visible(fn (?ResellerConfig $record): bool => ($record?->status) === 'disabled')
+                    ->visible(fn (?ResellerConfig $record): bool => $record?->status === 'disabled')
                     ->requiresConfirmation()
                     ->action(function (ResellerConfig $record) {
                         $this->enableConfig($record);
