@@ -50,6 +50,7 @@ class ConfigController extends Controller
         }
 
         $marzneshinServices = [];
+        $eylandooNodes = [];
 
         // If reseller has Marzneshin service whitelist, fetch available services
         if ($reseller->marzneshin_allowed_service_ids) {
@@ -57,10 +58,31 @@ class ConfigController extends Controller
             $marzneshinServices = $reseller->marzneshin_allowed_service_ids;
         }
 
+        // Fetch Eylandoo nodes for each Eylandoo panel
+        foreach ($panels as $panel) {
+            if ($panel->panel_type === 'eylandoo') {
+                try {
+                    $credentials = $panel->getCredentials();
+                    $service = new \App\Services\EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
+                    $nodes = $service->listNodes();
+                    if (!empty($nodes)) {
+                        $eylandooNodes[$panel->id] = $nodes;
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Failed to fetch Eylandoo nodes for panel {$panel->id}: " . $e->getMessage());
+                }
+            }
+        }
+
         return view('reseller::configs.create', [
             'reseller' => $reseller,
             'panels' => $panels,
             'marzneshin_services' => $marzneshinServices,
+            'eylandoo_nodes' => $eylandooNodes,
         ]);
     }
 
@@ -90,6 +112,8 @@ class ConfigController extends Controller
             'custom_name' => 'nullable|string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
             'service_ids' => 'nullable|array',
             'service_ids.*' => 'integer',
+            'node_ids' => 'nullable|array',
+            'node_ids.*' => 'integer',
         ]);
 
         if ($validator->fails()) {
@@ -151,6 +175,9 @@ class ConfigController extends Controller
                 'panel_type' => $panel->panel_type,
                 'panel_id' => $panel->id,
                 'created_by' => $request->user()->id,
+                'meta' => [
+                    'node_ids' => $request->input('node_ids', []),
+                ],
             ]);
 
             $username = $provisioner->generateUsername($reseller, 'config', $config->id, null, $prefix, $customName);
@@ -168,6 +195,7 @@ class ConfigController extends Controller
                 'service_ids' => $plan->marzneshin_service_ids,
                 'connections' => $request->input('connections', 1),
                 'max_clients' => $request->input('connections', 1),
+                'nodes' => $request->input('node_ids', []),
             ]);
 
             if ($result) {

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Helpers\OwnerExtraction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -36,7 +35,7 @@ class EylandooService
     /**
      * Create a new user
      *
-     * @param  array  $userData  User data with keys: username, data_limit, expire, max_clients (connections)
+     * @param  array  $userData  User data with keys: username, data_limit, expire, max_clients (connections), nodes
      * @return array|null Response from API or null on failure
      */
     public function createUser(array $userData): ?array
@@ -65,9 +64,9 @@ class EylandooService
                 $payload['expiry_date_str'] = date('Y-m-d', $userData['expire']);
             }
 
-            // Add nodes if provided (default to all nodes)
-            if (isset($userData['nodes'])) {
-                $payload['nodes'] = $userData['nodes'];
+            // Add nodes if provided (array of node IDs)
+            if (isset($userData['nodes']) && is_array($userData['nodes'])) {
+                $payload['nodes'] = array_map('intval', $userData['nodes']);
             }
 
             $response = $this->client()->post($this->baseUrl.'/api/v1/users', $payload);
@@ -115,7 +114,7 @@ class EylandooService
      * Update user details
      *
      * @param  string  $username  Username to update
-     * @param  array  $userData  Data to update (data_limit, expire, max_clients, etc.)
+     * @param  array  $userData  Data to update (data_limit, expire, max_clients, nodes, etc.)
      * @return bool Success status
      */
     public function updateUser(string $username, array $userData): bool
@@ -144,6 +143,11 @@ class EylandooService
             if (isset($userData['expire'])) {
                 $payload['activation_type'] = 'fixed_date';
                 $payload['expiry_date_str'] = date('Y-m-d', $userData['expire']);
+            }
+
+            // Update nodes if provided
+            if (isset($userData['nodes']) && is_array($userData['nodes'])) {
+                $payload['nodes'] = array_map('intval', $userData['nodes']);
             }
 
             // Only send request if there's something to update
@@ -315,6 +319,39 @@ class EylandooService
         $absoluteUrl = $this->buildAbsoluteSubscriptionUrl($userApiResponse);
 
         return "لینک سابسکریپشن شما (در تمام برنامه‌ها import کنید):\n".$absoluteUrl;
+    }
+
+    /**
+     * List all available nodes
+     * 
+     * @return array Array of nodes
+     */
+    public function listNodes(): array
+    {
+        try {
+            $response = $this->client()->get($this->baseUrl.'/api/v1/nodes');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $nodes = $data['data']['nodes'] ?? [];
+
+                // Map to simple format: id => name
+                return array_map(function ($node) {
+                    return [
+                        'id' => $node['id'],
+                        'name' => $node['name'],
+                    ];
+                }, $nodes);
+            }
+
+            Log::warning('Eylandoo List Nodes failed:', ['status' => $response->status()]);
+
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Eylandoo List Nodes Exception:', ['message' => $e->getMessage()]);
+
+            return [];
+        }
     }
 
     /**

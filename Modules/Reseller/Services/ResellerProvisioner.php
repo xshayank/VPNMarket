@@ -282,12 +282,14 @@ class ResellerProvisioner
         $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
         $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
         $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
+        $nodes = $options['nodes'] ?? [];
 
         $result = $service->createUser([
             'username' => $username,
             'expire' => $expiresAt->timestamp,
             'data_limit' => $trafficLimit,
             'max_clients' => $maxClients,
+            'nodes' => $nodes,
         ]);
 
         if ($result && isset($result['data'])) {

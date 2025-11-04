@@ -300,3 +300,89 @@ test('buildAbsoluteSubscriptionUrl builds URL from relative path', function () {
 
     expect($result)->toBe('https://node.example.com/sub/testuser');
 });
+
+test('listNodes retrieves all nodes', function () {
+    Http::fake([
+        '*/api/v1/nodes' => Http::response([
+            'status' => 'success',
+            'data' => [
+                'nodes' => [
+                    [
+                        'id' => 1,
+                        'name' => 'Main Server',
+                        'ip_address' => '192.168.1.100',
+                        'status' => 'online',
+                    ],
+                    [
+                        'id' => 2,
+                        'name' => 'Backup Server',
+                        'ip_address' => '192.168.1.101',
+                        'status' => 'online',
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->listNodes();
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(2)
+        ->and($result[0])->toHaveKey('id')
+        ->and($result[0])->toHaveKey('name')
+        ->and($result[0]['name'])->toBe('Main Server')
+        ->and($result[1]['name'])->toBe('Backup Server');
+});
+
+test('createUser includes nodes when provided', function () {
+    Http::fake([
+        '*/api/v1/users' => Http::response([
+            'status' => 'success',
+            'message' => 'User(s) created successfully',
+            'data' => [
+                'users' => [
+                    [
+                        'username' => 'testuser',
+                        'password' => 'generated_password',
+                        'config_url' => 'https://example.com/sub/testuser',
+                        'expiry_date' => '2024-12-31',
+                    ],
+                ],
+            ],
+        ], 201),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        'https://node.example.com'
+    );
+
+    $userData = [
+        'username' => 'testuser',
+        'expire' => 1735689600,
+        'data_limit' => 10737418240,
+        'max_clients' => 2,
+        'nodes' => [1, 3, 5],
+    ];
+
+    $result = $service->createUser($userData);
+
+    expect($result)->toBeArray()
+        ->and($result['status'])->toBe('success');
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $request->url() === 'https://example.com/api/v1/users'
+            && isset($body['nodes'])
+            && is_array($body['nodes'])
+            && $body['nodes'] === [1, 3, 5];
+    });
+});
