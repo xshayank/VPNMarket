@@ -18,36 +18,37 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
+class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 2;
+
     public $timeout = 600;
+
     public $uniqueFor = 300; // 5 minutes
 
     /**
      * Calculate the effective limit with grace threshold applied
-     * 
-     * @param int $limit The base limit in bytes
-     * @param float $gracePercent Grace percentage (e.g., 2.0 for 2%)
-     * @param int $graceBytes Grace in bytes (e.g., 50MB)
+     *
+     * @param  int  $limit  The base limit in bytes
+     * @param  float  $gracePercent  Grace percentage (e.g., 2.0 for 2%)
+     * @param  int  $graceBytes  Grace in bytes (e.g., 50MB)
      * @return int The limit plus maximum grace
      */
     protected function applyGrace(int $limit, float $gracePercent, int $graceBytes): int
     {
         $percentGrace = (int) ($limit * ($gracePercent / 100));
         $maxGrace = max($percentGrace, $graceBytes);
-        
+
         return $limit + $maxGrace;
     }
 
     /**
      * Get grace settings for config-level checks
-     * 
+     *
      * @return array ['percent' => float, 'bytes' => int]
      */
     protected function getConfigGraceSettings(): array
@@ -60,7 +61,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     /**
      * Get grace settings for reseller-level checks
-     * 
+     *
      * @return array ['percent' => float, 'bytes' => int]
      */
     protected function getResellerGraceSettings(): array
@@ -73,7 +74,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     /**
      * Get time expiry grace in minutes
-     * 
+     *
      * @return int Grace minutes (always 0 for calendar-day enforcement)
      */
     protected function getTimeExpiryGraceMinutes(): int
@@ -84,7 +85,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(): void
     {
-        Log::notice("Starting reseller usage sync");
+        Log::notice('Starting reseller usage sync');
 
         // Get all active resellers with traffic-based configs
         $resellers = Reseller::where('status', 'active')
@@ -95,7 +96,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $this->syncResellerUsage($reseller);
         }
 
-        Log::notice("Reseller usage sync completed");
+        Log::notice('Reseller usage sync completed');
     }
 
     protected function syncResellerUsage(Reseller $reseller): void
@@ -114,19 +115,19 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         foreach ($configs as $config) {
             try {
                 $usage = $this->fetchConfigUsage($config);
-                
+
                 if ($usage !== null) {
                     $config->update(['usage_bytes' => $usage]);
 
                     // Only check per-config limits if config overrun is NOT allowed
-                    if (!$allowConfigOverrun) {
+                    if (! $allowConfigOverrun) {
                         // Apply grace threshold to traffic limit
                         $effectiveTrafficLimit = $this->applyGrace(
                             $config->traffic_limit_bytes,
                             $configGrace['percent'],
                             $configGrace['bytes']
                         );
-                        
+
                         // Check if config exceeded its own limits (with grace)
                         if ($config->usage_bytes >= $effectiveTrafficLimit) {
                             $this->disableConfig($config, 'traffic_exceeded');
@@ -136,7 +137,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                     }
                 }
             } catch (\Exception $e) {
-                Log::error("Error syncing config {$config->id}: " . $e->getMessage());
+                Log::error("Error syncing config {$config->id}: ".$e->getMessage());
             }
         }
 
@@ -157,17 +158,17 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $resellerGrace['percent'],
             $resellerGrace['bytes']
         );
-        
+
         $hasTrafficRemaining = $totalUsageBytesFromDB < $effectiveResellerLimit;
         $isWindowValid = $reseller->isWindowValid();
-        
-        if (!$hasTrafficRemaining || !$isWindowValid) {
+
+        if (! $hasTrafficRemaining || ! $isWindowValid) {
             // Suspend the reseller if not already suspended
             if ($reseller->status !== 'suspended') {
-                $reason = !$hasTrafficRemaining ? 'reseller_quota_exhausted' : 'reseller_window_expired';
+                $reason = ! $hasTrafficRemaining ? 'reseller_quota_exhausted' : 'reseller_window_expired';
                 $reseller->update(['status' => 'suspended']);
                 Log::info("Reseller {$reseller->id} suspended due to quota/window exhaustion");
-                
+
                 // Create audit log for reseller suspension
                 AuditLog::log(
                     action: 'reseller_suspended',
@@ -189,18 +190,18 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
     /**
      * Check if a datetime is expired considering grace period (calendar-day basis)
-     * 
-     * @param \Carbon\Carbon $expiresAt
-     * @param int $graceMinutes (ignored - always 0)
-     * @return bool
+     *
+     * @param  \Carbon\Carbon  $expiresAt
+     * @param  int  $graceMinutes  (ignored - always 0)
      */
     protected function isExpiredByTimeWithGrace($expiresAt, int $graceMinutes): bool
     {
         // Calendar-day expiration: expired when now >= expiresAt (start of day)
         // Grace is not applied for time expiry
-        if (!$expiresAt) {
+        if (! $expiresAt) {
             return false;
         }
+
         return now() >= $expiresAt->copy()->startOfDay();
     }
 
@@ -213,9 +214,10 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             } else {
                 $panel = Panel::where('panel_type', $config->panel_type)->first();
             }
-            
-            if (!$panel) {
+
+            if (! $panel) {
                 Log::warning("No panel found for config {$config->id} (panel_id: {$config->panel_id}, type: {$config->panel_type})");
+
                 return null;
             }
 
@@ -224,21 +226,22 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             switch ($config->panel_type) {
                 case 'marzban':
                     return $this->fetchMarzbanUsage($credentials, $config->panel_user_id);
-                    
+
                 case 'marzneshin':
                     return $this->fetchMarzneshinUsage($credentials, $config->panel_user_id);
-                    
+
                 case 'xui':
                     return $this->fetchXUIUsage($credentials, $config->panel_user_id);
-                    
+
                 case 'eylandoo':
                     return $this->fetchEylandooUsage($credentials, $config->panel_user_id);
-                    
+
                 default:
                     return null;
             }
         } catch (\Exception $e) {
-            Log::error("Failed to fetch usage for config {$config->id}: " . $e->getMessage());
+            Log::error("Failed to fetch usage for config {$config->id}: ".$e->getMessage());
+
             return null;
         }
     }
@@ -246,7 +249,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
     protected function fetchMarzbanUsage(array $credentials, string $username): ?int
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-        
+
         $service = new MarzbanService(
             $credentials['url'],
             $credentials['username'],
@@ -254,24 +257,24 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $nodeHostname
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
         $user = $service->getUser($username);
-        
-        if (!$user) {
+
+        if (! $user) {
             return null;
         }
-        
+
         // Defensive cast to avoid null arithmetic
-        return isset($user['used_traffic']) ? (int)$user['used_traffic'] : null;
+        return isset($user['used_traffic']) ? (int) $user['used_traffic'] : null;
     }
 
     protected function fetchMarzneshinUsage(array $credentials, string $username): ?int
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-        
+
         $service = new MarzneshinService(
             $credentials['url'],
             $credentials['username'],
@@ -279,18 +282,18 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $nodeHostname
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
         $user = $service->getUser($username);
-        
-        if (!$user) {
+
+        if (! $user) {
             return null;
         }
-        
+
         // Defensive cast to avoid null arithmetic
-        return isset($user['used_traffic']) ? (int)$user['used_traffic'] : null;
+        return isset($user['used_traffic']) ? (int) $user['used_traffic'] : null;
     }
 
     protected function fetchXUIUsage(array $credentials, string $username): ?int
@@ -301,70 +304,76 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             $credentials['password']
         );
 
-        if (!$service->login()) {
+        if (! $service->login()) {
             return null;
         }
 
         $user = $service->getUser($username);
-        
-        if (!$user) {
+
+        if (! $user) {
             return null;
         }
-        
+
         // Safely compute usage with proper type casting
-        $up = (int)($user['up'] ?? 0);
-        $down = (int)($user['down'] ?? 0);
-        
+        $up = (int) ($user['up'] ?? 0);
+        $down = (int) ($user['down'] ?? 0);
+
         return $up + $down;
     }
 
     protected function fetchEylandooUsage(array $credentials, string $username): ?int
     {
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
-        
+
         $service = new EylandooService(
             $credentials['url'],
             $credentials['api_token'],
             $nodeHostname
         );
 
-        $user = $service->getUser($username);
-        
-        if (! $user) {
+        // Use the new getUserUsageBytes method which handles multiple response shapes
+        $usage = $service->getUserUsageBytes($username);
+
+        if ($usage === null) {
+            // Hard failure (HTTP error or exception)
+            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure)");
+
             return null;
         }
-        
-        // Eylandoo returns data_used (in bytes) in the data object
-        $dataUsed = $user['data']['data_used'] ?? null;
-        
-        // Return bytes
-        return isset($dataUsed) ? (int)$dataUsed : null;
+
+        if ($usage === 0) {
+            // Valid response but no traffic yet
+            Log::info("Eylandoo usage for user {$username}: 0 bytes (valid, no traffic)");
+        }
+
+        // Clamp to >= 0 for safety (getUserUsageBytes already does this, but being defensive)
+        return max(0, $usage);
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void
     {
         // Attempt remote disable first using ResellerProvisioner
         $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-        
+
         if ($config->panel_id) {
             try {
                 $panel = Panel::find($config->panel_id);
                 if ($panel) {
-                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+                    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
                     $remoteResult = $provisioner->disableUser(
                         $panel->panel_type,  // Use panel's panel_type, not config's
                         $panel->getCredentials(),
                         $config->panel_user_id
                     );
-                    
-                    if (!$remoteResult['success']) {
+
+                    if (! $remoteResult['success']) {
                         Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts");
                     }
                 } else {
                     Log::warning("Panel {$config->panel_id} not found for config {$config->id}");
                 }
             } catch (\Exception $e) {
-                Log::error("Exception disabling config {$config->id} on panel: " . $e->getMessage());
+                Log::error("Exception disabling config {$config->id} on panel: ".$e->getMessage());
                 $remoteResult['last_error'] = $e->getMessage();
             }
         }
@@ -405,12 +414,12 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             actorId: null  // System action
         );
 
-        Log::notice("Config {$config->id} disabled due to: {$reason} (remote_success: " . ($remoteResult['success'] ? 'true' : 'false') . ", panel_id: {$config->panel_id})");
+        Log::notice("Config {$config->id} disabled due to: {$reason} (remote_success: ".($remoteResult['success'] ? 'true' : 'false').", panel_id: {$config->panel_id})");
     }
 
     protected function disableResellerConfigs(Reseller $reseller): void
     {
-        $reason = !$reseller->hasTrafficRemaining() ? 'reseller_quota_exhausted' : 'reseller_window_expired';
+        $reason = ! $reseller->hasTrafficRemaining() ? 'reseller_quota_exhausted' : 'reseller_window_expired';
 
         $configs = $reseller->configs()->where('status', 'active')->get();
 
@@ -422,7 +431,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
         $disabledCount = 0;
         $failedCount = 0;
-        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
 
         foreach ($configs as $config) {
             try {
@@ -431,7 +440,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
                 // Disable on remote panel first using the stored panel_id
                 $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
-                
+
                 if ($config->panel_id) {
                     $panel = Panel::find($config->panel_id);
                     if ($panel) {
@@ -440,8 +449,8 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                             $panel->getCredentials(),
                             $config->panel_user_id
                         );
-                        
-                        if (!$remoteResult['success']) {
+
+                        if (! $remoteResult['success']) {
                             Log::warning("Failed to disable config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                             $failedCount++;
                         }
@@ -486,7 +495,7 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
 
                 $disabledCount++;
             } catch (\Exception $e) {
-                Log::error("Exception disabling config {$config->id}: " . $e->getMessage());
+                Log::error("Exception disabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
             }
         }

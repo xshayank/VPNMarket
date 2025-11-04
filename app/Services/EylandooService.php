@@ -111,6 +111,60 @@ class EylandooService
     }
 
     /**
+     * Get user usage in bytes
+     *
+     * @param  string  $username  Username to fetch usage for
+     * @return int|null Usage in bytes, or null on hard failure (HTTP error/exception)
+     */
+    public function getUserUsageBytes(string $username): ?int
+    {
+        try {
+            $userResponse = $this->getUser($username);
+
+            if ($userResponse === null) {
+                Log::warning('Eylandoo Get User Usage: failed to retrieve user data', ['username' => $username]);
+
+                return null;
+            }
+
+            // Priority 1: userInfo.total_traffic_bytes (production shape)
+            if (isset($userResponse['userInfo']['total_traffic_bytes'])) {
+                $usage = (int) $userResponse['userInfo']['total_traffic_bytes'];
+                Log::info('Eylandoo usage from userInfo.total_traffic_bytes', ['username' => $username, 'usage_bytes' => $usage]);
+
+                return max(0, $usage);
+            }
+
+            // Priority 2: userInfo.upload_bytes + userInfo.download_bytes
+            if (isset($userResponse['userInfo']['upload_bytes']) && isset($userResponse['userInfo']['download_bytes'])) {
+                $upload = (int) $userResponse['userInfo']['upload_bytes'];
+                $download = (int) $userResponse['userInfo']['download_bytes'];
+                $usage = $upload + $download;
+                Log::info('Eylandoo usage from userInfo upload+download', ['username' => $username, 'usage_bytes' => $usage]);
+
+                return max(0, $usage);
+            }
+
+            // Priority 3: Fallback to data.data_used (older shape or different API versions)
+            if (isset($userResponse['data']['data_used'])) {
+                $usage = (int) $userResponse['data']['data_used'];
+                Log::info('Eylandoo usage from data.data_used', ['username' => $username, 'usage_bytes' => $usage]);
+
+                return max(0, $usage);
+            }
+
+            // No usage keys found, but response was successful - return 0
+            Log::info('Eylandoo usage: no traffic data in response, returning 0', ['username' => $username]);
+
+            return 0;
+        } catch (\Exception $e) {
+            Log::error('Eylandoo Get User Usage Exception:', ['message' => $e->getMessage(), 'username' => $username]);
+
+            return null;
+        }
+    }
+
+    /**
      * Update user details
      *
      * @param  string  $username  Username to update
