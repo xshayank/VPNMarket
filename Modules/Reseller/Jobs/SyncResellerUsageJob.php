@@ -247,6 +247,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 case 'eylandoo':
                     // For Eylandoo, use panel_user_id or fallback to external_username
                     $username = $config->panel_user_id ?: $config->external_username;
+
                     return $this->fetchEylandooUsage($credentials, $username, $config->id);
 
                 default:

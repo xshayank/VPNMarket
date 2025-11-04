@@ -176,3 +176,133 @@ If you were using the old 15-minute minimum:
 ✅ **Runtime configurable**: Yes  
 ✅ **Overlap protection**: Yes (5-minute uniqueness window)  
 ✅ **No schema changes**: No database migrations required
+
+## Diagnostic Command
+
+### Manual Sync for Single Config
+
+For troubleshooting or verifying usage sync for a specific config, use the diagnostic command:
+
+```bash
+php artisan reseller:usage:sync-one --config={id}
+```
+
+#### Example Output
+
+```
+=== Syncing Usage for Config #123 ===
+
+📋 Config Information:
+  ID: 123
+  Reseller ID: 45
+  Status: active
+  Panel Type: eylandoo
+  Panel ID: 10
+  Panel User ID: test_user_123
+  External Username: test_user_123
+  Current Usage: 524288000 bytes (500.00 MB)
+  Traffic Limit: 10737418240 bytes (10240.00 MB)
+
+🔧 Panel Information:
+  Panel Name: Eylandoo Production
+  Panel Type: eylandoo
+  URL: https://panel.example.com
+
+📡 Fetching usage from panel...
+
+✅ Successfully fetched usage from panel
+📊 Usage: 1073741824 bytes (1024.00 MB)
+
+💾 Updated config usage_bytes in database
+  Previous: 524288000 bytes (500.00 MB)
+  Current:  1073741824 bytes (1024.00 MB)
+  Delta:    549453824 bytes (524.00 MB)
+
+✅ Sync completed successfully
+```
+
+#### Use Cases
+
+1. **Verify Eylandoo Integration**: Test that credentials and API connectivity work
+   ```bash
+   php artisan reseller:usage:sync-one --config=123
+   ```
+
+2. **Debug Stuck Usage**: When reseller UI shows stale data
+   ```bash
+   # Run the sync for a specific config
+   php artisan reseller:usage:sync-one --config=123
+   
+   # Check the logs for detailed API responses
+   tail -f storage/logs/laravel.log | grep Eylandoo
+   ```
+
+3. **Production Verification**: After deploying changes
+   ```bash
+   # Clear caches
+   php artisan optimize:clear
+   
+   # Sync a test config
+   php artisan reseller:usage:sync-one --config=123
+   
+   # Verify in reseller UI
+   ```
+
+#### What the Command Does
+
+1. Fetches the config from database
+2. Displays config and panel information
+3. Calls the same `fetchConfigUsage()` method used by the scheduled job
+4. Shows the raw usage value returned from the panel
+5. Updates the `usage_bytes` column in database
+6. Reports success/failure with detailed logging
+
+#### Error Messages
+
+- **Config not found**: The specified config ID doesn't exist in database
+- **Hard failure (null)**: HTTP error, network issue, invalid credentials, or user not found on panel
+- **Check logs**: Detailed error information is written to Laravel logs
+
+### Eylandoo-Specific Logging
+
+The usage sync includes detailed Eylandoo-specific logging:
+
+```
+# When sync job runs
+[info] Starting reseller usage sync
+[info] Syncing usage for reseller {id}
+[info] Eylandoo usage for user {username}: {bytes} bytes (config_id: {id})
+[notice] Reseller usage sync completed (eylandoo_configs_processed: {count})
+
+# When fetching user data
+[info] Eylandoo usage from userInfo.total_traffic_bytes (username: {user}, usage_bytes: {bytes})
+# OR
+[info] Eylandoo usage from userInfo.upload_bytes + download_bytes (username: {user}, upload_bytes: {up}, download_bytes: {down}, total_usage_bytes: {total})
+# OR
+[info] Eylandoo usage from data.data_used (username: {user}, usage_bytes: {bytes})
+# OR
+[info] Eylandoo usage: no traffic data fields found, returning 0 (username: {user})
+
+# When errors occur
+[warning] Eylandoo Get User failed: (status: {code}, username: {user}, body_preview: {body})
+[warning] Eylandoo Get User Usage: failed to retrieve user data (username: {user})
+[warning] Eylandoo usage fetch failed for user {username} (hard failure) (config_id: {id}, panel_url: {url})
+[warning] Eylandoo usage fetch skipped: empty username (config_id: {id})
+```
+
+### Log Monitoring Commands
+
+```bash
+# Watch all Eylandoo logs
+tail -f storage/logs/laravel.log | grep Eylandoo
+
+# Watch usage sync specifically
+tail -f storage/logs/laravel.log | grep "Eylandoo usage"
+
+# Check for failures
+tail -f storage/logs/laravel.log | grep "Eylandoo.*failed"
+
+# Count Eylandoo configs processed today
+grep "eylandoo_configs_processed" storage/logs/laravel-$(date +%Y-%m-%d).log | tail -1
+```
+

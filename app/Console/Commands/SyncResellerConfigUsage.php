@@ -56,12 +56,12 @@ class SyncResellerConfigUsage extends Command
         try {
             // Create a temporary instance of the job to use its method
             $job = new SyncResellerUsageJob;
-            
+
             // Use reflection to call the protected method
             $reflection = new \ReflectionClass($job);
             $method = $reflection->getMethod('fetchConfigUsage');
             $method->setAccessible(true);
-            
+
             $usage = $method->invoke($job, $config);
 
             if ($usage === null) {
@@ -110,9 +110,9 @@ class SyncResellerConfigUsage extends Command
         $this->line("  Reseller ID: {$config->reseller_id}");
         $this->line("  Status: {$config->status}");
         $this->line("  Panel Type: {$config->panel_type}");
-        $this->line("  Panel ID: ".($config->panel_id ?? 'N/A'));
+        $this->line('  Panel ID: '.($config->panel_id ?? 'N/A'));
         $this->line("  Panel User ID: {$config->panel_user_id}");
-        $this->line("  External Username: ".($config->external_username ?? 'N/A'));
+        $this->line('  External Username: '.($config->external_username ?? 'N/A'));
         $this->line("  Current Usage: {$config->usage_bytes} bytes (".number_format($config->usage_bytes / (1024 * 1024), 2).' MB)');
         $this->line("  Traffic Limit: {$config->traffic_limit_bytes} bytes (".number_format($config->traffic_limit_bytes / (1024 * 1024), 2).' MB)');
 

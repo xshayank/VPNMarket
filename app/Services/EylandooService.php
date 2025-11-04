@@ -100,7 +100,11 @@ class EylandooService
                 return $response->json();
             }
 
-            Log::warning('Eylandoo Get User failed:', ['status' => $response->status(), 'username' => $username]);
+            Log::warning('Eylandoo Get User failed:', [
+                'status' => $response->status(),
+                'username' => $username,
+                'body_preview' => substr($response->body(), 0, 500),
+            ]);
 
             return null;
         } catch (\Exception $e) {
