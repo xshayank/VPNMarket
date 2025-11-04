@@ -59,10 +59,16 @@ Schedule::call(function () {
     ReenableResellerConfigsJob::dispatch();
 })->everyMinute();
 
-// Schedule reseller time window enforcement job
+// Schedule reseller time window enforcement command
 // Runs every 5 minutes to enforce time limits on resellers
 // Suspends resellers whose window_ends_at has passed
 // Reactivates resellers whose window_ends_at has been extended beyond now
-Schedule::call(function () {
-    EnforceResellerTimeWindowsJob::dispatch();
-})->everyFiveMinutes();
+// Uses a command instead of a job to avoid dependency on queue workers
+// Can be disabled via SCHEDULE_ENFORCE_RESELLER_WINDOWS=false
+if (env('SCHEDULE_ENFORCE_RESELLER_WINDOWS', true)) {
+    Schedule::command('reseller:enforce-time-windows')
+        ->everyFiveMinutes()
+        ->withoutOverlapping()
+        ->onOneServer()
+        ->runInBackground();
+}
