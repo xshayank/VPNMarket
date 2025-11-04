@@ -700,3 +700,322 @@ test('getUserUsageBytes prioritizes total_traffic_bytes over upload+download', f
     expect($result)->toBe(5000000000)
         ->and($result)->toBeInt();
 });
+
+// New tests for enhanced usage parsing
+
+test('getUserUsageBytes handles success:false as hard failure', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'success' => false,
+            'message' => 'User not found or unauthorized',
+        ], 200), // Note: 200 status but success:false
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBeNull();
+});
+
+test('getUserUsageBytes extracts from data.total_traffic_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => 3000000000, // 3 GB
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(3000000000);
+});
+
+test('getUserUsageBytes extracts from user.total_traffic_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'user' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => 4000000000, // 4 GB
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(4000000000);
+});
+
+test('getUserUsageBytes extracts from result.traffic_total_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'result' => [
+                'username' => 'testuser',
+                'traffic_total_bytes' => 2500000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2500000000);
+});
+
+test('getUserUsageBytes extracts from stats.total_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'stats' => [
+                'total_bytes' => 1500000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(1500000000);
+});
+
+test('getUserUsageBytes handles string numbers', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => '2000000000', // String number
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2000000000)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes calculates from data.upload + data.download', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'upload' => 800000000,
+                'download' => 1200000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2000000000);
+});
+
+test('getUserUsageBytes calculates from user.up + user.down', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'user' => [
+                'username' => 'testuser',
+                'up' => 500000000,
+                'down' => 1500000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2000000000);
+});
+
+test('getUserUsageBytes calculates from result.uploaded + result.downloaded', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'result' => [
+                'username' => 'testuser',
+                'uploaded' => 600000000,
+                'downloaded' => 900000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(1500000000);
+});
+
+test('getUserUsageBytes calculates from stats.uplink + stats.downlink', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'stats' => [
+                'uplink' => 300000000,
+                'downlink' => 700000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(1000000000);
+});
+
+test('getUserUsageBytes extracts from data.used_traffic', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'used_traffic' => 3500000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(3500000000);
+});
+
+test('getUserUsageBytes extracts from user.data_used_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'user' => [
+                'username' => 'testuser',
+                'data_used_bytes' => 2800000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2800000000);
+});
+
+test('getUserUsageBytes extracts from result.data_usage_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'result' => [
+                'username' => 'testuser',
+                'data_usage_bytes' => 4200000000,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(4200000000);
+});
+
+test('getUserUsageBytes prioritizes single fields over pairs', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'total_traffic_bytes' => 5000000000, // Should use this
+                'upload_bytes' => 1000000000,
+                'download_bytes' => 2000000000, // Not the sum of these
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(5000000000);
+});
+
+test('getUserUsageBytes handles string numbers in pairs', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'upload_bytes' => '600000000', // String
+                'download_bytes' => '1400000000', // String
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2000000000);
+});

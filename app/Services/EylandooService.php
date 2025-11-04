@@ -123,6 +123,12 @@ class EylandooService
     public function getUserUsageBytes(string $username): ?int
     {
         try {
+            $url = $this->baseUrl."/api/v1/users/{$username}";
+            Log::info('Eylandoo usage fetch: calling endpoint', [
+                'username' => $username,
+                'url' => $url,
+            ]);
+
             $userResponse = $this->getUser($username);
 
             if ($userResponse === null) {
@@ -131,46 +137,134 @@ class EylandooService
                 return null;
             }
 
-            // Priority 1: userInfo.total_traffic_bytes (production shape)
-            if (isset($userResponse['userInfo']['total_traffic_bytes'])) {
-                $usage = (int) $userResponse['userInfo']['total_traffic_bytes'];
-                Log::info('Eylandoo usage from userInfo.total_traffic_bytes', ['username' => $username, 'usage_bytes' => $usage]);
+            // Parse usage from response using enhanced parser
+            $parseResult = $this->parseUsageFromResponse($userResponse);
 
-                return max(0, $usage);
-            }
-
-            // Priority 2: Sum of userInfo.upload_bytes + userInfo.download_bytes
-            if (isset($userResponse['userInfo']['upload_bytes']) && isset($userResponse['userInfo']['download_bytes'])) {
-                $upload = (int) $userResponse['userInfo']['upload_bytes'];
-                $download = (int) $userResponse['userInfo']['download_bytes'];
-                $usage = $upload + $download;
-                Log::info('Eylandoo usage from userInfo.upload_bytes + download_bytes', [
+            if ($parseResult['bytes'] === null) {
+                // Hard failure or success:false
+                Log::warning('Eylandoo usage parse failed', [
                     'username' => $username,
-                    'upload_bytes' => $upload,
-                    'download_bytes' => $download,
-                    'total_usage_bytes' => $usage,
+                    'reason' => $parseResult['reason'],
+                    'available_keys' => $parseResult['keys'],
                 ]);
 
-                return max(0, $usage);
+                return null;
             }
 
-            // Priority 3: Fallback to data.data_used (older API shape)
-            if (isset($userResponse['data']['data_used'])) {
-                $usage = (int) $userResponse['data']['data_used'];
-                Log::info('Eylandoo usage from data.data_used', ['username' => $username, 'usage_bytes' => $usage]);
+            // Log success with matched path
+            Log::info('Eylandoo usage parsed successfully', [
+                'username' => $username,
+                'usage_bytes' => $parseResult['bytes'],
+                'matched_path' => $parseResult['reason'],
+            ]);
 
-                return max(0, $usage);
-            }
-
-            // Valid response but no usage fields - user hasn't used any traffic yet
-            Log::info('Eylandoo usage: no traffic data fields found, returning 0', ['username' => $username]);
-
-            return 0;
+            return $parseResult['bytes'];
         } catch (\Exception $e) {
             Log::error('Eylandoo Get User Usage Exception:', ['message' => $e->getMessage(), 'username' => $username]);
 
             return null;
         }
+    }
+
+    /**
+     * Parse usage from Eylandoo API response
+     * Handles multiple wrapper keys and usage field combinations
+     *
+     * @param  array  $resp  API response
+     * @return array ['bytes' => int|null, 'reason' => string, 'keys' => array]
+     */
+    private function parseUsageFromResponse(array $resp): array
+    {
+        // Check for success:false flag (treat as hard failure)
+        if (isset($resp['success']) && $resp['success'] === false) {
+            return [
+                'bytes' => null,
+                'reason' => 'API returned success:false',
+                'keys' => array_keys($resp),
+            ];
+        }
+
+        // Try multiple wrapper keys in priority order
+        $wrapperKeys = ['userInfo', 'data', 'user', 'result', 'stats'];
+        $wrappers = [];
+
+        // Collect available wrappers
+        foreach ($wrapperKeys as $key) {
+            if (isset($resp[$key]) && is_array($resp[$key])) {
+                $wrappers[$key] = $resp[$key];
+            }
+        }
+
+        // Single field keys (prefer these)
+        $singleKeys = [
+            'total_traffic_bytes',
+            'traffic_total_bytes',
+            'total_bytes',
+            'used_traffic',
+            'data_used',
+            'data_used_bytes',
+            'data_usage_bytes',
+        ];
+
+        // Try single field in each wrapper
+        foreach ($wrappers as $wrapperName => $wrapper) {
+            foreach ($singleKeys as $key) {
+                if (isset($wrapper[$key])) {
+                    $value = $wrapper[$key];
+                    // Handle string numbers safely
+                    if (is_numeric($value)) {
+                        $bytes = (int) $value;
+
+                        return [
+                            'bytes' => max(0, $bytes),
+                            'reason' => "{$wrapperName}.{$key}",
+                            'keys' => array_keys($wrapper),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Try pairs to sum (upload + download combinations)
+        $pairs = [
+            ['upload_bytes', 'download_bytes'],
+            ['upload', 'download'],
+            ['up', 'down'],
+            ['uploaded', 'downloaded'],
+            ['uplink', 'downlink'],
+        ];
+
+        foreach ($wrappers as $wrapperName => $wrapper) {
+            foreach ($pairs as $pair) {
+                [$upKey, $downKey] = $pair;
+                if (isset($wrapper[$upKey]) && isset($wrapper[$downKey])) {
+                    $up = $wrapper[$upKey];
+                    $down = $wrapper[$downKey];
+                    // Handle string numbers safely
+                    if (is_numeric($up) && is_numeric($down)) {
+                        $bytes = (int) $up + (int) $down;
+
+                        return [
+                            'bytes' => max(0, $bytes),
+                            'reason' => "{$wrapperName}.{$upKey}+{$downKey}",
+                            'keys' => array_keys($wrapper),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // No usage fields found - valid response but no traffic yet (return 0)
+        $availableKeys = [];
+        foreach ($wrappers as $wrapperName => $wrapper) {
+            $availableKeys[$wrapperName] = array_keys($wrapper);
+        }
+
+        return [
+            'bytes' => 0,
+            'reason' => 'no traffic fields found (valid response, no usage)',
+            'keys' => $availableKeys,
+        ];
     }
 
     /**
