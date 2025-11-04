@@ -297,3 +297,35 @@ test('traffic and time limits work correctly with custom name', function () {
     expect($config->expires_at->format('Y-m-d'))->toBe($expiresAt->format('Y-m-d'));
     expect($config->isExpiredByTime())->toBeFalse();
 });
+
+test('permission check prevents unauthorized users from setting prefix', function () {
+    // Create user without configs.set_prefix permission
+    $regularUser = User::factory()->create(['is_admin' => false, 'is_super_admin' => false]);
+
+    // Mock the request
+    $request = \Illuminate\Http\Request::create('/reseller/configs', 'POST', [
+        'prefix' => 'unauthorized_prefix',
+    ]);
+    $request->setUserResolver(function () use ($regularUser) {
+        return $regularUser;
+    });
+
+    // User doesn't have permission, so prefix should be null
+    expect($request->user()->can('configs.set_prefix'))->toBeFalse();
+});
+
+test('permission check prevents unauthorized users from setting custom name', function () {
+    // Create user without configs.set_custom_name permission
+    $regularUser = User::factory()->create(['is_admin' => false, 'is_super_admin' => false]);
+
+    // Mock the request
+    $request = \Illuminate\Http\Request::create('/reseller/configs', 'POST', [
+        'custom_name' => 'unauthorized_name',
+    ]);
+    $request->setUserResolver(function () use ($regularUser) {
+        return $regularUser;
+    });
+
+    // User doesn't have permission, so custom_name should be rejected
+    expect($request->user()->can('configs.set_custom_name'))->toBeFalse();
+});

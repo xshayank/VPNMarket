@@ -121,9 +121,19 @@ class ConfigController extends Controller
         DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
             $provisioner = new ResellerProvisioner;
 
-            // Get prefix and custom_name from request (if user has permissions)
-            $prefix = $request->input('prefix');
-            $customName = $request->input('custom_name');
+            // Get prefix and custom_name from request (with permission checks)
+            $prefix = null;
+            $customName = null;
+
+            // Only allow prefix if user has permission
+            if ($request->user()->can('configs.set_prefix') && $request->filled('prefix')) {
+                $prefix = $request->input('prefix');
+            }
+
+            // Only allow custom_name if user has permission
+            if ($request->user()->can('configs.set_custom_name') && $request->filled('custom_name')) {
+                $customName = $request->input('custom_name');
+            }
 
             // Create config record first
             $config = ResellerConfig::create([

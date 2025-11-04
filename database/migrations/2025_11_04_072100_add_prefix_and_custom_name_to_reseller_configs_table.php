@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reseller_configs', function (Blueprint $table) {
-            $table->string('prefix')->nullable()->after('comment');
-            $table->string('custom_name')->nullable()->after('prefix');
+            $table->string('prefix', 50)->nullable()->after('comment');
+            $table->string('custom_name', 100)->nullable()->after('prefix');
         });
     }
 
