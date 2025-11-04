@@ -7,8 +7,6 @@ use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use App\Models\Setting;
-use App\Models\User;
-use App\Services\MarzneshinService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +21,7 @@ class ResellerUsageSyncTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Mock Log to avoid output during tests
         Log::shouldReceive('info')->andReturnNull();
         Log::shouldReceive('notice')->andReturnNull();
@@ -77,7 +75,7 @@ class ResellerUsageSyncTest extends TestCase
         ]);
 
         // Run the sync job
-        $job = new SyncResellerUsageJob();
+        $job = new SyncResellerUsageJob;
         $job->handle();
 
         // Assert the config usage was updated
@@ -143,7 +141,7 @@ class ResellerUsageSyncTest extends TestCase
             'https://panel1.com/*' => Http::response(['error' => 'Should not be called'], 500),
         ]);
 
-        $job = new SyncResellerUsageJob();
+        $job = new SyncResellerUsageJob;
         $job->handle();
 
         // Assert the correct panel was used
@@ -206,7 +204,7 @@ class ResellerUsageSyncTest extends TestCase
             ], 200),
         ]);
 
-        $job = new SyncResellerUsageJob();
+        $job = new SyncResellerUsageJob;
         $job->handle();
 
         // Config should remain active when overrun is allowed
@@ -261,14 +259,14 @@ class ResellerUsageSyncTest extends TestCase
             '*/api/users/*/disable' => Http::response([], 200),
         ]);
 
-        $job = new SyncResellerUsageJob();
+        $job = new SyncResellerUsageJob;
         $job->handle();
 
         // All configs should be disabled with auto_disabled events
         foreach ($configs as $config) {
             $config->refresh();
             $this->assertEquals('disabled', $config->status);
-            
+
             $event = $config->events()->where('type', 'auto_disabled')->first();
             $this->assertNotNull($event);
             $this->assertEquals('reseller_quota_exhausted', $event->meta['reason']);
@@ -323,8 +321,8 @@ class ResellerUsageSyncTest extends TestCase
         ]);
 
         // Run re-enable job with provisioner
-        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-        $job = new ReenableResellerConfigsJob();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+        $job = new ReenableResellerConfigsJob;
         $job->handle($provisioner);
 
         // Config should be re-enabled
@@ -381,8 +379,8 @@ class ResellerUsageSyncTest extends TestCase
         Http::fake();
 
         // Run re-enable job with provisioner
-        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
-        $job = new ReenableResellerConfigsJob();
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+        $job = new ReenableResellerConfigsJob;
         $job->handle($provisioner);
 
         // Reseller should be reactivated
@@ -396,5 +394,231 @@ class ResellerUsageSyncTest extends TestCase
         // Should NOT have auto_enabled event
         $event = $config->events()->where('type', 'auto_enabled')->first();
         $this->assertNull($event);
+    }
+
+    public function test_sync_job_fetches_usage_from_eylandoo_using_getuserusagebytes(): void
+    {
+        // Create an Eylandoo panel
+        $panel = Panel::create([
+            'name' => 'Eylandoo Panel',
+            'url' => 'https://eylandoo.example.com',
+            'panel_type' => 'eylandoo',
+            'api_token' => 'test-api-key',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.eylandoo.example.com'],
+        ]);
+
+        // Create a reseller
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024, // 10 GB
+            'traffic_used_bytes' => 0,
+            'window_starts_at' => now()->subDays(1),
+            'window_ends_at' => now()->addDays(30),
+        ]);
+
+        // Create a config
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'eylandoo',
+            'panel_user_id' => 'resell_8_cfg_52',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024, // 5 GB
+            'usage_bytes' => 0,
+            'expires_at' => now()->addDays(30),
+        ]);
+
+        // Mock HTTP responses - production shape with userInfo wrapper
+        Http::fake([
+            '*/api/v1/users/resell_8_cfg_52' => Http::response([
+                'userInfo' => [
+                    'username' => 'resell_8_cfg_52',
+                    'activation_type' => 'fixed_date',
+                    'active_connections' => 0,
+                    'allowed_nodes' => [],
+                    'data_limit' => 32,
+                    'data_limit_unit' => 'GB',
+                    'download_bytes' => 536870912, // 512 MB
+                    'upload_bytes' => 536870912, // 512 MB
+                    'total_traffic_bytes' => 1073741824, // 1 GB (actual total)
+                    'expiry_date_actual_iso' => '2025-12-06T00:00:00',
+                    'expiry_date_display' => '2025-12-06',
+                    'is_active' => true,
+                    'is_online' => false,
+                    'max_clients' => 1,
+                    'success' => true,
+                ],
+            ], 200),
+        ]);
+
+        // Run the sync job
+        $job = new SyncResellerUsageJob;
+        $job->handle();
+
+        // Assert the config usage was updated to total_traffic_bytes
+        $config->refresh();
+        $this->assertEquals(1073741824, $config->usage_bytes);
+
+        // Assert reseller total usage was updated
+        $reseller->refresh();
+        $this->assertEquals(1073741824, $reseller->traffic_used_bytes);
+    }
+
+    public function test_sync_job_fetches_usage_from_eylandoo_with_upload_download_sum(): void
+    {
+        // Create an Eylandoo panel
+        $panel = Panel::create([
+            'name' => 'Eylandoo Panel',
+            'url' => 'https://eylandoo.example.com',
+            'panel_type' => 'eylandoo',
+            'api_token' => 'test-api-key',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.eylandoo.example.com'],
+        ]);
+
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 0,
+            'window_starts_at' => now()->subDays(1),
+            'window_ends_at' => now()->addDays(30),
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'eylandoo',
+            'panel_user_id' => 'testuser',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 0,
+            'expires_at' => now()->addDays(30),
+        ]);
+
+        // Mock HTTP - no total_traffic_bytes, only upload and download
+        Http::fake([
+            '*/api/v1/users/testuser' => Http::response([
+                'userInfo' => [
+                    'username' => 'testuser',
+                    'upload_bytes' => 1073741824, // 1 GB
+                    'download_bytes' => 2147483648, // 2 GB
+                    'data_limit' => 32,
+                    'data_limit_unit' => 'GB',
+                    'is_active' => true,
+                ],
+            ], 200),
+        ]);
+
+        $job = new SyncResellerUsageJob;
+        $job->handle();
+
+        // Should sum upload + download = 3 GB
+        $config->refresh();
+        $this->assertEquals(3221225472, $config->usage_bytes);
+    }
+
+    public function test_sync_job_fetches_usage_from_eylandoo_fallback_data_used(): void
+    {
+        $panel = Panel::create([
+            'name' => 'Eylandoo Panel',
+            'url' => 'https://eylandoo.example.com',
+            'panel_type' => 'eylandoo',
+            'api_token' => 'test-api-key',
+            'is_active' => true,
+            'extra' => ['node_hostname' => ''],
+        ]);
+
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 0,
+            'window_starts_at' => now()->subDays(1),
+            'window_ends_at' => now()->addDays(30),
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'eylandoo',
+            'panel_user_id' => 'testuser',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 0,
+            'expires_at' => now()->addDays(30),
+        ]);
+
+        // Mock HTTP - old response shape with data.data_used
+        Http::fake([
+            '*/api/v1/users/testuser' => Http::response([
+                'status' => 'success',
+                'data' => [
+                    'username' => 'testuser',
+                    'data_used' => 4294967296, // 4 GB
+                    'status' => 'active',
+                ],
+            ], 200),
+        ]);
+
+        $job = new SyncResellerUsageJob;
+        $job->handle();
+
+        // Should use data.data_used
+        $config->refresh();
+        $this->assertEquals(4294967296, $config->usage_bytes);
+    }
+
+    public function test_sync_job_handles_eylandoo_no_traffic_gracefully(): void
+    {
+        $panel = Panel::create([
+            'name' => 'Eylandoo Panel',
+            'url' => 'https://eylandoo.example.com',
+            'panel_type' => 'eylandoo',
+            'api_token' => 'test-api-key',
+            'is_active' => true,
+            'extra' => [],
+        ]);
+
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 0,
+            'window_starts_at' => now()->subDays(1),
+            'window_ends_at' => now()->addDays(30),
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'eylandoo',
+            'panel_user_id' => 'testuser',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 500000, // Previous usage
+            'expires_at' => now()->addDays(30),
+        ]);
+
+        // Mock HTTP - valid response but no traffic fields
+        Http::fake([
+            '*/api/v1/users/testuser' => Http::response([
+                'userInfo' => [
+                    'username' => 'testuser',
+                    'data_limit' => 32,
+                    'is_active' => true,
+                    // No traffic fields
+                ],
+            ], 200),
+        ]);
+
+        $job = new SyncResellerUsageJob;
+        $job->handle();
+
+        // Should update to 0 (valid no traffic)
+        $config->refresh();
+        $this->assertEquals(0, $config->usage_bytes);
     }
 }

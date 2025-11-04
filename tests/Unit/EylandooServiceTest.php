@@ -419,7 +419,7 @@ test('createUser omits nodes when empty array provided', function () {
         $body = $request->data();
 
         return $request->url() === 'https://example.com/api/v1/users'
-            && !isset($body['nodes']); // nodes key should not be present
+            && ! isset($body['nodes']); // nodes key should not be present
     });
 });
 
@@ -455,7 +455,7 @@ test('createUser omits nodes when not provided', function () {
         $body = $request->data();
 
         return $request->url() === 'https://example.com/api/v1/users'
-            && !isset($body['nodes']); // nodes key should not be present
+            && ! isset($body['nodes']); // nodes key should not be present
     });
 });
 
@@ -515,4 +515,188 @@ test('extractSubscriptionUrl returns null when not found', function () {
     $result = $service->extractSubscriptionUrl($response);
 
     expect($result)->toBeNull();
+});
+
+test('getUserUsageBytes extracts from userInfo.total_traffic_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => 1073741824, // 1 GB
+                'upload_bytes' => 536870912, // 512 MB
+                'download_bytes' => 536870912, // 512 MB
+                'data_limit' => 32,
+                'data_limit_unit' => 'GB',
+                'is_active' => true,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(1073741824)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes calculates from userInfo upload_bytes and download_bytes', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'upload_bytes' => 536870912, // 512 MB
+                'download_bytes' => 1073741824, // 1 GB
+                'data_limit' => 32,
+                'data_limit_unit' => 'GB',
+                'is_active' => true,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    // 512 MB + 1 GB = 1536 MB = 1610612736 bytes
+    expect($result)->toBe(1610612736)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes falls back to data.data_used', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'status' => 'success',
+            'data' => [
+                'username' => 'testuser',
+                'data_used' => 2147483648, // 2 GB
+                'status' => 'active',
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(2147483648)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes returns 0 when no traffic data present', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'data_limit' => 32,
+                'data_limit_unit' => 'GB',
+                'is_active' => true,
+                // No traffic fields at all
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(0)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes returns null on HTTP error', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response(null, 500),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBeNull();
+});
+
+test('getUserUsageBytes returns null on user not found', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'error' => 'User not found',
+        ], 404),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBeNull();
+});
+
+test('getUserUsageBytes clamps negative values to 0', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => -1000, // Negative value (shouldn't happen but being defensive)
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    expect($result)->toBe(0)
+        ->and($result)->toBeInt();
+});
+
+test('getUserUsageBytes prioritizes total_traffic_bytes over upload+download', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'username' => 'testuser',
+                'total_traffic_bytes' => 5000000000, // 5 GB (the accurate total)
+                'upload_bytes' => 1000000000, // 1 GB
+                'download_bytes' => 2000000000, // 2 GB
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('testuser');
+
+    // Should use total_traffic_bytes, not sum of upload+download
+    expect($result)->toBe(5000000000)
+        ->and($result)->toBeInt();
 });
