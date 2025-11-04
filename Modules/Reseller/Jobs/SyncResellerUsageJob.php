@@ -92,14 +92,17 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             ->where('type', 'traffic')
             ->get();
 
+        $totalEylandooConfigs = 0;
+
         foreach ($resellers as $reseller) {
-            $this->syncResellerUsage($reseller);
+            $eylandooCount = $this->syncResellerUsage($reseller);
+            $totalEylandooConfigs += $eylandooCount;
         }
 
-        Log::notice('Reseller usage sync completed');
+        Log::notice('Reseller usage sync completed', ['eylandoo_configs_processed' => $totalEylandooConfigs]);
     }
 
-    protected function syncResellerUsage(Reseller $reseller): void
+    protected function syncResellerUsage(Reseller $reseller): int
     {
         Log::info("Syncing usage for reseller {$reseller->id}");
 
@@ -111,9 +114,15 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         $configGrace = $this->getConfigGraceSettings();
         $timeGraceMinutes = $this->getTimeExpiryGraceMinutes();
 
+        $eylandooCount = 0;
+
         // Sync usage for all active configs
         foreach ($configs as $config) {
             try {
+                if ($config->panel_type === 'eylandoo') {
+                    $eylandooCount++;
+                }
+
                 $usage = $this->fetchConfigUsage($config);
 
                 if ($usage !== null) {
@@ -186,6 +195,8 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             }
             $this->disableResellerConfigs($reseller);
         }
+
+        return $eylandooCount;
     }
 
     /**
@@ -234,7 +245,9 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                     return $this->fetchXUIUsage($credentials, $config->panel_user_id);
 
                 case 'eylandoo':
-                    return $this->fetchEylandooUsage($credentials, $config->panel_user_id);
+                    // For Eylandoo, use panel_user_id or fallback to external_username
+                    $username = $config->panel_user_id ?: $config->external_username;
+                    return $this->fetchEylandooUsage($credentials, $username, $config->id);
 
                 default:
                     return null;
@@ -321,8 +334,14 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         return $up + $down;
     }
 
-    protected function fetchEylandooUsage(array $credentials, string $username): ?int
+    protected function fetchEylandooUsage(array $credentials, string $username, ?int $configId = null): ?int
     {
+        if (empty($username)) {
+            Log::warning('Eylandoo usage fetch skipped: empty username', ['config_id' => $configId]);
+
+            return null;
+        }
+
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
 
         $service = new EylandooService(
@@ -336,14 +355,19 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
 
         if ($usage === null) {
             // Hard failure (HTTP error or exception)
-            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure)");
+            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure)", [
+                'config_id' => $configId,
+                'panel_url' => $credentials['url'],
+            ]);
 
             return null;
         }
 
         if ($usage === 0) {
             // Valid response but no traffic yet
-            Log::info("Eylandoo usage for user {$username}: 0 bytes (valid, no traffic)");
+            Log::info("Eylandoo usage for user {$username}: 0 bytes (valid, no traffic)", ['config_id' => $configId]);
+        } else {
+            Log::info("Eylandoo usage for user {$username}: {$usage} bytes", ['config_id' => $configId]);
         }
 
         return $usage;
