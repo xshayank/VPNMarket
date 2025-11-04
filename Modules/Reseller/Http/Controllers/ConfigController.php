@@ -58,7 +58,7 @@ class ConfigController extends Controller
             $marzneshinServices = $reseller->marzneshin_allowed_service_ids;
         }
 
-        // Fetch Eylandoo nodes for each Eylandoo panel
+        // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
         foreach ($panels as $panel) {
             if ($panel->panel_type === 'eylandoo') {
                 try {
@@ -68,9 +68,20 @@ class ConfigController extends Controller
                         $credentials['api_token'],
                         $credentials['extra']['node_hostname'] ?? ''
                     );
-                    $nodes = $service->listNodes();
+                    $allNodes = $service->listNodes();
+                    
+                    // If reseller has node whitelist, filter nodes
+                    if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
+                        $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+                        $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
+                            return in_array($node['id'], $allowedNodeIds);
+                        });
+                    } else {
+                        $nodes = $allNodes;
+                    }
+                    
                     if (!empty($nodes)) {
-                        $eylandooNodes[$panel->id] = $nodes;
+                        $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
                     }
                 } catch (\Exception $e) {
                     Log::error("Failed to fetch Eylandoo nodes for panel {$panel->id}: " . $e->getMessage());
@@ -139,6 +150,18 @@ class ConfigController extends Controller
             foreach ($serviceIds as $serviceId) {
                 if (! in_array($serviceId, $allowedServiceIds)) {
                     return back()->with('error', 'One or more selected services are not allowed for your account.');
+                }
+            }
+        }
+
+        // Validate Eylandoo node whitelist
+        if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
+            $nodeIds = $request->node_ids ?? [];
+            $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+
+            foreach ($nodeIds as $nodeId) {
+                if (! in_array($nodeId, $allowedNodeIds)) {
+                    return back()->with('error', 'One or more selected nodes are not allowed for your account.');
                 }
             }
         }

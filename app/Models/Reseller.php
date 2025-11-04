@@ -24,6 +24,7 @@ class Reseller extends Model
         'window_starts_at',
         'window_ends_at',
         'marzneshin_allowed_service_ids',
+        'eylandoo_allowed_node_ids',
         'settings',
     ];
 
@@ -34,6 +35,7 @@ class Reseller extends Model
         'window_starts_at' => 'datetime',
         'window_ends_at' => 'datetime',
         'marzneshin_allowed_service_ids' => 'array',
+        'eylandoo_allowed_node_ids' => 'array',
         'settings' => 'array',
     ];
 
