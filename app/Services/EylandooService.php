@@ -64,8 +64,8 @@ class EylandooService
                 $payload['expiry_date_str'] = date('Y-m-d', $userData['expire']);
             }
 
-            // Add nodes if provided (array of node IDs)
-            if (isset($userData['nodes']) && is_array($userData['nodes'])) {
+            // Add nodes if provided and non-empty (array of node IDs)
+            if (isset($userData['nodes']) && is_array($userData['nodes']) && !empty($userData['nodes'])) {
                 $payload['nodes'] = array_map('intval', $userData['nodes']);
             }
 
@@ -290,18 +290,42 @@ class EylandooService
     }
 
     /**
+     * Extract subscription/config URL from API response (various shapes)
+     * 
+     * @param array $userApiResponse API response from Eylandoo
+     * @return string|null The extracted URL or null if not found
+     */
+    public function extractSubscriptionUrl(array $userApiResponse): ?string
+    {
+        // Try various known response shapes for subscription URL
+        $configUrl = null;
+        
+        // Shape 1: data.subscription_url
+        if (isset($userApiResponse['data']['subscription_url'])) {
+            $configUrl = $userApiResponse['data']['subscription_url'];
+        }
+        // Shape 2: data.users[0].config_url
+        elseif (isset($userApiResponse['data']['users'][0]['config_url'])) {
+            $configUrl = $userApiResponse['data']['users'][0]['config_url'];
+        }
+        // Shape 3: data.config_url
+        elseif (isset($userApiResponse['data']['config_url'])) {
+            $configUrl = $userApiResponse['data']['config_url'];
+        }
+        // Shape 4: data.users[0].subscription_url
+        elseif (isset($userApiResponse['data']['users'][0]['subscription_url'])) {
+            $configUrl = $userApiResponse['data']['users'][0]['subscription_url'];
+        }
+
+        return $configUrl;
+    }
+
+    /**
      * Build absolute subscription URL from API response
      */
     public function buildAbsoluteSubscriptionUrl(array $userApiResponse): string
     {
-        // Eylandoo returns config_url in the users array
-        $configUrl = '';
-        
-        if (isset($userApiResponse['data']['users'][0]['config_url'])) {
-            $configUrl = $userApiResponse['data']['users'][0]['config_url'];
-        } elseif (isset($userApiResponse['data']['config_url'])) {
-            $configUrl = $userApiResponse['data']['config_url'];
-        }
+        $configUrl = $this->extractSubscriptionUrl($userApiResponse) ?? '';
 
         // If the URL is already absolute, return as is
         if (preg_match('#^https?://#i', $configUrl)) {

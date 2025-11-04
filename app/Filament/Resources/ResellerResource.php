@@ -197,7 +197,7 @@ class ResellerResource extends Resource
                             })
                             ->schema([
                                 Forms\Components\CheckboxList::make('eylandoo_allowed_node_ids')
-                                    ->label('انتخاب نودها')
+                                    ->label('انتخاب نودها (اختیاری)')
                                     ->options(function (Forms\Get $get) {
                                         $panelId = $get('panel_id');
                                         if (! $panelId) {
@@ -232,7 +232,7 @@ class ResellerResource extends Resource
                                             return [];
                                         }
                                     })
-                                    ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
+                                    ->helperText('انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، ریسلر می‌تواند از تمام نودها استفاده کند.')
                                     ->columns(2),
                             ]),
                     ]),
