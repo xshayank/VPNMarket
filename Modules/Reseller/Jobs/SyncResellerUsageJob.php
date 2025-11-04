@@ -349,9 +349,17 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         }
 
         $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        $panelUrl = $credentials['url'];
+
+        // Log the resolved username for diagnostics
+        Log::info('Eylandoo usage fetch starting', [
+            'config_id' => $configId,
+            'panel_url' => $panelUrl,
+            'username' => $username,
+        ]);
 
         $service = new EylandooService(
-            $credentials['url'],
+            $panelUrl,
             $credentials['api_token'],
             $nodeHostname
         );
@@ -360,10 +368,10 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         $usage = $service->getUserUsageBytes($username);
 
         if ($usage === null) {
-            // Hard failure (HTTP error or exception)
-            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure)", [
+            // Hard failure (HTTP error, exception, or success:false)
+            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure - null returned)", [
                 'config_id' => $configId,
-                'panel_url' => $credentials['url'],
+                'panel_url' => $panelUrl,
             ]);
 
             return null;
@@ -371,7 +379,9 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
 
         if ($usage === 0) {
             // Valid response but no traffic yet
-            Log::info("Eylandoo usage for user {$username}: 0 bytes (valid, no traffic)", ['config_id' => $configId]);
+            Log::info("Eylandoo usage for user {$username}: 0 bytes (API returned 0 or no usage fields found)", [
+                'config_id' => $configId,
+            ]);
         } else {
             Log::info("Eylandoo usage for user {$username}: {$usage} bytes", ['config_id' => $configId]);
         }
