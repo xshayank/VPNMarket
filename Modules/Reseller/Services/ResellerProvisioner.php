@@ -281,13 +281,13 @@ class ResellerProvisioner
 
         $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
         $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
-        
+
         // Accept both 'max_clients' and 'connections' parameters
         $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
-        
+
         // Accept both 'nodes' and 'node_ids' parameters and normalize to array
         $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
-        
+
         // Only include nodes if array is non-empty
         $userData = [
             'username' => $username,
@@ -295,9 +295,9 @@ class ResellerProvisioner
             'data_limit' => $trafficLimit,
             'max_clients' => $maxClients,
         ];
-        
+
         // Only add nodes if the array is non-empty
-        if (!empty($nodes) && is_array($nodes)) {
+        if (! empty($nodes) && is_array($nodes)) {
             $userData['nodes'] = $nodes;
         }
 
@@ -320,20 +320,20 @@ class ResellerProvisioner
 
         if ($success) {
             $subscriptionUrl = null;
-            
+
             // First, try to extract subscription URL from create response
             if ($service->extractSubscriptionUrl($result)) {
                 $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
             }
-            
+
             // If no subscription URL in create response, fetch from dedicated subscription endpoint
             if (empty($subscriptionUrl)) {
                 Log::info("No subscription URL in create response for {$username}, fetching from /sub endpoint");
-                
+
                 $subResponse = $service->getUserSubscription($username);
                 if ($subResponse) {
                     Log::info('Eylandoo subscription endpoint response:', ['subResponse' => $subResponse]);
-                    
+
                     // Extract subscription URL from /sub response
                     $subscriptionUrl = $service->extractSubscriptionUrlFromSub($subResponse);
                 }
@@ -404,6 +404,7 @@ class ResellerProvisioner
                         $credentials['api_token'],
                         $nodeHostname
                     );
+
                     return $service->disableUser($panelUserId);
             }
 
@@ -465,6 +466,7 @@ class ResellerProvisioner
                         $credentials['api_token'],
                         $nodeHostname
                     );
+
                     return $service->enableUser($panelUserId);
             }
 
@@ -585,6 +587,7 @@ class ResellerProvisioner
                         $credentials['api_token'],
                         $nodeHostname
                     );
+
                     return $service->deleteUser($panelUserId);
             }
         } catch (\Exception $e) {
@@ -657,6 +660,7 @@ class ResellerProvisioner
                         $credentials['api_token'],
                         $nodeHostname
                     );
+
                     return $service->updateUser($panelUserId, [
                         'data_limit' => $trafficLimitBytes,
                         'expire' => $expiresAt->timestamp,
@@ -722,6 +726,7 @@ class ResellerProvisioner
                         $credentials['api_token'],
                         $nodeHostname
                     );
+
                     return $service->resetUserUsage($panelUserId);
             }
 

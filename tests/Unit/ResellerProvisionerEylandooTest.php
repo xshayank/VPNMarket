@@ -2,7 +2,6 @@
 
 use App\Models\Panel;
 use App\Models\Plan;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -36,7 +35,7 @@ test('provisionEylandoo accepts node_ids parameter', function () {
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user', [
         'node_ids' => [1, 2, 3],
@@ -49,11 +48,12 @@ test('provisionEylandoo accepts node_ids parameter', function () {
         ->and($result['subscription_url'])->not->toBeNull();
 
     Http::assertSent(function ($request) {
-        if (!str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
+        if (! str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
             return false;
         }
-        
+
         $body = $request->data();
+
         return isset($body['nodes']) && $body['nodes'] === [1, 2, 3];
     });
 });
@@ -80,7 +80,7 @@ test('provisionEylandoo omits nodes when empty', function () {
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user', [
         'node_ids' => [], // Empty array
@@ -91,12 +91,13 @@ test('provisionEylandoo omits nodes when empty', function () {
         ->and($result)->toHaveKey('subscription_url');
 
     Http::assertSent(function ($request) {
-        if (!str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
+        if (! str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
             return false;
         }
-        
+
         $body = $request->data();
-        return !isset($body['nodes']); // Nodes should not be in the request
+
+        return ! isset($body['nodes']); // Nodes should not be in the request
     });
 });
 
@@ -120,7 +121,7 @@ test('provisionEylandoo detects success from created_users array', function () {
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user');
 
@@ -149,7 +150,7 @@ test('provisionEylandoo fetches user subscription when no subscription URL in cr
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user');
 
@@ -182,7 +183,7 @@ test('provisionEylandoo handles both connections and max_clients parameters', fu
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     // Test with 'connections' parameter
     $result = $provisioner->provisionUser($panel, $plan, 'test_user', [
@@ -192,11 +193,12 @@ test('provisionEylandoo handles both connections and max_clients parameters', fu
     expect($result)->toBeArray();
 
     Http::assertSent(function ($request) {
-        if (!str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
+        if (! str_contains($request->url(), '/api/v1/users') || $request->method() !== 'POST') {
             return false;
         }
-        
+
         $body = $request->data();
+
         return isset($body['max_clients']) && $body['max_clients'] === 5;
     });
 });
@@ -219,7 +221,7 @@ test('provisionEylandoo handles /sub endpoint failure gracefully', function () {
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user');
 
@@ -249,7 +251,7 @@ test('provisionEylandoo handles /sub endpoint returning no URL', function () {
         'volume_gb' => 10,
     ]);
 
-    $provisioner = new ResellerProvisioner();
+    $provisioner = new ResellerProvisioner;
 
     $result = $provisioner->provisionUser($panel, $plan, 'test_user');
 

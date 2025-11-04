@@ -65,7 +65,7 @@ class EylandooService
             }
 
             // Add nodes if provided and non-empty (array of node IDs)
-            if (isset($userData['nodes']) && is_array($userData['nodes']) && !empty($userData['nodes'])) {
+            if (isset($userData['nodes']) && is_array($userData['nodes']) && ! empty($userData['nodes'])) {
                 $payload['nodes'] = array_map('intval', $userData['nodes']);
             }
 
@@ -316,19 +316,19 @@ class EylandooService
 
     /**
      * Extract subscription URL from the subscription endpoint response
-     * 
-     * @param array|null $subResponse Response from /api/v1/users/{username}/sub endpoint
+     *
+     * @param  array|null  $subResponse  Response from /api/v1/users/{username}/sub endpoint
      * @return string|null The extracted subscription URL or null if not found
      */
     public function extractSubscriptionUrlFromSub(?array $subResponse): ?string
     {
-        if (!$subResponse) {
+        if (! $subResponse) {
             return null;
         }
 
         // Try various known response shapes for subscription URL
         $configUrl = null;
-        
+
         // Shape 1: subscription_url at root
         if (isset($subResponse['subscription_url'])) {
             $configUrl = $subResponse['subscription_url'];
@@ -347,15 +347,15 @@ class EylandooService
 
     /**
      * Extract subscription/config URL from API response (various shapes)
-     * 
-     * @param array $userApiResponse API response from Eylandoo
+     *
+     * @param  array  $userApiResponse  API response from Eylandoo
      * @return string|null The extracted URL or null if not found
      */
     public function extractSubscriptionUrl(array $userApiResponse): ?string
     {
         // Try various known response shapes for subscription URL
         $configUrl = null;
-        
+
         // Shape 1: data.subscription_url
         if (isset($userApiResponse['data']['subscription_url'])) {
             $configUrl = $userApiResponse['data']['subscription_url'];
@@ -388,13 +388,13 @@ class EylandooService
 
     /**
      * Convert a relative URL to absolute URL using base hostname
-     * 
-     * @param string|null $url URL to convert (can be relative or absolute)
+     *
+     * @param  string|null  $url  URL to convert (can be relative or absolute)
      * @return string|null Absolute URL or null if input is null/empty
      */
     protected function makeAbsoluteUrl(?string $url): ?string
     {
-        if (!$url) {
+        if (! $url) {
             return null;
         }
 
@@ -422,7 +422,7 @@ class EylandooService
 
     /**
      * List all available nodes
-     * 
+     *
      * @return array Array of nodes
      */
     public function listNodes(): array
@@ -455,7 +455,7 @@ class EylandooService
 
     /**
      * List all users
-     * 
+     *
      * @return array Array of users
      */
     public function listUsers(): array
