@@ -54,15 +54,9 @@ class SyncResellerConfigUsage extends Command
         $this->newLine();
 
         try {
-            // Create a temporary instance of the job to use its method
+            // Create instance of the job and call the public method
             $job = new SyncResellerUsageJob;
-
-            // Use reflection to call the protected method
-            $reflection = new \ReflectionClass($job);
-            $method = $reflection->getMethod('fetchConfigUsage');
-            $method->setAccessible(true);
-
-            $usage = $method->invoke($job, $config);
+            $usage = $job->fetchConfigUsage($config);
 
             if ($usage === null) {
                 $this->error('❌ Failed to fetch usage (returned null - hard failure)');
@@ -75,7 +69,7 @@ class SyncResellerConfigUsage extends Command
             }
 
             $this->info('✅ Successfully fetched usage from panel');
-            $this->line("📊 Usage: {$usage} bytes (".number_format($usage / (1024 * 1024), 2).' MB)');
+            $this->line("📊 Usage: {$usage} bytes ({$this->formatBytes($usage)})");
             $this->newLine();
 
             // Update the config
@@ -83,9 +77,9 @@ class SyncResellerConfigUsage extends Command
             $config->update(['usage_bytes' => $usage]);
 
             $this->info('💾 Updated config usage_bytes in database');
-            $this->line("  Previous: {$oldUsage} bytes (".number_format($oldUsage / (1024 * 1024), 2).' MB)');
-            $this->line("  Current:  {$usage} bytes (".number_format($usage / (1024 * 1024), 2).' MB)');
-            $this->line('  Delta:    '.($usage - $oldUsage).' bytes ('.number_format(($usage - $oldUsage) / (1024 * 1024), 2).' MB)');
+            $this->line("  Previous: {$oldUsage} bytes ({$this->formatBytes($oldUsage)})");
+            $this->line("  Current:  {$usage} bytes ({$this->formatBytes($usage)})");
+            $this->line('  Delta:    '.($usage - $oldUsage).' bytes ('.$this->formatBytes($usage - $oldUsage).')');
             $this->newLine();
 
             $this->info('✅ Sync completed successfully');
@@ -113,8 +107,8 @@ class SyncResellerConfigUsage extends Command
         $this->line('  Panel ID: '.($config->panel_id ?? 'N/A'));
         $this->line("  Panel User ID: {$config->panel_user_id}");
         $this->line('  External Username: '.($config->external_username ?? 'N/A'));
-        $this->line("  Current Usage: {$config->usage_bytes} bytes (".number_format($config->usage_bytes / (1024 * 1024), 2).' MB)');
-        $this->line("  Traffic Limit: {$config->traffic_limit_bytes} bytes (".number_format($config->traffic_limit_bytes / (1024 * 1024), 2).' MB)');
+        $this->line("  Current Usage: {$config->usage_bytes} bytes ({$this->formatBytes($config->usage_bytes)})");
+        $this->line("  Traffic Limit: {$config->traffic_limit_bytes} bytes ({$this->formatBytes($config->traffic_limit_bytes)})");
 
         // Display panel info if available
         if ($config->panel_id) {
@@ -127,5 +121,13 @@ class SyncResellerConfigUsage extends Command
                 $this->line("  URL: {$panel->url}");
             }
         }
+    }
+
+    /**
+     * Format bytes to human-readable format
+     */
+    protected function formatBytes(int $bytes): string
+    {
+        return number_format($bytes / (1024 * 1024), 2).' MB';
     }
 }

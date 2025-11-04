@@ -216,7 +216,12 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         return now() >= $expiresAt->copy()->startOfDay();
     }
 
-    protected function fetchConfigUsage(ResellerConfig $config): ?int
+    /**
+     * Fetch usage for a specific config (public for diagnostic tools)
+     *
+     * @return int|null Usage in bytes, or null on failure
+     */
+    public function fetchConfigUsage(ResellerConfig $config): ?int
     {
         try {
             // Find the panel for this config - use exact panel_id if available, otherwise fallback to type
