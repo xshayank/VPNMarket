@@ -176,6 +176,65 @@ class ResellerResource extends Resource
                                     ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
                                     ->columns(2),
                             ]),
+
+                        // Eylandoo Node Selection (Traffic-based resellers only)
+                        Forms\Components\Section::make('تنظیمات نودهای Eylandoo')
+                            ->description('محدود کردن دسترسی ریسلر به نودهای خاص در پنل Eylandoo')
+                            ->visible(function (Forms\Get $get) {
+                                $type = $get('type');
+                                if ($type !== 'traffic') {
+                                    return false;
+                                }
+
+                                $panelId = $get('panel_id');
+                                if (! $panelId) {
+                                    return false;
+                                }
+
+                                $panel = \App\Models\Panel::find($panelId);
+
+                                return $panel && $panel->panel_type === 'eylandoo';
+                            })
+                            ->schema([
+                                Forms\Components\CheckboxList::make('eylandoo_allowed_node_ids')
+                                    ->label('انتخاب نودها')
+                                    ->options(function (Forms\Get $get) {
+                                        $panelId = $get('panel_id');
+                                        if (! $panelId) {
+                                            return [];
+                                        }
+
+                                        $panel = \App\Models\Panel::find($panelId);
+                                        if (! $panel || $panel->panel_type !== 'eylandoo') {
+                                            return [];
+                                        }
+
+                                        try {
+                                            $credentials = $panel->getCredentials();
+
+                                            $eylandooService = new \App\Services\EylandooService(
+                                                $credentials['url'],
+                                                $credentials['api_token'],
+                                                $credentials['extra']['node_hostname'] ?? ''
+                                            );
+
+                                            $nodes = $eylandooService->listNodes();
+                                            $options = [];
+
+                                            foreach ($nodes as $node) {
+                                                $options[$node['id']] = $node['name'];
+                                            }
+
+                                            return $options;
+                                        } catch (\Exception $e) {
+                                            \Illuminate\Support\Facades\Log::error('Failed to load Eylandoo nodes: '.$e->getMessage());
+
+                                            return [];
+                                        }
+                                    })
+                                    ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
+                                    ->columns(2),
+                            ]),
                     ]),
 
                 Forms\Components\Section::make('پلن‌های مجاز')

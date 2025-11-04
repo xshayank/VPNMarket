@@ -6,6 +6,7 @@ use App\Models\Panel;
 use App\Models\Plan;
 use App\Models\Reseller;
 use App\Models\Setting;
+use App\Services\EylandooService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
 use App\Services\XUIService;
@@ -126,6 +127,9 @@ class ResellerProvisioner
 
                 case 'xui':
                     return $this->provisionXUI($credentials, $plan, $username, $options);
+
+                case 'eylandoo':
+                    return $this->provisionEylandoo($credentials, $plan, $username, $options);
 
                 default:
                     Log::error("Unknown panel type: {$panel->panel_type}");
@@ -263,6 +267,46 @@ class ResellerProvisioner
     }
 
     /**
+     * Provision user on Eylandoo panel
+     */
+    protected function provisionEylandoo(array $credentials, Plan $plan, string $username, array $options): ?array
+    {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+
+        $service = new EylandooService(
+            $credentials['url'],
+            $credentials['api_token'],
+            $nodeHostname
+        );
+
+        $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
+        $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
+        $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
+        $nodes = $options['nodes'] ?? [];
+
+        $result = $service->createUser([
+            'username' => $username,
+            'expire' => $expiresAt->timestamp,
+            'data_limit' => $trafficLimit,
+            'max_clients' => $maxClients,
+            'nodes' => $nodes,
+        ]);
+
+        if ($result && isset($result['data'])) {
+            $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
+
+            return [
+                'username' => $username,
+                'subscription_url' => $subscriptionUrl,
+                'panel_type' => 'eylandoo',
+                'panel_user_id' => $username,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * Disable a user on a panel with retry logic
      *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
@@ -308,6 +352,15 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['enable' => false]);
                     }
                     break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+                    return $service->disableUser($panelUserId);
             }
 
             return false;
@@ -360,6 +413,15 @@ class ResellerProvisioner
                         return $service->updateUser($panelUserId, ['enable' => true]);
                     }
                     break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+                    return $service->enableUser($panelUserId);
             }
 
             return false;
@@ -471,6 +533,15 @@ class ResellerProvisioner
                         return $service->deleteUser($panelUserId);
                     }
                     break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+                    return $service->deleteUser($panelUserId);
             }
         } catch (\Exception $e) {
             Log::error("Failed to delete user {$panelUserId}: ".$e->getMessage());
@@ -534,6 +605,18 @@ class ResellerProvisioner
                         ]);
                     }
                     break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+                    return $service->updateUser($panelUserId, [
+                        'data_limit' => $trafficLimitBytes,
+                        'expire' => $expiresAt->timestamp,
+                    ]);
             }
 
             return false;
@@ -587,6 +670,15 @@ class ResellerProvisioner
                         return $service->resetUserUsage($panelUserId);
                     }
                     break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+                    return $service->resetUserUsage($panelUserId);
             }
 
             return false;

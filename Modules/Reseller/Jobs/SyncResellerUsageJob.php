@@ -8,6 +8,7 @@ use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use App\Models\Setting;
+use App\Services\EylandooService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
 use App\Services\XUIService;
@@ -230,6 +231,9 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
                 case 'xui':
                     return $this->fetchXUIUsage($credentials, $config->panel_user_id);
                     
+                case 'eylandoo':
+                    return $this->fetchEylandooUsage($credentials, $config->panel_user_id);
+                    
                 default:
                     return null;
             }
@@ -312,6 +316,29 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
         $down = (int)($user['down'] ?? 0);
         
         return $up + $down;
+    }
+
+    protected function fetchEylandooUsage(array $credentials, string $username): ?int
+    {
+        $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+        
+        $service = new EylandooService(
+            $credentials['url'],
+            $credentials['api_token'],
+            $nodeHostname
+        );
+
+        $user = $service->getUser($username);
+        
+        if (! $user) {
+            return null;
+        }
+        
+        // Eylandoo returns data_used (in bytes) in the data object
+        $dataUsed = $user['data']['data_used'] ?? null;
+        
+        // Return bytes
+        return isset($dataUsed) ? (int)$dataUsed : null;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void

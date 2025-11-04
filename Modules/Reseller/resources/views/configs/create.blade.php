@@ -35,10 +35,10 @@
 
                     <div class="mb-4 md:mb-6">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">انتخاب پنل</label>
-                        <select name="panel_id" required class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
+                        <select name="panel_id" id="panel_id" required class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
                             <option value="">-- انتخاب کنید --</option>
                             @foreach ($panels as $panel)
-                                <option value="{{ $panel->id }}">{{ $panel->name }} ({{ $panel->panel_type }})</option>
+                                <option value="{{ $panel->id }}" data-panel-type="{{ $panel->panel_type }}">{{ $panel->name }} ({{ $panel->panel_type }})</option>
                             @endforeach
                         </select>
                     </div>
@@ -57,6 +57,18 @@
                                 class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
                                 placeholder="مثال: 30">
                         </div>
+                    </div>
+
+                    <!-- Connections field for Eylandoo -->
+                    <div id="connections_field" class="mb-4 md:mb-6" style="display: none;">
+                        <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
+                            تعداد اتصالات همزمان
+                            <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" name="connections" id="connections_input" min="1" max="10" value="1"
+                            class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
+                            placeholder="مثال: 2">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">تعداد دستگاه‌هایی که می‌توانند به طور همزمان متصل شوند (فقط برای پنل Eylandoo)</p>
                     </div>
 
                     <div class="mb-4 md:mb-6">
@@ -104,6 +116,20 @@
                         </div>
                     @endif
 
+                    <!-- Eylandoo Nodes selection -->
+                    @if (count($eylandoo_nodes) > 0)
+                        <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
+                            <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
+                                نودهای Eylandoo
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <div class="space-y-3" id="eylandoo_nodes_container">
+                                <!-- Nodes will be populated dynamically based on selected panel -->
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">حداقل یک نود را انتخاب کنید (فقط برای پنل Eylandoo)</p>
+                        </div>
+                    @endif
+
                     <div class="flex flex-col sm:flex-row gap-3 md:gap-4 mt-6">
                         <button type="submit" class="w-full sm:w-auto px-4 py-3 md:py-2 h-12 md:h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm md:text-base font-medium">
                             ایجاد کانفیگ
@@ -116,4 +142,73 @@
             </div>
         </div>
     </div>
+
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const panelSelect = document.getElementById('panel_id');
+            const connectionsField = document.getElementById('connections_field');
+            const connectionsInput = document.getElementById('connections_input');
+            const eylandooNodesField = document.getElementById('eylandoo_nodes_field');
+            const eylandooNodesContainer = document.getElementById('eylandoo_nodes_container');
+            
+            // Eylandoo nodes data from server
+            const eylandooNodesData = @json($eylandoo_nodes ?? []);
+            
+            function toggleConnectionsField() {
+                const selectedOption = panelSelect.options[panelSelect.selectedIndex];
+                const panelType = selectedOption.getAttribute('data-panel-type');
+                const panelId = selectedOption.value;
+                
+                if (panelType === 'eylandoo') {
+                    connectionsField.style.display = 'block';
+                    connectionsInput.required = true;
+                    
+                    // Show and populate nodes for this Eylandoo panel
+                    if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
+                        eylandooNodesField.style.display = 'block';
+                        populateEylandooNodes(eylandooNodesData[panelId]);
+                    } else {
+                        eylandooNodesField.style.display = 'none';
+                    }
+                } else {
+                    connectionsField.style.display = 'none';
+                    connectionsInput.required = false;
+                    connectionsInput.value = '1'; // Reset to default
+                    
+                    eylandooNodesField.style.display = 'none';
+                    eylandooNodesContainer.innerHTML = '';
+                }
+            }
+            
+            function populateEylandooNodes(nodes) {
+                eylandooNodesContainer.innerHTML = '';
+                
+                nodes.forEach(function(node) {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center text-sm md:text-base text-gray-900 dark:text-gray-100 min-h-[44px] sm:min-h-0';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = 'node_ids[]';
+                    checkbox.value = node.id;
+                    checkbox.className = 'w-5 h-5 md:w-4 md:h-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 ml-2';
+                    checkbox.checked = true; // Select all by default
+                    
+                    const span = document.createElement('span');
+                    span.textContent = node.name + ' (ID: ' + node.id + ')';
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(span);
+                    eylandooNodesContainer.appendChild(label);
+                });
+            }
+            
+            panelSelect.addEventListener('change', toggleConnectionsField);
+            
+            // Initial check on page load
+            toggleConnectionsField();
+        });
+    </script>
+    @endpush
 </x-app-layout>

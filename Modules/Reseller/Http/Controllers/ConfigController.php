@@ -50,6 +50,7 @@ class ConfigController extends Controller
         }
 
         $marzneshinServices = [];
+        $eylandooNodes = [];
 
         // If reseller has Marzneshin service whitelist, fetch available services
         if ($reseller->marzneshin_allowed_service_ids) {
@@ -57,10 +58,45 @@ class ConfigController extends Controller
             $marzneshinServices = $reseller->marzneshin_allowed_service_ids;
         }
 
+        // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
+        foreach ($panels as $panel) {
+            if ($panel->panel_type === 'eylandoo') {
+                try {
+                    $credentials = $panel->getCredentials();
+                    $service = new \App\Services\EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $credentials['extra']['node_hostname'] ?? ''
+                    );
+                    $allNodes = $service->listNodes();
+                    
+                    // If reseller has node whitelist, filter nodes
+                    if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
+                        $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+                        $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
+                            return in_array($node['id'], $allowedNodeIds);
+                        });
+                    } else {
+                        $nodes = $allNodes;
+                    }
+                    
+                    if (!empty($nodes)) {
+                        $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to fetch Eylandoo nodes for panel', [
+                        'panel_id' => $panel->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
         return view('reseller::configs.create', [
             'reseller' => $reseller,
             'panels' => $panels,
             'marzneshin_services' => $marzneshinServices,
+            'eylandoo_nodes' => $eylandooNodes,
         ]);
     }
 
@@ -84,11 +120,14 @@ class ConfigController extends Controller
             'panel_id' => 'required|exists:panels,id',
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_days' => 'required|integer|min:1',
+            'connections' => 'nullable|integer|min:1|max:10',
             'comment' => 'nullable|string|max:200',
             'prefix' => 'nullable|string|max:50|regex:/^[a-zA-Z0-9_-]+$/',
             'custom_name' => 'nullable|string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
             'service_ids' => 'nullable|array',
             'service_ids.*' => 'integer',
+            'node_ids' => 'nullable|array',
+            'node_ids.*' => 'integer',
         ]);
 
         if ($validator->fails()) {
@@ -118,6 +157,18 @@ class ConfigController extends Controller
             }
         }
 
+        // Validate Eylandoo node whitelist
+        if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
+            $nodeIds = $request->node_ids ?? [];
+            $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+
+            foreach ($nodeIds as $nodeId) {
+                if (! in_array($nodeId, $allowedNodeIds)) {
+                    return back()->with('error', 'One or more selected nodes are not allowed for your account.');
+                }
+            }
+        }
+
         DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
             $provisioner = new ResellerProvisioner;
 
@@ -143,12 +194,16 @@ class ConfigController extends Controller
                 'prefix' => $prefix,
                 'custom_name' => $customName,
                 'traffic_limit_bytes' => $trafficLimitBytes,
+                'connections' => $request->input('connections'),
                 'usage_bytes' => 0,
                 'expires_at' => $expiresAt,
                 'status' => 'active',
                 'panel_type' => $panel->panel_type,
                 'panel_id' => $panel->id,
                 'created_by' => $request->user()->id,
+                'meta' => [
+                    'node_ids' => $request->input('node_ids', []),
+                ],
             ]);
 
             $username = $provisioner->generateUsername($reseller, 'config', $config->id, null, $prefix, $customName);
@@ -164,6 +219,9 @@ class ConfigController extends Controller
                 'traffic_limit_bytes' => $trafficLimitBytes,
                 'expires_at' => $expiresAt,
                 'service_ids' => $plan->marzneshin_service_ids,
+                'connections' => $request->input('connections', 1),
+                'max_clients' => $request->input('connections', 1),
+                'nodes' => $request->input('node_ids', []),
             ]);
 
             if ($result) {
