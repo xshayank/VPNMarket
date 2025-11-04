@@ -336,6 +336,7 @@ class ResellerProvisioner
 
                     // Extract subscription URL from /sub response
                     $subscriptionUrl = $service->extractSubscriptionUrlFromSub($subResponse);
+                    Log::info('Extracted subscription URL:', ['username' => $username, 'subscription_url' => $subscriptionUrl]);
                 }
             }
 

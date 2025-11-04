@@ -301,7 +301,10 @@ class EylandooService
             $response = $this->client()->get($this->baseUrl."/api/v1/users/{$username}/sub");
 
             if ($response->successful()) {
-                return $response->json();
+                $data = $response->json();
+                Log::info('Eylandoo Get User Subscription Response:', ['username' => $username, 'response' => $data]);
+
+                return $data;
             }
 
             Log::warning('Eylandoo Get User Subscription failed:', ['status' => $response->status(), 'username' => $username]);
@@ -329,15 +332,19 @@ class EylandooService
         // Try various known response shapes for subscription URL
         $configUrl = null;
 
-        // Shape 1: subscription_url at root
-        if (isset($subResponse['subscription_url'])) {
+        // Shape 1: subResponse.sub_url (production shape)
+        if (isset($subResponse['subResponse']['sub_url'])) {
+            $configUrl = $subResponse['subResponse']['sub_url'];
+        }
+        // Shape 2: subscription_url at root
+        elseif (isset($subResponse['subscription_url'])) {
             $configUrl = $subResponse['subscription_url'];
         }
-        // Shape 2: data.subscription_url
+        // Shape 3: data.subscription_url
         elseif (isset($subResponse['data']['subscription_url'])) {
             $configUrl = $subResponse['data']['subscription_url'];
         }
-        // Shape 3: url field
+        // Shape 4: url field
         elseif (isset($subResponse['url'])) {
             $configUrl = $subResponse['url'];
         }
