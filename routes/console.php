@@ -7,7 +7,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
-use Modules\Reseller\Jobs\EnforceResellerTimeWindowsJob;
 use Modules\Reseller\Jobs\ReenableResellerConfigsJob;
 use Modules\Reseller\Jobs\SyncResellerUsageJob;
 
