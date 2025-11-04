@@ -31,7 +31,7 @@ test('panel factory can generate eylandoo panels randomly', function () {
 
     $eylandooPanels = $panels->filter(fn ($panel) => $panel->panel_type === 'eylandoo');
 
-    // With 4 panel types, we should get some eylandoo panels in 100 attempts
+    // With eylandoo included in random generation, we should get some eylandoo panels in 100 attempts
     expect($eylandooPanels->count())->toBeGreaterThan(0);
 });
 
