@@ -19,6 +19,7 @@ class ResellerConfig extends Model
         'prefix',
         'custom_name',
         'traffic_limit_bytes',
+        'connections',
         'usage_bytes',
         'expires_at',
         'status',
@@ -33,6 +34,7 @@ class ResellerConfig extends Model
 
     protected $casts = [
         'traffic_limit_bytes' => 'integer',
+        'connections' => 'integer',
         'usage_bytes' => 'integer',
         'expires_at' => 'datetime',
         'disabled_at' => 'datetime',

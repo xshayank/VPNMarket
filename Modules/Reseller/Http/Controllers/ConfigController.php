@@ -84,6 +84,7 @@ class ConfigController extends Controller
             'panel_id' => 'required|exists:panels,id',
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_days' => 'required|integer|min:1',
+            'connections' => 'nullable|integer|min:1|max:10',
             'comment' => 'nullable|string|max:200',
             'prefix' => 'nullable|string|max:50|regex:/^[a-zA-Z0-9_-]+$/',
             'custom_name' => 'nullable|string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
@@ -143,6 +144,7 @@ class ConfigController extends Controller
                 'prefix' => $prefix,
                 'custom_name' => $customName,
                 'traffic_limit_bytes' => $trafficLimitBytes,
+                'connections' => $request->input('connections'),
                 'usage_bytes' => 0,
                 'expires_at' => $expiresAt,
                 'status' => 'active',
@@ -164,6 +166,8 @@ class ConfigController extends Controller
                 'traffic_limit_bytes' => $trafficLimitBytes,
                 'expires_at' => $expiresAt,
                 'service_ids' => $plan->marzneshin_service_ids,
+                'connections' => $request->input('connections', 1),
+                'max_clients' => $request->input('connections', 1),
             ]);
 
             if ($result) {

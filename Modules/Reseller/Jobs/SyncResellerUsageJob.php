@@ -334,8 +334,11 @@ class SyncResellerUsageJob implements ShouldQueue, ShouldBeUnique
             return null;
         }
         
-        // Eylandoo returns used_traffic in the data object
-        return isset($user['data']['used_traffic']) ? (int)$user['data']['used_traffic'] : null;
+        // Eylandoo returns data_used (in bytes) in the data object
+        $dataUsed = $user['data']['data_used'] ?? null;
+        
+        // Return bytes
+        return isset($dataUsed) ? (int)$dataUsed : null;
     }
 
     protected function disableConfig(ResellerConfig $config, string $reason): void

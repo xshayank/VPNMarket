@@ -44,6 +44,7 @@ class EylandooService
         try {
             $payload = [
                 'username' => $userData['username'],
+                'activation_type' => 'fixed_date',
             ];
 
             // Add max_clients (connections) if provided
@@ -51,16 +52,22 @@ class EylandooService
                 $payload['max_clients'] = (int) $userData['max_clients'];
             }
 
-            // Add data_limit in bytes if provided
+            // Add data_limit - Eylandoo expects the limit in the specified unit
             if (isset($userData['data_limit']) && $userData['data_limit'] !== null) {
-                $payload['data_limit'] = (int) $userData['data_limit'];
+                // Convert bytes to GB for Eylandoo
+                $dataLimitGB = round($userData['data_limit'] / (1024 * 1024 * 1024), 2);
+                $payload['data_limit'] = $dataLimitGB;
                 $payload['data_limit_unit'] = 'GB';
             }
 
             // Add expiry date if provided
             if (isset($userData['expire'])) {
-                $payload['activation_type'] = 'fixed_date';
                 $payload['expiry_date_str'] = date('Y-m-d', $userData['expire']);
+            }
+
+            // Add nodes if provided (default to all nodes)
+            if (isset($userData['nodes'])) {
+                $payload['nodes'] = $userData['nodes'];
             }
 
             $response = $this->client()->post($this->baseUrl.'/api/v1/users', $payload);
@@ -126,7 +133,9 @@ class EylandooService
                 if ($userData['data_limit'] === null) {
                     $payload['data_limit'] = null; // Unlimited
                 } else {
-                    $payload['data_limit'] = (int) $userData['data_limit'];
+                    // Convert bytes to GB for Eylandoo
+                    $dataLimitGB = round($userData['data_limit'] / (1024 * 1024 * 1024), 2);
+                    $payload['data_limit'] = $dataLimitGB;
                     $payload['data_limit_unit'] = 'GB';
                 }
             }
@@ -135,7 +144,6 @@ class EylandooService
             if (isset($userData['expire'])) {
                 $payload['activation_type'] = 'fixed_date';
                 $payload['expiry_date_str'] = date('Y-m-d', $userData['expire']);
-                $payload['reset_activation'] = true;
             }
 
             // Only send request if there's something to update
@@ -257,7 +265,7 @@ class EylandooService
     }
 
     /**
-     * Reset user usage
+     * Reset user traffic usage
      *
      * @param  string  $username  Username to reset
      * @return bool Success status
@@ -265,7 +273,7 @@ class EylandooService
     public function resetUserUsage(string $username): bool
     {
         try {
-            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$username}/reset-usage");
+            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$username}/reset_traffic");
 
             Log::info('Eylandoo Reset User Usage Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -282,8 +290,10 @@ class EylandooService
      */
     public function buildAbsoluteSubscriptionUrl(array $userApiResponse): string
     {
-        // Eylandoo returns config_url in the data
-        $configUrl = $userApiResponse['data']['users'][0]['config_url'] ?? $userApiResponse['data']['config_url'] ?? '';
+        // Eylandoo returns config_url in the users array
+        $configUrl = $userApiResponse['data']['users'][0]['config_url'] 
+            ?? $userApiResponse['data']['config_url'] 
+            ?? '';
 
         // If the URL is already absolute, return as is
         if (preg_match('#^https?://#i', $configUrl)) {
@@ -308,39 +318,38 @@ class EylandooService
     }
 
     /**
-     * List all admins from the panel
+     * List all users
+     * 
+     * @return array Array of users
      */
-    public function listAdmins(): array
+    public function listUsers(): array
     {
         try {
-            $response = $this->client()->get($this->baseUrl.'/api/v1/admins');
+            $response = $this->client()->get($this->baseUrl.'/api/v1/users/list_all');
 
             if ($response->successful()) {
                 $data = $response->json();
 
-                return $data['data']['admins'] ?? [];
+                return $data['data']['users'] ?? [];
             }
 
-            Log::warning('Eylandoo List Admins failed:', ['status' => $response->status()]);
+            Log::warning('Eylandoo List Users failed:', ['status' => $response->status()]);
 
             return [];
         } catch (\Exception $e) {
-            Log::error('Eylandoo List Admins Exception:', ['message' => $e->getMessage()]);
+            Log::error('Eylandoo List Users Exception:', ['message' => $e->getMessage()]);
 
             return [];
         }
     }
 
     /**
-     * List configs/users created by a specific admin
+     * List configs/users created by a specific admin (sub-admin)
      */
     public function listConfigsByAdmin(string $adminUsername): array
     {
         try {
-            // Eylandoo API might support filtering by admin
-            $response = $this->client()->get($this->baseUrl.'/api/v1/users', [
-                'admin' => $adminUsername,
-            ]);
+            $response = $this->client()->get($this->baseUrl.'/api/v1/users/list_all');
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -352,14 +361,14 @@ class EylandooService
                         'id' => $user['id'] ?? null,
                         'username' => $user['username'],
                         'status' => $user['status'] ?? 'active',
-                        'used_traffic' => $user['used_traffic'] ?? 0,
+                        'used_traffic' => $user['data_used'] ?? 0,
                         'data_limit' => $user['data_limit'] ?? null,
-                        'admin' => $user['admin'] ?? null,
-                        'owner_username' => $user['admin'] ?? null,
+                        'admin' => $user['sub_admin'] ?? null,
+                        'owner_username' => $user['sub_admin'] ?? null,
                     ];
                 }, $users);
 
-                // Filter by admin username as safety net
+                // Filter by admin username
                 return array_values(array_filter($configs, function ($config) use ($adminUsername) {
                     return $config['admin'] === $adminUsername;
                 }));
