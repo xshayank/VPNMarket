@@ -322,7 +322,9 @@ class ResellerProvisioner
             $subscriptionUrl = null;
             
             // First, try to extract subscription URL from create response
-            $subscriptionUrl = $service->extractSubscriptionUrl($result);
+            if ($service->extractSubscriptionUrl($result)) {
+                $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
+            }
             
             // If no subscription URL in create response, fetch user details
             if (empty($subscriptionUrl)) {
@@ -332,17 +334,10 @@ class ResellerProvisioner
                 if ($userInfo) {
                     Log::info('Eylandoo user info response:', ['userInfo' => $userInfo]);
                     
-                    // Try to extract subscription URL from user info
-                    $subscriptionUrl = $service->extractSubscriptionUrl($userInfo);
-                }
-            }
-            
-            // Build absolute URL if we have a subscription URL
-            if (!empty($subscriptionUrl)) {
-                // If it's already absolute, use as-is; otherwise build absolute URL
-                if (!preg_match('#^https?://#i', $subscriptionUrl)) {
-                    $baseHost = !empty($nodeHostname) ? $nodeHostname : $credentials['url'];
-                    $subscriptionUrl = rtrim($baseHost, '/').'/'.ltrim($subscriptionUrl, '/');
+                    // Build absolute subscription URL from user info
+                    if ($service->extractSubscriptionUrl($userInfo)) {
+                        $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($userInfo);
+                    }
                 }
             }
 
