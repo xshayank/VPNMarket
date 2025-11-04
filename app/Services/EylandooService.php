@@ -94,7 +94,15 @@ class EylandooService
     public function getUser(string $username): ?array
     {
         try {
-            $response = $this->client()->get($this->baseUrl."/api/v1/users/{$username}");
+            $encodedUsername = rawurlencode($username);
+            $endpoint = "/api/v1/users/{$encodedUsername}";
+            
+            Log::debug('Eylandoo Get User: requesting endpoint', [
+                'username' => $username,
+                'endpoint' => $endpoint,
+            ]);
+            
+            $response = $this->client()->get($this->baseUrl.$endpoint);
 
             if ($response->successful()) {
                 return $response->json();
@@ -103,6 +111,7 @@ class EylandooService
             Log::warning('Eylandoo Get User failed:', [
                 'status' => $response->status(),
                 'username' => $username,
+                'endpoint' => $endpoint,
                 'body_preview' => substr($response->body(), 0, 500),
             ]);
 
@@ -168,6 +177,7 @@ class EylandooService
     /**
      * Parse usage from Eylandoo API response
      * Handles multiple wrapper keys and usage field combinations
+     * Collects all viable candidates and chooses the maximum non-null value
      *
      * @param  array  $resp  API response
      * @return array ['bytes' => int|null, 'reason' => string, 'keys' => array]
@@ -183,57 +193,34 @@ class EylandooService
             ];
         }
 
-        // Try multiple wrapper keys in priority order
+        // Collect wrappers to search (include root and known wrapper keys)
+        $wrappers = ['root' => $resp];
         $wrapperKeys = ['userInfo', 'data', 'user', 'result', 'stats'];
-        $wrappers = [];
-
-        // Collect available wrappers
+        
         foreach ($wrapperKeys as $key) {
             if (isset($resp[$key]) && is_array($resp[$key])) {
                 $wrappers[$key] = $resp[$key];
             }
         }
 
-        // Single field keys (prefer these)
+        // Single field keys to check
         $singleKeys = [
             'total_traffic_bytes',
             'traffic_total_bytes',
             'total_bytes',
             'used_traffic',
+            'usage_bytes',
+            'bytes_used',
             'data_used',
             'data_used_bytes',
             'data_usage_bytes',
+            'traffic_used_bytes',
+            'totalDataBytes',
+            'totalTrafficBytes',
+            'trafficBytes',
         ];
 
-        // Try single field in each wrapper
-        foreach ($wrappers as $wrapperName => $wrapper) {
-            foreach ($singleKeys as $key) {
-                if (isset($wrapper[$key])) {
-                    $value = $wrapper[$key];
-                    // Handle string numbers safely - accept only valid integer representations
-                    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
-                        $bytes = (int) $value;
-
-                        return [
-                            'bytes' => max(0, $bytes),
-                            'reason' => "{$wrapperName}.{$key}",
-                            'keys' => array_keys($wrapper),
-                        ];
-                    } elseif (is_numeric($value) && $value >= 0) {
-                        // Fallback for float/scientific notation, but ensure non-negative
-                        $bytes = (int) $value;
-
-                        return [
-                            'bytes' => max(0, $bytes),
-                            'reason' => "{$wrapperName}.{$key}",
-                            'keys' => array_keys($wrapper),
-                        ];
-                    }
-                }
-            }
-        }
-
-        // Try pairs to sum (upload + download combinations)
+        // Pairs to sum (upload + download combinations)
         $pairs = [
             ['upload_bytes', 'download_bytes'],
             ['upload', 'download'],
@@ -242,6 +229,36 @@ class EylandooService
             ['uplink', 'downlink'],
         ];
 
+        // Collect all viable candidates
+        $candidates = [];
+
+        // Check single fields in each wrapper
+        foreach ($wrappers as $wrapperName => $wrapper) {
+            foreach ($singleKeys as $key) {
+                if (isset($wrapper[$key])) {
+                    $value = $wrapper[$key];
+                    // Handle string numbers safely - accept only valid integer representations
+                    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+                        $bytes = max(0, (int) $value);
+                        $candidates[] = [
+                            'bytes' => $bytes,
+                            'reason' => "{$wrapperName}.{$key}",
+                            'keys' => array_keys($wrapper),
+                        ];
+                    } elseif (is_numeric($value) && $value >= 0) {
+                        // Fallback for float/scientific notation, but ensure non-negative
+                        $bytes = max(0, (int) $value);
+                        $candidates[] = [
+                            'bytes' => $bytes,
+                            'reason' => "{$wrapperName}.{$key}",
+                            'keys' => array_keys($wrapper),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Check pairs to sum in each wrapper
         foreach ($wrappers as $wrapperName => $wrapper) {
             foreach ($pairs as $pair) {
                 [$upKey, $downKey] = $pair;
@@ -253,16 +270,24 @@ class EylandooService
                     $downValid = is_int($down) || (is_string($down) && ctype_digit($down)) || (is_numeric($down) && $down >= 0);
 
                     if ($upValid && $downValid) {
-                        $bytes = (int) $up + (int) $down;
-
-                        return [
-                            'bytes' => max(0, $bytes),
+                        $bytes = max(0, (int) $up + (int) $down);
+                        $candidates[] = [
+                            'bytes' => $bytes,
                             'reason' => "{$wrapperName}.{$upKey}+{$downKey}",
                             'keys' => array_keys($wrapper),
                         ];
                     }
                 }
             }
+        }
+
+        // Choose the maximum non-null value from all candidates
+        if (! empty($candidates)) {
+            usort($candidates, function ($a, $b) {
+                return $b['bytes'] <=> $a['bytes'];
+            });
+
+            return $candidates[0]; // Return the candidate with the maximum bytes
         }
 
         // No usage fields found - valid response but no traffic yet (return 0)
@@ -323,7 +348,8 @@ class EylandooService
                 return true;
             }
 
-            $response = $this->client()->put($this->baseUrl."/api/v1/users/{$username}", $payload);
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->put($this->baseUrl."/api/v1/users/{$encodedUsername}", $payload);
 
             Log::info('Eylandoo Update User Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -363,7 +389,8 @@ class EylandooService
             }
 
             // Toggle to enable
-            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$username}/toggle");
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$encodedUsername}/toggle");
 
             Log::info('Eylandoo Enable User Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -403,7 +430,8 @@ class EylandooService
             }
 
             // Toggle to disable
-            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$username}/toggle");
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$encodedUsername}/toggle");
 
             Log::info('Eylandoo Disable User Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -424,7 +452,8 @@ class EylandooService
     public function deleteUser(string $username): bool
     {
         try {
-            $response = $this->client()->delete($this->baseUrl."/api/v1/users/{$username}");
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->delete($this->baseUrl."/api/v1/users/{$encodedUsername}");
 
             Log::info('Eylandoo Delete User Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -445,7 +474,8 @@ class EylandooService
     public function resetUserUsage(string $username): bool
     {
         try {
-            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$username}/reset_traffic");
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->post($this->baseUrl."/api/v1/users/{$encodedUsername}/reset_traffic");
 
             Log::info('Eylandoo Reset User Usage Response:', $response->json() ?? ['raw' => $response->body()]);
 
@@ -466,7 +496,8 @@ class EylandooService
     public function getUserSubscription(string $username): ?array
     {
         try {
-            $response = $this->client()->get($this->baseUrl."/api/v1/users/{$username}/sub");
+            $encodedUsername = rawurlencode($username);
+            $response = $this->client()->get($this->baseUrl."/api/v1/users/{$encodedUsername}/sub");
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -504,15 +535,23 @@ class EylandooService
         if (isset($subResponse['subResponse']['sub_url'])) {
             $configUrl = $subResponse['subResponse']['sub_url'];
         }
-        // Shape 2: subscription_url at root
+        // Shape 2: sub_url at root
         elseif (isset($subResponse['sub_url'])) {
             $configUrl = $subResponse['sub_url'];
         }
-        // Shape 3: data.subscription_url
+        // Shape 3: subscription_url at root
+        elseif (isset($subResponse['subscription_url'])) {
+            $configUrl = $subResponse['subscription_url'];
+        }
+        // Shape 4: data.sub_url
         elseif (isset($subResponse['data']['sub_url'])) {
             $configUrl = $subResponse['data']['sub_url'];
         }
-        // Shape 4: url field
+        // Shape 5: data.subscription_url
+        elseif (isset($subResponse['data']['subscription_url'])) {
+            $configUrl = $subResponse['data']['subscription_url'];
+        }
+        // Shape 6: url field
         elseif (isset($subResponse['url'])) {
             $configUrl = $subResponse['url'];
         }
