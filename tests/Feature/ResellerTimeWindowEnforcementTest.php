@@ -7,7 +7,6 @@ use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +22,7 @@ class ResellerTimeWindowEnforcementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Mock Log to avoid output during tests
         Log::shouldReceive('info')->andReturnNull();
         Log::shouldReceive('notice')->andReturnNull();
@@ -84,9 +83,9 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         ]);
 
         // Run the enforcement job
-        $provisioner = new ResellerProvisioner();
+        $provisioner = new ResellerProvisioner;
         $enforcer = new ResellerTimeWindowEnforcer($provisioner);
-        $job = new EnforceResellerTimeWindowsJob();
+        $job = new EnforceResellerTimeWindowsJob;
         $job->handle($enforcer);
 
         // Assert reseller was suspended
@@ -201,9 +200,9 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         ]);
 
         // Run the enforcement job
-        $provisioner = new ResellerProvisioner();
+        $provisioner = new ResellerProvisioner;
         $enforcer = new ResellerTimeWindowEnforcer($provisioner);
-        $job = new EnforceResellerTimeWindowsJob();
+        $job = new EnforceResellerTimeWindowsJob;
         $job->handle($enforcer);
 
         // Assert reseller was reactivated
@@ -289,12 +288,12 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         Http::fake();
 
         // Run the job twice
-        $provisioner = new ResellerProvisioner();
+        $provisioner = new ResellerProvisioner;
         $enforcer = new ResellerTimeWindowEnforcer($provisioner);
-        $job1 = new EnforceResellerTimeWindowsJob();
+        $job1 = new EnforceResellerTimeWindowsJob;
         $job1->handle($enforcer);
 
-        $job2 = new EnforceResellerTimeWindowsJob();
+        $job2 = new EnforceResellerTimeWindowsJob;
         $job2->handle($enforcer);
 
         // Count audit logs - should only have the initial ones, not duplicates
@@ -302,7 +301,7 @@ class ResellerTimeWindowEnforcementTest extends TestCase
             ->where('target_type', 'reseller')
             ->where('target_id', $reseller->id)
             ->count();
-        
+
         // Should be 0 because reseller was already suspended
         $this->assertEquals(0, $resellerAuditCount);
 
@@ -310,7 +309,7 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         $eventCount = ResellerConfigEvent::where('reseller_config_id', $config->id)
             ->where('type', 'auto_disabled')
             ->count();
-        
+
         // Should be 0 from this run because config was already disabled
         $this->assertEquals(0, $eventCount);
 
@@ -344,7 +343,7 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         $reseller->update(['window_ends_at' => now()->addDays(10)]);
         $reseller->refresh();
         $remainingDays = $reseller->getTimeRemainingDays();
-        
+
         $this->assertGreaterThan(0, $remainingDays);
         $this->assertLessThanOrEqual(10, $remainingDays);
     }
@@ -362,9 +361,9 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         Http::fake();
 
         // Run the job
-        $provisioner = new ResellerProvisioner();
+        $provisioner = new ResellerProvisioner;
         $enforcer = new ResellerTimeWindowEnforcer($provisioner);
-        $job = new EnforceResellerTimeWindowsJob();
+        $job = new EnforceResellerTimeWindowsJob;
         $job->handle($enforcer);
 
         // Assert reseller remains active
@@ -421,9 +420,9 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         ]);
 
         // Run the job
-        $provisioner = new ResellerProvisioner();
+        $provisioner = new ResellerProvisioner;
         $enforcer = new ResellerTimeWindowEnforcer($provisioner);
-        $job = new EnforceResellerTimeWindowsJob();
+        $job = new EnforceResellerTimeWindowsJob;
         $job->handle($enforcer);
 
         // Assert local state was updated despite remote failure
