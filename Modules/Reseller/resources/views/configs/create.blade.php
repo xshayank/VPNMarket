@@ -35,10 +35,10 @@
 
                     <div class="mb-4 md:mb-6">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">انتخاب پنل</label>
-                        <select name="panel_id" required class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
+                        <select name="panel_id" id="panel_id" required class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base">
                             <option value="">-- انتخاب کنید --</option>
                             @foreach ($panels as $panel)
-                                <option value="{{ $panel->id }}">{{ $panel->name }} ({{ $panel->panel_type }})</option>
+                                <option value="{{ $panel->id }}" data-panel-type="{{ $panel->panel_type }}">{{ $panel->name }} ({{ $panel->panel_type }})</option>
                             @endforeach
                         </select>
                     </div>
@@ -57,6 +57,18 @@
                                 class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
                                 placeholder="مثال: 30">
                         </div>
+                    </div>
+
+                    <!-- Connections field for Eylandoo -->
+                    <div id="connections_field" class="mb-4 md:mb-6" style="display: none;">
+                        <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
+                            تعداد اتصالات همزمان
+                            <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" name="connections" id="connections_input" min="1" max="10" value="1"
+                            class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
+                            placeholder="مثال: 2">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">تعداد دستگاه‌هایی که می‌توانند به طور همزمان متصل شوند (فقط برای پنل Eylandoo)</p>
                     </div>
 
                     <div class="mb-4 md:mb-6">
@@ -116,4 +128,33 @@
             </div>
         </div>
     </div>
+
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const panelSelect = document.getElementById('panel_id');
+            const connectionsField = document.getElementById('connections_field');
+            const connectionsInput = document.getElementById('connections_input');
+            
+            function toggleConnectionsField() {
+                const selectedOption = panelSelect.options[panelSelect.selectedIndex];
+                const panelType = selectedOption.getAttribute('data-panel-type');
+                
+                if (panelType === 'eylandoo') {
+                    connectionsField.style.display = 'block';
+                    connectionsInput.required = true;
+                } else {
+                    connectionsField.style.display = 'none';
+                    connectionsInput.required = false;
+                    connectionsInput.value = '1'; // Reset to default
+                }
+            }
+            
+            panelSelect.addEventListener('change', toggleConnectionsField);
+            
+            // Initial check on page load
+            toggleConnectionsField();
+        });
+    </script>
+    @endpush
 </x-app-layout>

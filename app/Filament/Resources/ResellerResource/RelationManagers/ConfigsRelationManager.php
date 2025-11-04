@@ -104,6 +104,12 @@ class ConfigsRelationManager extends RelationManager
                     ->label('نوع پنل')
                     ->badge(),
 
+                Tables\Columns\TextColumn::make('connections')
+                    ->label('اتصالات همزمان')
+                    ->formatStateUsing(fn (?int $state): string => $state ? (string)$state : '-')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->visible(fn (ResellerConfig $record): bool => $record->panel_type === 'eylandoo'),
+
                 Tables\Columns\TextColumn::make('panel_user_id')
                     ->label('شناسه پنل')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -130,6 +136,7 @@ class ConfigsRelationManager extends RelationManager
                         'marzban' => 'Marzban',
                         'marzneshin' => 'Marzneshin',
                         'xui' => 'X-UI',
+                        'eylandoo' => 'Eylandoo',
                     ]),
             ])
             ->headerActions([
