@@ -210,8 +210,17 @@ class EylandooService
             foreach ($singleKeys as $key) {
                 if (isset($wrapper[$key])) {
                     $value = $wrapper[$key];
-                    // Handle string numbers safely
-                    if (is_numeric($value)) {
+                    // Handle string numbers safely - accept only valid integer representations
+                    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+                        $bytes = (int) $value;
+
+                        return [
+                            'bytes' => max(0, $bytes),
+                            'reason' => "{$wrapperName}.{$key}",
+                            'keys' => array_keys($wrapper),
+                        ];
+                    } elseif (is_numeric($value) && $value >= 0) {
+                        // Fallback for float/scientific notation, but ensure non-negative
                         $bytes = (int) $value;
 
                         return [
@@ -239,8 +248,11 @@ class EylandooService
                 if (isset($wrapper[$upKey]) && isset($wrapper[$downKey])) {
                     $up = $wrapper[$upKey];
                     $down = $wrapper[$downKey];
-                    // Handle string numbers safely
-                    if (is_numeric($up) && is_numeric($down)) {
+                    // Handle string numbers safely - accept only valid integer representations
+                    $upValid = is_int($up) || (is_string($up) && ctype_digit($up)) || (is_numeric($up) && $up >= 0);
+                    $downValid = is_int($down) || (is_string($down) && ctype_digit($down)) || (is_numeric($down) && $down >= 0);
+
+                    if ($upValid && $downValid) {
                         $bytes = (int) $up + (int) $down;
 
                         return [
