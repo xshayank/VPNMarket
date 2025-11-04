@@ -9,6 +9,7 @@ beforeEach(function () {
     Log::shouldReceive('error')->andReturnNull();
     Log::shouldReceive('info')->andReturnNull();
     Log::shouldReceive('warning')->andReturnNull();
+    Log::shouldReceive('debug')->andReturnNull();
 });
 
 test('extractSubscriptionUrlFromSub handles subResponse.sub_url shape', function () {

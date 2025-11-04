@@ -27,6 +27,7 @@ class ResellerUsageSyncTest extends TestCase
         Log::shouldReceive('notice')->andReturnNull();
         Log::shouldReceive('warning')->andReturnNull();
         Log::shouldReceive('error')->andReturnNull();
+        Log::shouldReceive('debug')->andReturnNull();
     }
 
     public function test_sync_job_fetches_usage_from_marzneshin_using_getuser(): void

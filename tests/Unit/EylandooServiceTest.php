@@ -10,6 +10,7 @@ beforeEach(function () {
     Log::shouldReceive('error')->andReturnNull();
     Log::shouldReceive('info')->andReturnNull();
     Log::shouldReceive('warning')->andReturnNull();
+    Log::shouldReceive('debug')->andReturnNull();
 });
 
 test('constructor initializes properties correctly', function () {
@@ -1018,4 +1019,30 @@ test('getUserUsageBytes handles string numbers in pairs', function () {
     $result = $service->getUserUsageBytes('testuser');
 
     expect($result)->toBe(2000000000);
+});
+
+// Test for the specific bug: zero total_traffic_bytes but non-zero upload+download
+test('getUserUsageBytes chooses max value when total_traffic_bytes is zero but upload+download is non-zero', function () {
+    Http::fake([
+        '*/api/v1/users/resell_8_cfg_52' => Http::response([
+            'activation_type' => 'fixed_date',
+            'download_bytes' => 583653425,
+            'upload_bytes' => 0,
+            'total_traffic_bytes' => 0,
+            'success' => true,
+            'username' => 'resell_8_cfg_52',
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUserUsageBytes('resell_8_cfg_52');
+
+    // Should use upload_bytes + download_bytes (583653425) not total_traffic_bytes (0)
+    expect($result)->toBe(583653425)
+        ->and($result)->toBeInt();
 });

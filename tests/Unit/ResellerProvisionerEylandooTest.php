@@ -13,6 +13,7 @@ beforeEach(function () {
     Log::shouldReceive('error')->andReturnNull();
     Log::shouldReceive('info')->andReturnNull();
     Log::shouldReceive('warning')->andReturnNull();
+    Log::shouldReceive('debug')->andReturnNull();
 });
 
 test('provisionEylandoo accepts node_ids parameter', function () {
