@@ -65,7 +65,7 @@ class EylandooService
             }
 
             // Add nodes if provided and non-empty (array of node IDs)
-            if (isset($userData['nodes']) && is_array($userData['nodes']) && !empty($userData['nodes'])) {
+            if (isset($userData['nodes']) && is_array($userData['nodes']) && ! empty($userData['nodes'])) {
                 $payload['nodes'] = array_map('intval', $userData['nodes']);
             }
 
@@ -290,16 +290,72 @@ class EylandooService
     }
 
     /**
+     * Get user subscription details from the dedicated subscription endpoint
+     *
+     * @param  string  $username  Username to fetch subscription for
+     * @return array|null Subscription data or null on failure
+     */
+    public function getUserSubscription(string $username): ?array
+    {
+        try {
+            $response = $this->client()->get($this->baseUrl."/api/v1/users/{$username}/sub");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('Eylandoo Get User Subscription failed:', ['status' => $response->status(), 'username' => $username]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Eylandoo Get User Subscription Exception:', ['message' => $e->getMessage(), 'username' => $username]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Extract subscription URL from the subscription endpoint response
+     *
+     * @param  array|null  $subResponse  Response from /api/v1/users/{username}/sub endpoint
+     * @return string|null The extracted subscription URL or null if not found
+     */
+    public function extractSubscriptionUrlFromSub(?array $subResponse): ?string
+    {
+        if (! $subResponse) {
+            return null;
+        }
+
+        // Try various known response shapes for subscription URL
+        $configUrl = null;
+
+        // Shape 1: subscription_url at root
+        if (isset($subResponse['subscription_url'])) {
+            $configUrl = $subResponse['subscription_url'];
+        }
+        // Shape 2: data.subscription_url
+        elseif (isset($subResponse['data']['subscription_url'])) {
+            $configUrl = $subResponse['data']['subscription_url'];
+        }
+        // Shape 3: url field
+        elseif (isset($subResponse['url'])) {
+            $configUrl = $subResponse['url'];
+        }
+
+        return $this->makeAbsoluteUrl($configUrl);
+    }
+
+    /**
      * Extract subscription/config URL from API response (various shapes)
-     * 
-     * @param array $userApiResponse API response from Eylandoo
+     *
+     * @param  array  $userApiResponse  API response from Eylandoo
      * @return string|null The extracted URL or null if not found
      */
     public function extractSubscriptionUrl(array $userApiResponse): ?string
     {
         // Try various known response shapes for subscription URL
         $configUrl = null;
-        
+
         // Shape 1: data.subscription_url
         if (isset($userApiResponse['data']['subscription_url'])) {
             $configUrl = $userApiResponse['data']['subscription_url'];
@@ -327,16 +383,31 @@ class EylandooService
     {
         $configUrl = $this->extractSubscriptionUrl($userApiResponse) ?? '';
 
+        return $this->makeAbsoluteUrl($configUrl) ?? '';
+    }
+
+    /**
+     * Convert a relative URL to absolute URL using base hostname
+     *
+     * @param  string|null  $url  URL to convert (can be relative or absolute)
+     * @return string|null Absolute URL or null if input is null/empty
+     */
+    protected function makeAbsoluteUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
         // If the URL is already absolute, return as is
-        if (preg_match('#^https?://#i', $configUrl)) {
-            return $configUrl;
+        if (preg_match('#^https?://#i', $url)) {
+            return $url;
         }
 
         // Use nodeHostname if set, otherwise fall back to baseUrl
         $baseHost = ! empty($this->nodeHostname) ? $this->nodeHostname : $this->baseUrl;
 
         // Ensure exactly one slash between hostname and path
-        return rtrim($baseHost, '/').'/'.ltrim($configUrl, '/');
+        return rtrim($baseHost, '/').'/'.ltrim($url, '/');
     }
 
     /**
@@ -351,7 +422,7 @@ class EylandooService
 
     /**
      * List all available nodes
-     * 
+     *
      * @return array Array of nodes
      */
     public function listNodes(): array
@@ -384,7 +455,7 @@ class EylandooService
 
     /**
      * List all users
-     * 
+     *
      * @return array Array of users
      */
     public function listUsers(): array
