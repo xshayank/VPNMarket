@@ -128,4 +128,44 @@ class Reseller extends Model
             ? $this->window_ends_at
             : $now;
     }
+
+    /**
+     * Get time remaining in seconds, clamped to 0 when expired
+     */
+    public function getTimeRemainingSeconds(): int
+    {
+        if (!$this->window_ends_at) {
+            return 0;
+        }
+
+        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'));
+        $windowEnd = $this->window_ends_at->copy()->timezone(config('app.timezone', 'Asia/Tehran'));
+        
+        // If window_ends_at is in the past, return 0
+        if ($windowEnd->lte($now)) {
+            return 0;
+        }
+
+        return $now->diffInSeconds($windowEnd);
+    }
+
+    /**
+     * Get time remaining in days, clamped to 0 when expired
+     */
+    public function getTimeRemainingDays(): int
+    {
+        if (!$this->window_ends_at) {
+            return 0;
+        }
+
+        $now = now()->timezone(config('app.timezone', 'Asia/Tehran'));
+        $windowEnd = $this->window_ends_at->copy()->timezone(config('app.timezone', 'Asia/Tehran'));
+        
+        // If window_ends_at is in the past, return 0
+        if ($windowEnd->lte($now)) {
+            return 0;
+        }
+
+        return $now->diffInDays($windowEnd);
+    }
 }
