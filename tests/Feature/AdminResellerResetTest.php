@@ -28,7 +28,7 @@ class AdminResellerResetTest extends TestCase
         Log::shouldReceive('debug')->andReturnNull();
     }
 
-    public function test_admin_reset_clears_both_current_and_settled_usage(): void
+    public function test_admin_reset_clears_reseller_aggregate_only(): void
     {
         // Create an admin user
         $admin = User::factory()->create(['is_admin' => true]);
@@ -89,49 +89,16 @@ class AdminResellerResetTest extends TestCase
             ],
         ]);
 
-        // Mock HTTP responses for remote panel reset calls
-        Http::fake([
-            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
-            '*/api/users/*/reset' => Http::response(null, 200),
-            '*/api/v1/users/*/reset_data_usage' => Http::response(['success' => true], 200),
-        ]);
-
         // Verify initial state
         $this->assertEquals(1 * 1024 * 1024 * 1024, $config1->usage_bytes);
         $this->assertEquals(500 * 1024 * 1024, $config1->getSettledUsageBytes());
         $this->assertEquals(3 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes);
 
-        // Create a Livewire component instance to test the reset action
-        // Since we can't easily test Filament actions in isolation, we'll test the underlying logic
-        
-        // Simulate admin reset logic (matching EditReseller.php)
+        // Simulate admin reset logic (matching new EditReseller.php)
         $oldUsedBytes = $reseller->traffic_used_bytes;
-        $configs = $reseller->configs()->get();
         
-        foreach ($configs as $config) {
-            $meta = $config->meta ?? [];
-            $meta['settled_usage_bytes'] = 0;
-            $meta['last_reset_at'] = now()->toDateTimeString();
-            
-            if ($config->panel_type === 'eylandoo') {
-                $meta['used_traffic'] = 0;
-                $meta['data_used'] = 0;
-            }
-            
-            $config->update([
-                'usage_bytes' => 0,
-                'meta' => $meta,
-            ]);
-        }
-        
-        // Recompute reseller traffic_used_bytes
-        $totalUsageBytes = $reseller->configs()
-            ->get()
-            ->sum(function ($c) {
-                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
-            });
-        
-        $reseller->update(['traffic_used_bytes' => $totalUsageBytes]);
+        // Simply reset the reseller's aggregate counter
+        $reseller->update(['traffic_used_bytes' => 0]);
 
         // Create audit log
         AuditLog::log(
@@ -141,27 +108,27 @@ class AdminResellerResetTest extends TestCase
             reason: 'admin_action',
             meta: [
                 'old_traffic_used_bytes' => $oldUsedBytes,
-                'new_traffic_used_bytes' => $totalUsageBytes,
+                'new_traffic_used_bytes' => 0,
                 'traffic_total_bytes' => $reseller->traffic_total_bytes,
-                'configs_count' => $configs->count(),
+                'note' => 'Admin quota forgiveness - config usage intact',
             ]
         );
 
-        // Verify configs were reset
+        // Verify configs remain UNTOUCHED
         $config1->refresh();
         $config2->refresh();
-        $this->assertEquals(0, $config1->usage_bytes);
-        $this->assertEquals(0, $config1->getSettledUsageBytes());
-        $this->assertEquals(0, $config2->usage_bytes);
-        $this->assertEquals(0, $config2->getSettledUsageBytes());
+        $this->assertEquals(1 * 1024 * 1024 * 1024, $config1->usage_bytes, 'Config1 usage_bytes should remain unchanged');
+        $this->assertEquals(500 * 1024 * 1024, $config1->getSettledUsageBytes(), 'Config1 settled_usage_bytes should remain unchanged');
+        $this->assertEquals(1 * 1024 * 1024 * 1024, $config2->usage_bytes, 'Config2 usage_bytes should remain unchanged');
+        $this->assertEquals(500 * 1024 * 1024, $config2->getSettledUsageBytes(), 'Config2 settled_usage_bytes should remain unchanged');
         
-        // Verify Eylandoo meta fields were cleared
-        $this->assertEquals(0, data_get($config2->meta, 'used_traffic', -1));
-        $this->assertEquals(0, data_get($config2->meta, 'data_used', -1));
+        // Verify Eylandoo meta fields remain UNTOUCHED
+        $this->assertEquals(1 * 1024 * 1024 * 1024, data_get($config2->meta, 'used_traffic'), 'Eylandoo used_traffic should remain unchanged');
+        $this->assertEquals(1 * 1024 * 1024 * 1024, data_get($config2->meta, 'data_used'), 'Eylandoo data_used should remain unchanged');
 
-        // Verify reseller usage was reset
+        // Verify only reseller aggregate was reset
         $reseller->refresh();
-        $this->assertEquals(0, $reseller->traffic_used_bytes);
+        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Reseller traffic_used_bytes should be reset to 0');
 
         // Verify audit log was created
         $auditLog = AuditLog::where('target_type', 'reseller')

@@ -87,80 +87,17 @@ class EditReseller extends EditRecord
                 ->visible(fn () => $this->record->type === 'traffic' && auth()->user()?->is_admin)
                 ->requiresConfirmation()
                 ->modalHeading('بازنشانی مصرف ترافیک (Reset Traffic Usage)')
-                ->modalDescription('این عملیات مصرف ترافیک فعلی و قبلی (settled) ریسلر را به صفر تنظیم می‌کند و همه کانفیگ‌ها را نیز ریست می‌کند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This will reset both current and settled traffic usage to 0 for all configs. This does not change the total traffic limit. Continue?')
+                ->modalDescription('این عملیات شمارنده کل مصرف ترافیک ریسلر را به صفر تنظیم می‌کند (بخشودگی سهمیه). کانفیگ‌های فردی ریسلر دست نخورده باقی می‌مانند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This resets the reseller\'s aggregate traffic counter to 0 (quota forgiveness). Individual configs remain untouched. This does not change the total traffic limit. Continue?')
                 ->modalSubmitActionLabel('بله، بازنشانی شود (Yes, Reset)')
                 ->modalCancelActionLabel('انصراف (Cancel)')
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
-                        $configs = $this->record->configs()->get();
-                        $configCount = $configs->count();
-                        $resetResults = [];
-                        
-                        // Reset each config
-                        foreach ($configs as $config) {
-                            $oldConfigUsage = $config->usage_bytes;
-                            $oldSettledUsage = (int) data_get($config->meta, 'settled_usage_bytes', 0);
-                            
-                            // Clear usage and settled usage
-                            $meta = $config->meta ?? [];
-                            $meta['settled_usage_bytes'] = 0;
-                            $meta['last_reset_at'] = now()->toDateTimeString();
-                            
-                            // For Eylandoo configs, clear meta usage fields
-                            if ($config->panel_type === 'eylandoo') {
-                                $meta['used_traffic'] = 0;
-                                $meta['data_used'] = 0;
-                            }
-                            
-                            $config->update([
-                                'usage_bytes' => 0,
-                                'meta' => $meta,
-                            ]);
-                            
-                            // Try to reset on remote panel (best-effort)
-                            $remoteSuccess = false;
-                            $remoteError = null;
-                            
-                            if ($config->panel_id && $config->panel_user_id) {
-                                try {
-                                    $panel = \App\Models\Panel::find($config->panel_id);
-                                    if ($panel) {
-                                        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
-                                        $result = $provisioner->resetUserUsage(
-                                            $panel->panel_type,
-                                            $panel->getCredentials(),
-                                            $config->panel_user_id
-                                        );
-                                        $remoteSuccess = $result['success'] ?? false;
-                                        $remoteError = $result['last_error'] ?? null;
-                                    }
-                                } catch (\Exception $e) {
-                                    $remoteError = $e->getMessage();
-                                    \Illuminate\Support\Facades\Log::error("Failed to reset config {$config->id} on remote panel: {$remoteError}");
-                                }
-                            }
-                            
-                            $resetResults[] = [
-                                'config_id' => $config->id,
-                                'config_username' => $config->external_username,
-                                'old_usage_bytes' => $oldConfigUsage,
-                                'old_settled_bytes' => $oldSettledUsage,
-                                'remote_success' => $remoteSuccess,
-                                'remote_error' => $remoteError,
-                            ];
-                        }
-                        
-                        // Recompute reseller traffic_used_bytes from configs
-                        // After reset, this should be 0 since all configs are zeroed
-                        $totalUsageBytes = $this->record->configs()
-                            ->get()
-                            ->sum(function ($c) {
-                                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
-                            });
-                        
+
+                        // Simply reset the reseller's aggregate traffic counter
+                        // Individual config usage remains intact
                         $this->record->update([
-                            'traffic_used_bytes' => $totalUsageBytes,
+                            'traffic_used_bytes' => 0,
                         ]);
 
                         // Create audit log
@@ -171,10 +108,9 @@ class EditReseller extends EditRecord
                             reason: 'admin_action',
                             meta: [
                                 'old_traffic_used_bytes' => $oldUsedBytes,
-                                'new_traffic_used_bytes' => $totalUsageBytes,
+                                'new_traffic_used_bytes' => 0,
                                 'traffic_total_bytes' => $this->record->traffic_total_bytes,
-                                'configs_count' => $configCount,
-                                'reset_results' => $resetResults,
+                                'note' => 'Admin quota forgiveness - config usage intact',
                             ]
                         );
 
@@ -184,21 +120,11 @@ class EditReseller extends EditRecord
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
                         }
 
-                        $remoteFailures = collect($resetResults)->where('remote_success', false)->count();
-                        
-                        if ($remoteFailures > 0) {
-                            \Filament\Notifications\Notification::make()
-                                ->warning()
-                                ->title('مصرف ترافیک بازنشانی شد')
-                                ->body("مصرف ریسلر و {$configCount} کانفیگ به صفر تنظیم شد، اما {$remoteFailures} کانفیگ در پنل ریموت با خطا مواجه شد.")
-                                ->send();
-                        } else {
-                            \Filament\Notifications\Notification::make()
-                                ->success()
-                                ->title('مصرف ترافیک با موفقیت بازنشانی شد')
-                                ->body("مصرف ریسلر و {$configCount} کانفیگ به صفر تنظیم شد")
-                                ->send();
-                        }
+                        \Filament\Notifications\Notification::make()
+                            ->success()
+                            ->title('مصرف ترافیک با موفقیت بازنشانی شد')
+                            ->body('شمارنده مصرف ریسلر به صفر تنظیم شد (کانفیگ‌ها دست نخورده)')
+                            ->send();
                     } catch (\Exception $e) {
                         \Filament\Notifications\Notification::make()
                             ->danger()
