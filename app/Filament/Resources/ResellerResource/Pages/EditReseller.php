@@ -87,28 +87,39 @@ class EditReseller extends EditRecord
                 ->visible(fn () => $this->record->type === 'traffic' && auth()->user()?->is_admin)
                 ->requiresConfirmation()
                 ->modalHeading('بازنشانی مصرف ترافیک (Reset Traffic Usage)')
-                ->modalDescription('این عملیات مصرف ترافیک ریسلر را به صفر تنظیم می‌کند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This will set the reseller\'s used traffic to 0. This does not change their total traffic limit. Continue?')
+                ->modalDescription('این عملیات شمارنده کل مصرف ترافیک ریسلر را به صفر تنظیم می‌کند (بخشودگی سهمیه). کانفیگ‌های فردی ریسلر دست نخورده باقی می‌مانند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This resets the reseller\'s aggregate traffic counter to 0 (quota forgiveness). Individual configs remain untouched. This does not change the total traffic limit. Continue?')
                 ->modalSubmitActionLabel('بله، بازنشانی شود (Yes, Reset)')
                 ->modalCancelActionLabel('انصراف (Cancel)')
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
+                        
+                        // Calculate the actual usage from configs
+                        $totalUsageFromConfigs = $this->record->configs()
+                            ->get()
+                            ->sum(function ($config) {
+                                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+                            });
 
-                        // Reset usage to zero
+                        // Set admin_forgiven_bytes to the total config usage
+                        // This way, effective usage = totalUsageFromConfigs - admin_forgiven_bytes = 0
                         $this->record->update([
-                            'traffic_used_bytes' => 0,
+                            'admin_forgiven_bytes' => $totalUsageFromConfigs,
+                            'traffic_used_bytes' => 0,  // Sync job will maintain this at 0
                         ]);
 
                         // Create audit log
                         \App\Models\AuditLog::log(
-                            action: 'reseller_usage_reset',
+                            action: 'reseller_usage_admin_reset',
                             targetType: 'reseller',
                             targetId: $this->record->id,
                             reason: 'admin_action',
                             meta: [
                                 'old_traffic_used_bytes' => $oldUsedBytes,
                                 'new_traffic_used_bytes' => 0,
+                                'admin_forgiven_bytes' => $totalUsageFromConfigs,
                                 'traffic_total_bytes' => $this->record->traffic_total_bytes,
+                                'note' => 'Admin quota forgiveness - config usage intact, forgiven bytes tracked',
                             ]
                         );
 
@@ -121,7 +132,7 @@ class EditReseller extends EditRecord
                         \Filament\Notifications\Notification::make()
                             ->success()
                             ->title('مصرف ترافیک با موفقیت بازنشانی شد')
-                            ->body('مصرف ترافیک ریسلر به صفر تنظیم شد')
+                            ->body('شمارنده مصرف ریسلر به صفر تنظیم شد (کانفیگ‌ها دست نخورده)')
                             ->send();
                     } catch (\Exception $e) {
                         \Filament\Notifications\Notification::make()
