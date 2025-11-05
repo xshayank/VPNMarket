@@ -57,17 +57,17 @@ class EnforceResellerTimeWindows extends Command
 
             $suspendedCount = 0;
             $skippedCount = 0;
-            
+
             foreach ($activeResellers as $reseller) {
                 try {
                     // Check both conditions: window validity and traffic quota
                     $windowValid = $reseller->isWindowValid();
                     $hasTraffic = $reseller->hasTrafficRemaining();
-                    
+
                     // Suspend if EITHER condition fails
-                    if (!$windowValid || !$hasTraffic) {
-                        $reason = !$windowValid ? 'window_expired' : 'quota_exhausted';
-                        
+                    if (! $windowValid || ! $hasTraffic) {
+                        $reason = ! $windowValid ? 'window_expired' : 'quota_exhausted';
+
                         if ($enforcer->suspendDueToLimits($reseller, $reason)) {
                             $suspendedCount++;
                             $this->line("  - Suspended reseller #{$reseller->id} (reason: {$reason})");
@@ -85,7 +85,7 @@ class EnforceResellerTimeWindows extends Command
                     Log::error("Failed to process reseller {$reseller->id}: ".$e->getMessage());
                 }
             }
-            
+
             Log::info("Suspension check completed: {$suspendedCount} suspended, {$skippedCount} remain active");
 
             // Check suspended resellers for reactivation eligibility
@@ -98,13 +98,13 @@ class EnforceResellerTimeWindows extends Command
 
             $reactivatedCount = 0;
             $skippedReactivationCount = 0;
-            
+
             foreach ($suspendedResellers as $reseller) {
                 try {
                     // Check both conditions for reactivation
                     $windowValid = $reseller->isWindowValid();
                     $hasTraffic = $reseller->hasTrafficRemaining();
-                    
+
                     $result = $enforcer->reactivateIfEligible($reseller);
                     if ($result) {
                         $reactivatedCount++;
@@ -116,13 +116,13 @@ class EnforceResellerTimeWindows extends Command
                     } else {
                         $skippedReactivationCount++;
                         // Log why reactivation was skipped
-                        if (!$windowValid && !$hasTraffic) {
+                        if (! $windowValid && ! $hasTraffic) {
                             $this->line("  - Skipped reseller #{$reseller->id}: window invalid AND no traffic");
                             Log::debug("Skipped reactivation for reseller {$reseller->id}: both conditions fail");
-                        } elseif (!$windowValid) {
+                        } elseif (! $windowValid) {
                             $this->line("  - Skipped reseller #{$reseller->id}: window invalid");
                             Log::debug("Skipped reactivation for reseller {$reseller->id}: window invalid");
-                        } elseif (!$hasTraffic) {
+                        } elseif (! $hasTraffic) {
                             $this->line("  - Skipped reseller #{$reseller->id}: no traffic remaining");
                             Log::debug("Skipped reactivation for reseller {$reseller->id}: no traffic remaining");
                         }
@@ -132,7 +132,7 @@ class EnforceResellerTimeWindows extends Command
                     Log::error("Failed to reactivate reseller {$reseller->id}: ".$e->getMessage());
                 }
             }
-            
+
             Log::info("Reactivation check completed: {$reactivatedCount} reactivated, {$skippedReactivationCount} remain suspended");
 
             $duration = round(microtime(true) - $startTime, 2);

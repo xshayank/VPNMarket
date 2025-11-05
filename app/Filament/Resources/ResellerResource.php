@@ -431,7 +431,7 @@ class ResellerResource extends Resource
                     ->visible(fn (Reseller $record): bool => $record->status === 'suspended')
                     ->action(function (Reseller $record) {
                         $record->update(['status' => 'active']);
-                        
+
                         // Create audit log
                         \App\Models\AuditLog::log(
                             action: 'reseller_manually_activated',
@@ -442,13 +442,13 @@ class ResellerResource extends Resource
                                 'previous_status' => 'suspended',
                             ]
                         );
-                        
+
                         // If reseller has traffic remaining and valid window, dispatch re-enable job
                         if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
                             \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after manual activation for reseller {$record->id}");
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
                         }
-                        
+
                         Notification::make()
                             ->success()
                             ->title('ریسلر با موفقیت فعال شد')
@@ -472,7 +472,7 @@ class ResellerResource extends Resource
                     ->action(function (Reseller $record, array $data) {
                         $additionalBytes = $data['traffic_gb'] * 1024 * 1024 * 1024;
                         $oldTotalBytes = $record->traffic_total_bytes;
-                        
+
                         $record->update([
                             'traffic_total_bytes' => $record->traffic_total_bytes + $additionalBytes,
                         ]);
@@ -584,7 +584,7 @@ class ResellerResource extends Resource
                     ->action(function (Reseller $record) {
                         try {
                             $oldUsedBytes = $record->traffic_used_bytes;
-                            
+
                             // Calculate the actual usage from configs
                             $totalUsageFromConfigs = $record->configs()
                                 ->get()
@@ -661,12 +661,12 @@ class ResellerResource extends Resource
                         ->action(function ($records) {
                             $activatedCount = 0;
                             $reenableJobsDispatched = 0;
-                            
+
                             foreach ($records as $record) {
                                 if ($record->status !== 'active') {
                                     $record->update(['status' => 'active']);
                                     $activatedCount++;
-                                    
+
                                     // Create audit log
                                     \App\Models\AuditLog::log(
                                         action: 'reseller_bulk_activated',
@@ -677,7 +677,7 @@ class ResellerResource extends Resource
                                             'previous_status' => $record->getOriginal('status'),
                                         ]
                                     );
-                                    
+
                                     // If reseller has traffic remaining and valid window, dispatch re-enable job
                                     if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
                                         \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after bulk activation for reseller {$record->id}");
@@ -686,7 +686,7 @@ class ResellerResource extends Resource
                                     }
                                 }
                             }
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title("ریسلرهای انتخاب شده با موفقیت فعال شدند ({$activatedCount} فعال شد، {$reenableJobsDispatched} کانفیگ برای فعال‌سازی)")
@@ -721,19 +721,19 @@ class ResellerResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         $query = parent::getEloquentQuery();
-        
+
         $user = auth()->user();
-        
+
         // Super admins and admins see all resellers
         if ($user->hasAnyRole(['super-admin', 'admin'])) {
             return $query;
         }
-        
+
         // Resellers can only see their own record
         if ($user->hasRole('reseller') && $user->reseller) {
             return $query->where('id', $user->reseller->id);
         }
-        
+
         // Regular users see nothing
         return $query->whereRaw('1 = 0');
     }
