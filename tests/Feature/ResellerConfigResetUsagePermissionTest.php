@@ -200,7 +200,7 @@ test('policy denies gracefully when permission does not exist', function () {
     expect($user->can('resetUsage', $config))->toBeFalse();
 });
 
-test('usage reset cooldown is enforced', function () {
+test('canResetUsage helper still works but cooldown is not enforced in controller', function () {
     $user = User::factory()->create();
     $panel = Panel::factory()->create();
     $reseller = Reseller::factory()->create([
@@ -222,7 +222,7 @@ test('usage reset cooldown is enforced', function () {
         ],
     ]);
 
-    // Should not be able to reset within 24 hours
+    // Helper method canResetUsage still returns false within 24 hours (backwards compatibility)
     expect($config->canResetUsage())->toBeFalse();
 
     // Update to 25 hours ago - need to refresh the model
@@ -232,8 +232,11 @@ test('usage reset cooldown is enforced', function () {
     $config->save();
     $config->refresh();
 
-    // Should be able to reset after 24 hours
+    // Helper method returns true after 24 hours
     expect($config->canResetUsage())->toBeTrue();
+    
+    // Note: The controller no longer enforces this cooldown, but the helper method
+    // is kept for backwards compatibility and audit/informational purposes
 });
 
 test('permissions:sync command creates permissions', function () {
