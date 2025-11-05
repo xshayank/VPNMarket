@@ -111,15 +111,28 @@
                 {{-- Traffic-based reseller stats --}}
                 <div class="p-3 md:p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
                     <h3 class="text-base md:text-lg font-semibold mb-3 md:mb-4 text-gray-900 dark:text-gray-100">ترافیک و زمان</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-3 md:mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
                         <div class="bg-blue-50 dark:bg-blue-900 p-3 md:p-4 rounded-lg">
                             <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">ترافیک کل</div>
                             <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_total_gb'] }} GB</div>
                         </div>
-                        <div class="bg-red-50 dark:bg-red-900 p-3 md:p-4 rounded-lg">
-                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">ترافیک مصرف شده</div>
-                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_used_gb'] }} GB</div>
+                        <div class="bg-orange-50 dark:bg-orange-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">مصرف فعلی</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_current_gb'] }} GB</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">دوره جاری</div>
                         </div>
+                        <div class="bg-amber-50 dark:bg-amber-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">مصرف قبلی</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_settled_gb'] }} GB</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">از ریست‌های قبل</div>
+                        </div>
+                        <div class="bg-red-50 dark:bg-red-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">مجموع مصرف</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_used_gb'] }} GB</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">فعلی + قبلی</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
                         <div class="bg-green-50 dark:bg-green-900 p-3 md:p-4 rounded-lg">
                             <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">ترافیک باقی‌مانده</div>
                             <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_remaining_gb'] }} GB</div>
