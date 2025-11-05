@@ -431,6 +431,24 @@ class ResellerResource extends Resource
                     ->visible(fn (Reseller $record): bool => $record->status === 'suspended')
                     ->action(function (Reseller $record) {
                         $record->update(['status' => 'active']);
+                        
+                        // Create audit log
+                        \App\Models\AuditLog::log(
+                            action: 'reseller_manually_activated',
+                            targetType: 'reseller',
+                            targetId: $record->id,
+                            reason: 'admin_action',
+                            meta: [
+                                'previous_status' => 'suspended',
+                            ]
+                        );
+                        
+                        // If reseller has traffic remaining and valid window, dispatch re-enable job
+                        if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                            \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after manual activation for reseller {$record->id}");
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
+                        }
+                        
                         Notification::make()
                             ->success()
                             ->title('ریسلر با موفقیت فعال شد')
@@ -453,12 +471,31 @@ class ResellerResource extends Resource
                     ])
                     ->action(function (Reseller $record, array $data) {
                         $additionalBytes = $data['traffic_gb'] * 1024 * 1024 * 1024;
+                        $oldTotalBytes = $record->traffic_total_bytes;
+                        
                         $record->update([
                             'traffic_total_bytes' => $record->traffic_total_bytes + $additionalBytes,
                         ]);
 
-                        // Dispatch job to re-enable configs if reseller recovered
-                        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                        // Create audit log for traffic top-up
+                        \App\Models\AuditLog::log(
+                            action: 'reseller_traffic_topup',
+                            targetType: 'reseller',
+                            targetId: $record->id,
+                            reason: 'admin_action',
+                            meta: [
+                                'old_traffic_total_bytes' => $oldTotalBytes,
+                                'new_traffic_total_bytes' => $record->traffic_total_bytes,
+                                'additional_bytes' => $additionalBytes,
+                                'additional_gb' => $data['traffic_gb'],
+                            ]
+                        );
+
+                        // Dispatch job to re-enable configs if reseller was suspended and now recovered
+                        if ($record->status === 'suspended' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                            \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after traffic topup for reseller {$record->id}");
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
+                        }
 
                         Notification::make()
                             ->success()
@@ -514,8 +551,11 @@ class ResellerResource extends Resource
                                 ]
                             );
 
-                            // Dispatch job to re-enable configs if reseller recovered
-                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                            // Dispatch job to re-enable configs if reseller was suspended and now recovered
+                            if ($record->status === 'suspended' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                                \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after window extension (table action) for reseller {$record->id}");
+                                \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
+                            }
 
                             Notification::make()
                                 ->success()
@@ -577,7 +617,8 @@ class ResellerResource extends Resource
                             // If reseller was suspended and now has remaining quota and valid window,
                             // dispatch job to re-enable configs
                             if ($record->status === 'suspended' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
-                                \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                                \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after usage reset (table action) for reseller {$record->id}");
+                                \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
                             }
 
                             Notification::make()

@@ -90,7 +90,7 @@ class ResellerTimeWindowEnforcer
     }
 
     /**
-     * Reactivate reseller if their time window is valid again
+     * Reactivate reseller if their time window is valid again AND they have traffic remaining
      */
     public function reactivateIfEligible(Reseller $reseller): bool
     {
@@ -108,10 +108,25 @@ class ResellerTimeWindowEnforcer
         $now = $this->getAppTimezoneNow();
         
         if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->lte($now)) {
+            Log::debug("Skipping reactivation for reseller {$reseller->id}: window invalid or expired");
             return false;
         }
 
-        Log::info("Reactivating reseller {$reseller->id} after time window extended");
+        // CRITICAL FIX: Check if reseller has traffic remaining before reactivation
+        // This prevents reactivating a reseller who still has exhausted quota
+        if (!$reseller->hasTrafficRemaining()) {
+            Log::info("Skipping reactivation for reseller {$reseller->id}: window valid but no traffic remaining", [
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_total_bytes' => $reseller->traffic_total_bytes,
+            ]);
+            return false;
+        }
+
+        Log::info("Reactivating reseller {$reseller->id} after time window extended and traffic available", [
+            'traffic_used_bytes' => $reseller->traffic_used_bytes,
+            'traffic_total_bytes' => $reseller->traffic_total_bytes,
+            'window_ends_at' => $reseller->window_ends_at->toDateTimeString(),
+        ]);
 
         // Reactivate the reseller
         $reseller->update(['status' => 'active']);
@@ -125,13 +140,16 @@ class ResellerTimeWindowEnforcer
             meta: [
                 'window_ends_at' => $reseller->window_ends_at->toDateTimeString(),
                 'reactivated_at' => now()->toDateTimeString(),
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_total_bytes' => $reseller->traffic_total_bytes,
             ],
             actorType: null,
             actorId: null  // System action
         );
 
-        // Re-enable configs that were disabled by time window enforcement
-        $this->reenableResellerConfigs($reseller);
+        // Dispatch job to re-enable configs that were disabled by reseller suspension
+        Log::info("Dispatching ReenableResellerConfigsJob for reseller {$reseller->id}");
+        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($reseller->id);
 
         return true;
     }

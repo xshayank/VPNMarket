@@ -46,6 +46,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
         // If specific reseller ID provided, only process that reseller
         if ($this->resellerId !== null) {
             $query->where('id', $this->resellerId);
+            Log::info("Processing specific reseller", ['reseller_id' => $this->resellerId]);
         }
 
         $resellers = $query->get()
@@ -60,6 +61,18 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 
                 $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
                 $isWindowValid = $reseller->isWindowValid();
+                
+                // Log decision for debugging
+                if (!$hasTrafficRemaining || !$isWindowValid) {
+                    Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
+                        'has_traffic_remaining' => $hasTrafficRemaining,
+                        'is_window_valid' => $isWindowValid,
+                        'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                        'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                        'effective_limit' => $effectiveResellerLimit,
+                        'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                    ]);
+                }
                 
                 return $hasTrafficRemaining && $isWindowValid;
             });
@@ -100,15 +113,22 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
-        // Find disabled configs that were auto-disabled by reseller suspension (using meta marker)
+        // Find disabled configs that were auto-disabled by reseller suspension
+        // This includes both quota exhaustion and time window expiration markers
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
             ->get()
             ->filter(function ($config) {
-                // Only re-enable configs with the disabled_by_reseller_suspension marker
+                // Re-enable configs with either marker:
+                // 1. disabled_by_reseller_suspension (quota exhaustion)
+                // 2. suspended_by_time_window (time window expiration)
                 // Explicitly check for true to avoid re-enabling configs with marker set to false
-                return isset($config->meta['disabled_by_reseller_suspension']) 
+                $hasQuotaMarker = isset($config->meta['disabled_by_reseller_suspension']) 
                     && $config->meta['disabled_by_reseller_suspension'] === true;
+                $hasTimeWindowMarker = isset($config->meta['suspended_by_time_window']) 
+                    && $config->meta['suspended_by_time_window'] === true;
+                    
+                return $hasQuotaMarker || $hasTimeWindowMarker;
             });
 
         if ($configs->isEmpty()) {
@@ -134,11 +154,12 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     $failedCount++;
                 }
 
-                // Update local status and clear the meta marker
+                // Update local status and clear both suspension markers
                 $meta = $config->meta ?? [];
                 unset($meta['disabled_by_reseller_suspension']);
                 unset($meta['disabled_by_reseller_suspension_reason']);
                 unset($meta['disabled_by_reseller_suspension_at']);
+                unset($meta['suspended_by_time_window']);
                 
                 $config->update([
                     'status' => 'active',
