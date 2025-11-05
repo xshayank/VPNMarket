@@ -139,23 +139,21 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
-        // Find disabled configs that were auto-disabled by reseller suspension
-        // This includes both quota exhaustion and time window expiration markers
+        // Find configs that were auto-disabled by reseller suspension using JSON queries
+        // Query for configs with meta->disabled_by_reseller_suspension = true (handle mixed types: true, '1', 1)
+        // We use whereRaw to handle all truthy variations (boolean true, string '1', integer 1)
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
-            ->where('status', 'disabled')
-            ->get()
-            ->filter(function ($config) {
-                // Re-enable configs with either marker:
-                // 1. disabled_by_reseller_suspension (quota exhaustion)
-                // 2. suspended_by_time_window (time window expiration)
-                // Explicitly check for true to avoid re-enabling configs with marker set to false
-                $hasQuotaMarker = isset($config->meta['disabled_by_reseller_suspension'])
-                    && $config->meta['disabled_by_reseller_suspension'] === true;
-                $hasTimeWindowMarker = isset($config->meta['suspended_by_time_window'])
-                    && $config->meta['suspended_by_time_window'] === true;
-
-                return $hasQuotaMarker || $hasTimeWindowMarker;
-            });
+            ->where(function ($query) {
+                // Match configs where disabled_by_reseller_suspension is truthy (handles true, '1', 1)
+                $query->whereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = TRUE")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = '1'")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = 1")
+                    // Also handle time window suspension marker
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = TRUE")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = '1'")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = 1");
+            })
+            ->get();
 
         if ($configs->isEmpty()) {
             Log::info("No configs marked for re-enable for reseller {$reseller->id}");
@@ -173,25 +171,57 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 // Apply micro-sleep rate limiting: 3 ops/sec evenly distributed
                 $provisioner->applyRateLimit($enabledCount);
 
-                // Enable on remote panel using enableConfig method
+                // Detailed logging before enable attempt
+                $panel = $config->panel_id ? Panel::find($config->panel_id) : null;
+                $metaSnapshot = $config->meta ?? [];
+                
+                Log::info("Attempting to re-enable config", [
+                    'reseller_id' => $reseller->id,
+                    'config_id' => $config->id,
+                    'panel_id' => $config->panel_id,
+                    'panel_type' => $panel?->panel_type ?? $config->panel_type,
+                    'panel_user_id' => $config->panel_user_id,
+                    'current_status' => $config->status,
+                    'meta_snapshot' => [
+                        'disabled_by_reseller_suspension' => $metaSnapshot['disabled_by_reseller_suspension'] ?? null,
+                        'disabled_by_reseller_id' => $metaSnapshot['disabled_by_reseller_id'] ?? null,
+                        'disabled_at' => $metaSnapshot['disabled_at'] ?? null,
+                        'suspended_by_time_window' => $metaSnapshot['suspended_by_time_window'] ?? null,
+                    ],
+                ]);
+
+                // Enable on remote panel using enableConfig method (best-effort)
                 $remoteResult = $provisioner->enableConfig($config);
 
+                // Log remote enable result
+                Log::info("Remote enable result for config {$config->id}", [
+                    'remote_success' => $remoteResult['success'],
+                    'attempts' => $remoteResult['attempts'],
+                    'last_error' => $remoteResult['last_error'],
+                ]);
+
                 if (! $remoteResult['success']) {
-                    Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                    Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}. Proceeding with local DB update to avoid stuck state.");
                     $failedCount++;
                 }
 
-                // Update local status and clear both suspension markers
+                // Update local status and clear suspension markers (even if remote fails to avoid stuck state)
                 $meta = $config->meta ?? [];
                 unset($meta['disabled_by_reseller_suspension']);
                 unset($meta['disabled_by_reseller_suspension_reason']);
                 unset($meta['disabled_by_reseller_suspension_at']);
+                unset($meta['disabled_by_reseller_id']);
+                unset($meta['disabled_at']);
                 unset($meta['suspended_by_time_window']);
 
                 $config->update([
                     'status' => 'active',
                     'disabled_at' => null,
                     'meta' => $meta,
+                ]);
+
+                Log::info("Config {$config->id} re-enabled in DB (status set to active, meta flags cleared)", [
+                    'remote_success' => $remoteResult['success'],
                 ]);
 
                 ResellerConfigEvent::create([
