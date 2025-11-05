@@ -93,11 +93,19 @@ class EditReseller extends EditRecord
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
+                        
+                        // Calculate the actual usage from configs
+                        $totalUsageFromConfigs = $this->record->configs()
+                            ->get()
+                            ->sum(function ($config) {
+                                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+                            });
 
-                        // Simply reset the reseller's aggregate traffic counter
-                        // Individual config usage remains intact
+                        // Set admin_forgiven_bytes to the total config usage
+                        // This way, effective usage = totalUsageFromConfigs - admin_forgiven_bytes = 0
                         $this->record->update([
-                            'traffic_used_bytes' => 0,
+                            'admin_forgiven_bytes' => $totalUsageFromConfigs,
+                            'traffic_used_bytes' => 0,  // Sync job will maintain this at 0
                         ]);
 
                         // Create audit log
@@ -109,8 +117,9 @@ class EditReseller extends EditRecord
                             meta: [
                                 'old_traffic_used_bytes' => $oldUsedBytes,
                                 'new_traffic_used_bytes' => 0,
+                                'admin_forgiven_bytes' => $totalUsageFromConfigs,
                                 'traffic_total_bytes' => $this->record->traffic_total_bytes,
-                                'note' => 'Admin quota forgiveness - config usage intact',
+                                'note' => 'Admin quota forgiveness - config usage intact, forgiven bytes tracked',
                             ]
                         );
 

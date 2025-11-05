@@ -162,18 +162,27 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         // Update reseller's total traffic usage from ALL configs (not just active)
         // This ensures reseller suspension decision is based on complete usage picture
         // Include settled_usage_bytes to prevent abuse (resellers resetting to bypass quota)
+        // Subtract admin_forgiven_bytes to honor admin quota forgiveness
         // For display purposes, use getCurrentTrafficUsedBytes() which excludes settled
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($config) {
                 return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
             });
-        $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
+        
+        // Subtract admin forgiven bytes to get effective usage
+        $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
+        $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
+        
+        $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
         Log::info("Reseller {$reseller->id} usage updated", [
             'reseller_id' => $reseller->id,
-            'traffic_used_bytes' => $totalUsageBytesFromDB,
-            'traffic_used_gb' => round($totalUsageBytesFromDB / (1024 * 1024 * 1024), 2),
+            'total_from_configs' => $totalUsageBytesFromDB,
+            'admin_forgiven_bytes' => $adminForgivenBytes,
+            'effective_usage_bytes' => $effectiveUsageBytes,
+            'traffic_used_bytes' => $effectiveUsageBytes,
+            'traffic_used_gb' => round($effectiveUsageBytes / (1024 * 1024 * 1024), 2),
         ]);
 
         // Check reseller-level limits with grace
@@ -184,7 +193,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             $resellerGrace['bytes']
         );
 
-        $hasTrafficRemaining = $totalUsageBytesFromDB < $effectiveResellerLimit;
+        $hasTrafficRemaining = $effectiveUsageBytes < $effectiveResellerLimit;
         $isWindowValid = $reseller->isWindowValid();
 
         if (! $hasTrafficRemaining || ! $isWindowValid) {
@@ -201,7 +210,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                     targetId: $reseller->id,
                     reason: $reason,
                     meta: [
-                        'traffic_used_bytes' => $totalUsageBytesFromDB,
+                        'traffic_used_bytes' => $effectiveUsageBytes,
                         'traffic_total_bytes' => $reseller->traffic_total_bytes,
                         'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
                     ],

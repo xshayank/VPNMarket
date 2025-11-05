@@ -97,8 +97,18 @@ class AdminResellerResetTest extends TestCase
         // Simulate admin reset logic (matching new EditReseller.php)
         $oldUsedBytes = $reseller->traffic_used_bytes;
         
-        // Simply reset the reseller's aggregate counter
-        $reseller->update(['traffic_used_bytes' => 0]);
+        // Calculate actual usage from configs
+        $totalUsageFromConfigs = $reseller->configs()
+            ->get()
+            ->sum(function ($config) {
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+            });
+        
+        // Set admin_forgiven_bytes and reset traffic_used_bytes
+        $reseller->update([
+            'admin_forgiven_bytes' => $totalUsageFromConfigs,
+            'traffic_used_bytes' => 0,
+        ]);
 
         // Create audit log
         AuditLog::log(
@@ -109,8 +119,9 @@ class AdminResellerResetTest extends TestCase
             meta: [
                 'old_traffic_used_bytes' => $oldUsedBytes,
                 'new_traffic_used_bytes' => 0,
+                'admin_forgiven_bytes' => $totalUsageFromConfigs,
                 'traffic_total_bytes' => $reseller->traffic_total_bytes,
-                'note' => 'Admin quota forgiveness - config usage intact',
+                'note' => 'Admin quota forgiveness - config usage intact, forgiven bytes tracked',
             ]
         );
 
@@ -139,6 +150,122 @@ class AdminResellerResetTest extends TestCase
         $this->assertNotNull($auditLog);
         $this->assertEquals($oldUsedBytes, $auditLog->meta['old_traffic_used_bytes']);
         $this->assertEquals(0, $auditLog->meta['new_traffic_used_bytes']);
+        $this->assertEquals($totalUsageFromConfigs, $auditLog->meta['admin_forgiven_bytes']);
+    }
+
+    public function test_admin_reset_survives_sync_job(): void
+    {
+        // Create a reseller user
+        $resellerUser = User::factory()->create();
+
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create a reseller
+        $reseller = Reseller::factory()->create([
+            'user_id' => $resellerUser->id,
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 3 * 1024 * 1024 * 1024, // 3 GB initially
+            'window_starts_at' => now()->subDays(1),
+            'window_ends_at' => now()->addDays(30),
+        ]);
+
+        // Create configs with usage
+        $config1 = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 1 * 1024 * 1024 * 1024, // 1 GB
+            'expires_at' => now()->addDays(30),
+            'meta' => [
+                'settled_usage_bytes' => 500 * 1024 * 1024, // 500 MB
+            ],
+        ]);
+
+        $config2 = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser2',
+            'status' => 'active',
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 1 * 1024 * 1024 * 1024, // 1 GB
+            'expires_at' => now()->addDays(30),
+            'meta' => [
+                'settled_usage_bytes' => 500 * 1024 * 1024, // 500 MB
+            ],
+        ]);
+
+        // Calculate total usage from configs: 2 * (1GB + 500MB) = 3 GB
+        $totalUsageFromConfigs = $reseller->configs()
+            ->get()
+            ->sum(function ($config) {
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+            });
+        
+        // Verify expected total (approximately 3 GB, might have minor rounding)
+        $expected = 3 * 1024 * 1024 * 1024;
+        $this->assertGreaterThan($expected * 0.99, $totalUsageFromConfigs);
+        $this->assertLessThan($expected * 1.01, $totalUsageFromConfigs);
+
+        // Admin resets usage
+        $reseller->update([
+            'admin_forgiven_bytes' => $totalUsageFromConfigs,
+            'traffic_used_bytes' => 0,
+        ]);
+
+        // Verify reset worked
+        $reseller->refresh();
+        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Usage should be 0 after admin reset');
+        $this->assertEquals($totalUsageFromConfigs, $reseller->admin_forgiven_bytes);
+
+        // Simulate sync job recalculation (as in SyncResellerUsageJob)
+        $totalFromConfigs = $reseller->configs()
+            ->get()
+            ->sum(function ($config) {
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+            });
+        
+        $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
+        $effectiveUsageBytes = max(0, $totalFromConfigs - $adminForgivenBytes);
+        
+        $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
+
+        // Verify usage stays at 0 after sync
+        $reseller->refresh();
+        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Usage should remain 0 after sync job');
+        $this->assertEquals($totalUsageFromConfigs, $reseller->admin_forgiven_bytes, 'Forgiven bytes should remain set');
+
+        // Now simulate new traffic (configs increase usage)
+        $config1->update(['usage_bytes' => 1.5 * 1024 * 1024 * 1024]); // +500MB
+
+        // Re-run sync calculation
+        $totalFromConfigs = $reseller->configs()
+            ->get()
+            ->sum(function ($config) {
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+            });
+        
+        $effectiveUsageBytes = max(0, $totalFromConfigs - $adminForgivenBytes);
+        $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
+
+        // Verify NEW traffic is counted correctly
+        $reseller->refresh();
+        $expectedNewUsage = 512 * 1024 * 1024; // 0.5 GB = 512 MiB (not 500 MB)
+        $this->assertEquals($expectedNewUsage, $reseller->traffic_used_bytes, 'Only new traffic after forgiveness should count');
     }
 
     public function test_admin_reset_leaves_reseller_config_reset_behavior_unchanged(): void
