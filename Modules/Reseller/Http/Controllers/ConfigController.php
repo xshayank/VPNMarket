@@ -661,6 +661,7 @@ class ConfigController extends Controller
             $remoteResultFinal = $remoteResult;
 
             // Recalculate and persist reseller aggregate after reset
+            // Include settled_usage_bytes to prevent abuse
             $reseller = $config->reseller;
             $totalUsageBytesFromDB = $reseller->configs()
                 ->get()

@@ -95,6 +95,21 @@ class Reseller extends Model
         return $this->traffic_used_bytes < $this->traffic_total_bytes;
     }
 
+    /**
+     * Get current traffic usage (excluding settled usage from resets)
+     * This is used for display purposes to show resellers their current cycle usage
+     * 
+     * @return int Current usage in bytes
+     */
+    public function getCurrentTrafficUsedBytes(): int
+    {
+        return $this->configs()
+            ->get()
+            ->sum(function ($config) {
+                return $config->usage_bytes;
+            });
+    }
+
     public function isWindowValid(): bool
     {
         if (! $this->isTrafficBased()) {

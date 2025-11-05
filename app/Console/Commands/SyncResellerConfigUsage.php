@@ -84,6 +84,7 @@ class SyncResellerConfigUsage extends Command
             $this->newLine();
 
             // Recalculate and persist reseller aggregate immediately
+            // Include settled_usage_bytes to prevent abuse
             $reseller = $config->reseller;
             $oldResellerUsage = $reseller->traffic_used_bytes;
             $totalUsageBytesFromDB = $reseller->configs()
