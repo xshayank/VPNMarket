@@ -669,6 +669,12 @@ class ConfigController extends Controller
                 });
             $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
+            Log::info('Config reset updated reseller aggregate', [
+                'reseller_id' => $reseller->id,
+                'config_id' => $config->id,
+                'new_reseller_usage_bytes' => $totalUsageBytesFromDB,
+            ]);
+
             ResellerConfigEvent::create([
                 'reseller_config_id' => $config->id,
                 'type' => 'usage_reset',
