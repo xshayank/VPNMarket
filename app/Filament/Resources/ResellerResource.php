@@ -443,8 +443,9 @@ class ResellerResource extends Resource
                             ]
                         );
 
-                        // If reseller has traffic remaining and valid window, dispatch re-enable job
-                        if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                        // Always dispatch re-enable job for traffic resellers when manually activated
+                        // Trust admin's judgment - they explicitly chose to activate this reseller
+                        if ($record->type === 'traffic') {
                             \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after manual activation for reseller {$record->id}");
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
                         }
@@ -491,8 +492,9 @@ class ResellerResource extends Resource
                             ]
                         );
 
-                        // Dispatch job to re-enable configs if reseller was suspended and now recovered
-                        if ($record->status === 'suspended' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                        // Dispatch job to re-enable configs if reseller was suspended
+                        // After adding traffic, attempt to re-enable configs
+                        if ($record->status === 'suspended') {
                             \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after traffic topup for reseller {$record->id}");
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
                         }
@@ -679,8 +681,9 @@ class ResellerResource extends Resource
                                         ]
                                     );
 
-                                    // If reseller has traffic remaining and valid window, dispatch re-enable job
-                                    if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                                    // Always dispatch re-enable job for traffic resellers
+                                    // Trust admin's bulk activation intent
+                                    if ($record->type === 'traffic') {
                                         \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after bulk activation for reseller {$record->id}");
                                         \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
                                         $reenableJobsDispatched++;
