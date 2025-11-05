@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ResellerResource\Pages;
 use App\Filament\Resources\ResellerResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\Log;
 
 class EditReseller extends EditRecord
 {
@@ -87,43 +88,47 @@ class EditReseller extends EditRecord
                 ->visible(fn () => $this->record->type === 'traffic' && auth()->user()?->is_admin)
                 ->requiresConfirmation()
                 ->modalHeading('بازنشانی مصرف ترافیک (Reset Traffic Usage)')
-                ->modalDescription('این عملیات مصرف ترافیک ریسلر را به صفر تنظیم می‌کند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This will set the reseller\'s used traffic to 0. This does not change their total traffic limit. Continue?')
+                ->modalDescription('این عملیات مصرف ترافیک ریسلر و تمام کانفیگ‌های آن را به صفر تنظیم می‌کند و مقدار مصرف شده را به حساب "مصرف قبلی" منتقل می‌کند. این عملیات در پس‌زمینه انجام می‌شود. / This will reset the reseller\'s traffic usage and all config usage to 0, moving current usage to "settled usage". The operation runs in the background.')
                 ->modalSubmitActionLabel('بله، بازنشانی شود (Yes, Reset)')
                 ->modalCancelActionLabel('انصراف (Cancel)')
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
 
-                        // Reset usage to zero
-                        $this->record->update([
-                            'traffic_used_bytes' => 0,
+                        Log::info("Admin initiating reseller usage reset", [
+                            'reseller_id' => $this->record->id,
+                            'old_traffic_used_bytes' => $oldUsedBytes,
+                            'admin_user_id' => auth()->user()?->id,
                         ]);
 
-                        // Create audit log
+                        // Dispatch job to handle reset across all configs
+                        \Modules\Reseller\Jobs\ResetResellerUsageJob::dispatch($this->record);
+
+                        // Create initial audit log for job dispatch
                         \App\Models\AuditLog::log(
-                            action: 'reseller_usage_reset',
+                            action: 'reseller_usage_reset_initiated',
                             targetType: 'reseller',
                             targetId: $this->record->id,
                             reason: 'admin_action',
                             meta: [
                                 'old_traffic_used_bytes' => $oldUsedBytes,
-                                'new_traffic_used_bytes' => 0,
+                                'old_traffic_used_gb' => round($oldUsedBytes / (1024 * 1024 * 1024), 2),
                                 'traffic_total_bytes' => $this->record->traffic_total_bytes,
+                                'config_count' => $this->record->configs()->count(),
                             ]
                         );
 
-                        // If reseller was suspended and now has remaining quota and valid window,
-                        // dispatch job to re-enable configs
-                        if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
-                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
-                        }
-
                         \Filament\Notifications\Notification::make()
                             ->success()
-                            ->title('مصرف ترافیک با موفقیت بازنشانی شد')
-                            ->body('مصرف ترافیک ریسلر به صفر تنظیم شد')
+                            ->title('بازنشانی مصرف آغاز شد')
+                            ->body('فرایند بازنشانی مصرف ترافیک در پس‌زمینه شروع شد. لاگ‌ها را برای پیگیری بررسی کنید.')
                             ->send();
                     } catch (\Exception $e) {
+                        Log::error("Failed to dispatch reseller usage reset job", [
+                            'reseller_id' => $this->record->id,
+                            'error' => $e->getMessage(),
+                        ]);
+
                         \Filament\Notifications\Notification::make()
                             ->danger()
                             ->title('خطا در بازنشانی مصرف')

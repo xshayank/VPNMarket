@@ -39,6 +39,9 @@
                             <p><strong>توضیحات:</strong> {{ $config->comment }}</p>
                         @endif
                         <p><strong>مصرف فعلی:</strong> {{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</p>
+                        @if($config->getSettledUsageBytes() > 0)
+                            <p><strong>مصرف قبلی (ریست شده):</strong> {{ round($config->getSettledUsageBytes() / (1024 * 1024 * 1024), 2) }} GB</p>
+                        @endif
                         <p><strong>وضعیت:</strong> {{ $config->status }}</p>
                     </div>
                 </div>
