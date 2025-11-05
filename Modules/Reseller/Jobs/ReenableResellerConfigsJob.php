@@ -23,7 +23,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     public $timeout = 600;
 
-    protected ?int $resellerId;
+    public ?int $resellerId;
 
     /**
      * Create a new job instance.
@@ -39,43 +39,77 @@ class ReenableResellerConfigsJob implements ShouldQueue
     {
         Log::info('Starting reseller config re-enable job', ['reseller_id' => $this->resellerId]);
 
-        // Get suspended traffic-based resellers that now have quota and valid window
-        $query = Reseller::where('status', 'suspended')
-            ->where('type', 'traffic');
-
-        // If specific reseller ID provided, only process that reseller
+        // If specific reseller ID provided, load that reseller directly
+        // and check conditions (don't filter by suspended status)
         if ($this->resellerId !== null) {
-            $query->where('id', $this->resellerId);
             Log::info("Processing specific reseller", ['reseller_id' => $this->resellerId]);
+            
+            $reseller = Reseller::where('id', $this->resellerId)
+                ->where('type', 'traffic')
+                ->first();
+                
+            if (!$reseller) {
+                Log::info('Reseller not found or not traffic-based', ['reseller_id' => $this->resellerId]);
+                return;
+            }
+            
+            // Apply grace thresholds for consistency with disable logic
+            $resellerGrace = $this->getResellerGraceSettings();
+            $effectiveResellerLimit = $this->applyGrace(
+                $reseller->traffic_total_bytes,
+                $resellerGrace['percent'],
+                $resellerGrace['bytes']
+            );
+            
+            $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
+            $isWindowValid = $reseller->isWindowValid();
+            
+            // Log decision for debugging
+            if (!$hasTrafficRemaining || !$isWindowValid) {
+                Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
+                    'has_traffic_remaining' => $hasTrafficRemaining,
+                    'is_window_valid' => $isWindowValid,
+                    'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                    'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                    'effective_limit' => $effectiveResellerLimit,
+                    'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                ]);
+                return;
+            }
+            
+            $resellers = collect([$reseller]);
+        } else {
+            // When no specific reseller ID, find all suspended traffic-based resellers
+            $resellers = Reseller::where('status', 'suspended')
+                ->where('type', 'traffic')
+                ->get()
+                ->filter(function ($reseller) {
+                    // Apply grace thresholds for consistency with disable logic
+                    $resellerGrace = $this->getResellerGraceSettings();
+                    $effectiveResellerLimit = $this->applyGrace(
+                        $reseller->traffic_total_bytes,
+                        $resellerGrace['percent'],
+                        $resellerGrace['bytes']
+                    );
+                    
+                    $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
+                    $isWindowValid = $reseller->isWindowValid();
+                    
+                    // Log decision for debugging
+                    if (!$hasTrafficRemaining || !$isWindowValid) {
+                        Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
+                            'has_traffic_remaining' => $hasTrafficRemaining,
+                            'is_window_valid' => $isWindowValid,
+                            'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                            'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                            'effective_limit' => $effectiveResellerLimit,
+                            'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                        ]);
+                    }
+                    
+                    return $hasTrafficRemaining && $isWindowValid;
+                });
         }
-
-        $resellers = $query->get()
-            ->filter(function ($reseller) {
-                // Apply grace thresholds for consistency with disable logic
-                $resellerGrace = $this->getResellerGraceSettings();
-                $effectiveResellerLimit = $this->applyGrace(
-                    $reseller->traffic_total_bytes,
-                    $resellerGrace['percent'],
-                    $resellerGrace['bytes']
-                );
-                
-                $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
-                $isWindowValid = $reseller->isWindowValid();
-                
-                // Log decision for debugging
-                if (!$hasTrafficRemaining || !$isWindowValid) {
-                    Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
-                        'has_traffic_remaining' => $hasTrafficRemaining,
-                        'is_window_valid' => $isWindowValid,
-                        'traffic_used_bytes' => $reseller->traffic_used_bytes,
-                        'traffic_total_bytes' => $reseller->traffic_total_bytes,
-                        'effective_limit' => $effectiveResellerLimit,
-                        'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
-                    ]);
-                }
-                
-                return $hasTrafficRemaining && $isWindowValid;
-            });
 
         if ($resellers->isEmpty()) {
             Log::info('No eligible resellers for re-enable', ['reseller_id' => $this->resellerId]);
@@ -86,24 +120,28 @@ class ReenableResellerConfigsJob implements ShouldQueue
         Log::info("Found {$resellers->count()} eligible resellers for re-enable");
 
         foreach ($resellers as $reseller) {
-            // Reactivate the reseller
-            $reseller->update(['status' => 'active']);
-            Log::info("Reseller {$reseller->id} reactivated after recovery");
+            // Reactivate the reseller if still suspended
+            if ($reseller->status === 'suspended') {
+                $reseller->update(['status' => 'active']);
+                Log::info("Reseller {$reseller->id} reactivated after recovery");
 
-            // Create audit log for reseller activation
-            AuditLog::log(
-                action: 'reseller_activated',
-                targetType: 'reseller',
-                targetId: $reseller->id,
-                reason: 'reseller_recovered',
-                meta: [
-                    'traffic_used_bytes' => $reseller->traffic_used_bytes,
-                    'traffic_total_bytes' => $reseller->traffic_total_bytes,
-                    'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
-                ],
-                actorType: null,
-                actorId: null  // System action
-            );
+                // Create audit log for reseller activation
+                AuditLog::log(
+                    action: 'reseller_activated',
+                    targetType: 'reseller',
+                    targetId: $reseller->id,
+                    reason: 'reseller_recovered',
+                    meta: [
+                        'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                        'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                        'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                    ],
+                    actorType: null,
+                    actorId: null  // System action
+                );
+            } else {
+                Log::info("Reseller {$reseller->id} already active, skipping reactivation");
+            }
 
             $this->reenableResellerConfigs($reseller, $provisioner);
         }
