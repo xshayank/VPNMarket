@@ -85,9 +85,15 @@ class EnforceResellerTimeWindows extends Command
             $reactivatedCount = 0;
             foreach ($eligibleResellers as $reseller) {
                 try {
-                    if ($enforcer->reactivateIfEligible($reseller)) {
+                    $result = $enforcer->reactivateIfEligible($reseller);
+                    if ($result) {
                         $reactivatedCount++;
                         $this->line("  - Reactivated reseller #{$reseller->id}");
+                    } else {
+                        // Log why reactivation was skipped
+                        if (!$reseller->hasTrafficRemaining()) {
+                            $this->line("  - Skipped reseller #{$reseller->id}: no traffic remaining");
+                        }
                     }
                 } catch (\Exception $e) {
                     $this->error("  - Failed to reactivate reseller #{$reseller->id}: {$e->getMessage()}");

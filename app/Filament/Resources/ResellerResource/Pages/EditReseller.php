@@ -64,6 +64,7 @@ class EditReseller extends EditRecord
                         // If reseller was suspended and now has remaining quota and valid window,
                         // dispatch job to re-enable configs
                         if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
+                            \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after window extension for reseller {$this->record->id}");
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($this->record->id);
                         }
 
@@ -126,6 +127,7 @@ class EditReseller extends EditRecord
                         // If reseller was suspended and now has remaining quota and valid window,
                         // dispatch job to re-enable configs
                         if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
+                            \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after usage reset for reseller {$this->record->id}");
                             \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($this->record->id);
                         }
 

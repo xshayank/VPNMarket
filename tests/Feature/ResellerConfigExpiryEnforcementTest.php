@@ -248,6 +248,10 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
             'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
             'usage_bytes' => 1 * 1024 * 1024 * 1024,
             'expires_at' => now()->addDays(30),
+            'meta' => [
+                'disabled_by_reseller_suspension' => true,
+                'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+            ],
         ]);
 
         // Create auto_disabled event
@@ -315,6 +319,9 @@ class ResellerConfigExpiryEnforcementTest extends TestCase
             'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
             'usage_bytes' => 1 * 1024 * 1024 * 1024,
             'expires_at' => now()->addDays(30),
+            'meta' => [
+                'suspended_by_time_window' => true,
+            ],
         ]);
 
         // Create auto_disabled event for window expiry

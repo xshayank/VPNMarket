@@ -217,6 +217,11 @@ class ResellerTimeWindowEnforcementTest extends TestCase
         $this->assertNotNull($auditLog);
         $this->assertEquals('time_window_extended', $auditLog->reason);
 
+        // Now run the re-enable job that was dispatched by the enforcer
+        // (In production this runs via queue, but in tests we run it synchronously)
+        $reenableJob = new \Modules\Reseller\Jobs\ReenableResellerConfigsJob($reseller->id);
+        $reenableJob->handle($provisioner);
+
         // Assert configs with time window flag were re-enabled
         $config1->refresh();
         $config2->refresh();
@@ -238,10 +243,10 @@ class ResellerTimeWindowEnforcementTest extends TestCase
             ->where('type', 'auto_enabled')
             ->first();
         $this->assertNotNull($event1);
-        $this->assertEquals('reseller_time_window_extended', $event1->meta['reason']);
+        $this->assertEquals('reseller_recovered', $event1->meta['reason']);
 
         // Assert audit logs for configs
-        $configAudit = AuditLog::where('action', 'reseller_config_enabled_by_time_window')
+        $configAudit = AuditLog::where('action', 'config_auto_enabled')
             ->where('target_type', 'config')
             ->count();
         $this->assertEquals(2, $configAudit);
