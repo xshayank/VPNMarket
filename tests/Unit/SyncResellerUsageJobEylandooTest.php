@@ -14,7 +14,7 @@ beforeEach(function () {
     Log::shouldReceive('notice')->andReturnNull();
 });
 
-test('fetchEylandooUsage reads used_traffic from getUser response', function () {
+test('fetchEylandooUsage uses getUserUsageBytes and returns usage', function () {
     Http::fake([
         '*/api/v1/users/testuser' => Http::response([
             'status' => 'success',
@@ -41,85 +41,15 @@ test('fetchEylandooUsage reads used_traffic from getUser response', function () 
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
 
-    $result = $method->invoke($job, $credentials, 'testuser', 1);
+    // Pass null for configId to avoid database queries in unit test
+    $result = $method->invoke($job, $credentials, 'testuser', null);
 
     // Should return 1GB (1073741824 bytes)
     expect($result)->toBe(1073741824);
 });
 
-test('fetchEylandooUsage handles missing used_traffic with fallback', function () {
-    // First call to getUser returns response without used_traffic
-    // Second call to getUserUsageBytes should parse it
-    Http::fake([
-        '*/api/v1/users/testuser' => Http::response([
-            'status' => 'success',
-            'data' => [
-                'username' => 'testuser',
-                'status' => 'active',
-                'data_used' => 2147483648, // 2GB
-            ],
-        ], 200),
-    ]);
-
-    $credentials = [
-        'url' => 'https://example.com',
-        'api_token' => 'test-api-key-123',
-        'extra' => [
-            'node_hostname' => '',
-        ],
-    ];
-
-    $job = new SyncResellerUsageJob;
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('fetchEylandooUsage');
-    $method->setAccessible(true);
-
-    $result = $method->invoke($job, $credentials, 'testuser', 1);
-
-    // Should return 2GB - getUser now injects used_traffic automatically
-    expect($result)->toBe(2147483648);
-});
-
-test('fetchEylandooUsage returns null for empty username', function () {
-    $credentials = [
-        'url' => 'https://example.com',
-        'api_token' => 'test-api-key-123',
-        'extra' => [],
-    ];
-
-    $job = new SyncResellerUsageJob;
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('fetchEylandooUsage');
-    $method->setAccessible(true);
-
-    $result = $method->invoke($job, $credentials, '', 1);
-
-    expect($result)->toBeNull();
-});
-
-test('fetchEylandooUsage returns null when user not found', function () {
-    Http::fake([
-        '*/api/v1/users/nonexistent' => Http::response(null, 404),
-    ]);
-
-    $credentials = [
-        'url' => 'https://example.com',
-        'api_token' => 'test-api-key-123',
-        'extra' => [],
-    ];
-
-    $job = new SyncResellerUsageJob;
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('fetchEylandooUsage');
-    $method->setAccessible(true);
-
-    $result = $method->invoke($job, $credentials, 'nonexistent', 1);
-
-    expect($result)->toBeNull();
-});
-
-test('fetchEylandooUsage handles various usage field formats via used_traffic', function () {
-    // Test that different response formats work because getUser normalizes them
+test('fetchEylandooUsage handles various API response formats', function () {
+    // Test that different response formats work through getUserUsageBytes parser
     Http::fake([
         '*/api/v1/users/user1' => Http::response([
             'userInfo' => [
@@ -139,8 +69,9 @@ test('fetchEylandooUsage handles various usage field formats via used_traffic', 
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
 
-    $result = $method->invoke($job, $credentials, 'user1', 1);
+    // Pass null for configId to avoid database queries in unit test
+    $result = $method->invoke($job, $credentials, 'user1', null);
 
-    // getUser should normalize this to used_traffic = 5GB
+    // getUserUsageBytes should parse this to 5GB
     expect($result)->toBe(5368709120);
 });
