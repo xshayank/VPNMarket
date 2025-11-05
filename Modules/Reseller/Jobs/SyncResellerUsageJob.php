@@ -370,12 +370,11 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             $nodeHostname
         );
 
-        // Use the new getUserUsageBytes method which handles multiple response shapes
-        $usage = $service->getUserUsageBytes($username);
+        // Get user data - now returns normalized 'used_traffic' like Marzban/Marzneshin
+        $user = $service->getUser($username);
 
-        if ($usage === null) {
-            // Hard failure (HTTP error, exception, or success:false)
-            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure - null returned)", [
+        if (! $user) {
+            Log::warning("Eylandoo usage fetch failed for user {$username} (user not found)", [
                 'config_id' => $configId,
                 'panel_url' => $panelUrl,
             ]);
@@ -383,14 +382,37 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             return null;
         }
 
-        if ($usage === 0) {
-            // Valid response but no traffic yet
-            Log::info("Eylandoo usage for user {$username}: 0 bytes (API returned 0 or no usage fields found)", [
+        // Read 'used_traffic' from response (like Marzban/Marzneshin)
+        // Fallback to getUserUsageBytes() if used_traffic is missing
+        if (isset($user['used_traffic'])) {
+            $usage = (int) $user['used_traffic'];
+            Log::info("Eylandoo usage for user {$username}: {$usage} bytes (from used_traffic)", [
                 'config_id' => $configId,
             ]);
-        } else {
-            Log::info("Eylandoo usage for user {$username}: {$usage} bytes", ['config_id' => $configId]);
+
+            return $usage;
         }
+
+        // Fallback: parse directly using getUserUsageBytes
+        Log::debug("Eylandoo used_traffic not found, falling back to getUserUsageBytes", [
+            'username' => $username,
+            'config_id' => $configId,
+        ]);
+
+        $usage = $service->getUserUsageBytes($username);
+
+        if ($usage === null) {
+            Log::warning("Eylandoo usage fetch failed for user {$username} (hard failure)", [
+                'config_id' => $configId,
+                'panel_url' => $panelUrl,
+            ]);
+
+            return null;
+        }
+
+        Log::info("Eylandoo usage for user {$username}: {$usage} bytes (from fallback)", [
+            'config_id' => $configId,
+        ]);
 
         return $usage;
     }

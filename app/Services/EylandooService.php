@@ -105,7 +105,17 @@ class EylandooService
             $response = $this->client()->get($this->baseUrl.$endpoint);
 
             if ($response->successful()) {
-                return $response->json();
+                $userData = $response->json();
+
+                // Inject normalized 'used_traffic' key to match other panel services
+                // Parse usage from response using existing helper
+                $parseResult = $this->parseUsageFromResponse($userData);
+                $usageBytes = $parseResult['bytes'] ?? 0;
+
+                // Add used_traffic at the top level of the response
+                $userData['used_traffic'] = $usageBytes;
+
+                return $userData;
             }
 
             Log::warning('Eylandoo Get User failed:', [
@@ -674,7 +684,7 @@ class EylandooService
     /**
      * List all users
      *
-     * @return array Array of users
+     * @return array Array of users with normalized used_traffic field
      */
     public function listUsers(): array
     {
@@ -683,8 +693,19 @@ class EylandooService
 
             if ($response->successful()) {
                 $data = $response->json();
+                $users = $data['data']['users'] ?? [];
 
-                return $data['data']['users'] ?? [];
+                // Add normalized 'used_traffic' to each user
+                return array_map(function ($user) {
+                    // Parse usage from the user data
+                    $parseResult = $this->parseUsageFromResponse($user);
+                    $usageBytes = $parseResult['bytes'] ?? 0;
+
+                    // Add used_traffic at the top level
+                    $user['used_traffic'] = $usageBytes;
+
+                    return $user;
+                }, $users);
             }
 
             Log::warning('Eylandoo List Users failed:', ['status' => $response->status()]);
@@ -711,11 +732,15 @@ class EylandooService
 
                 // Map users to our expected format
                 $configs = array_map(function ($user) {
+                    // Parse usage using the same robust parser as getUser()
+                    $parseResult = $this->parseUsageFromResponse($user);
+                    $usageBytes = $parseResult['bytes'] ?? 0;
+
                     return [
                         'id' => $user['id'] ?? null,
                         'username' => $user['username'],
                         'status' => $user['status'] ?? 'active',
-                        'used_traffic' => $user['data_used'] ?? 0,
+                        'used_traffic' => $usageBytes,
                         'data_limit' => $user['data_limit'] ?? null,
                         'admin' => $user['sub_admin'] ?? null,
                         'owner_username' => $user['sub_admin'] ?? null,

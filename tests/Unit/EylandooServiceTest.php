@@ -1046,3 +1046,200 @@ test('getUserUsageBytes chooses max value when total_traffic_bytes is zero but u
     expect($result)->toBe(583653425)
         ->and($result)->toBeInt();
 });
+
+// Tests for used_traffic normalization (new feature)
+test('getUser injects normalized used_traffic field', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'status' => 'success',
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'active',
+                'data_used' => 1073741824, // 1GB
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveKey('used_traffic')
+        ->and($result['used_traffic'])->toBe(1073741824)
+        ->and($result['data']['username'])->toBe('testuser');
+});
+
+test('getUser used_traffic field uses parseUsageFromResponse logic', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'userInfo' => [
+                'total_traffic_bytes' => 5368709120, // 5GB
+            ],
+            'data' => [
+                'username' => 'testuser',
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveKey('used_traffic')
+        ->and($result['used_traffic'])->toBe(5368709120);
+});
+
+test('getUser used_traffic is 0 when no usage data present', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'active',
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->getUser('testuser');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveKey('used_traffic')
+        ->and($result['used_traffic'])->toBe(0);
+});
+
+test('listUsers includes normalized used_traffic for each user', function () {
+    Http::fake([
+        '*/api/v1/users/list_all' => Http::response([
+            'data' => [
+                'users' => [
+                    [
+                        'username' => 'user1',
+                        'data_used' => 1073741824, // 1GB
+                        'status' => 'active',
+                    ],
+                    [
+                        'username' => 'user2',
+                        'data_used' => 2147483648, // 2GB
+                        'status' => 'active',
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->listUsers();
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(2)
+        ->and($result[0])->toHaveKey('used_traffic')
+        ->and($result[0]['used_traffic'])->toBe(1073741824)
+        ->and($result[1])->toHaveKey('used_traffic')
+        ->and($result[1]['used_traffic'])->toBe(2147483648);
+});
+
+test('listConfigsByAdmin includes normalized used_traffic', function () {
+    Http::fake([
+        '*/api/v1/users/list_all' => Http::response([
+            'data' => [
+                'users' => [
+                    [
+                        'id' => 1,
+                        'username' => 'user1',
+                        'data_used' => 1073741824, // 1GB
+                        'status' => 'active',
+                        'sub_admin' => 'admin1',
+                    ],
+                    [
+                        'id' => 2,
+                        'username' => 'user2',
+                        'data_used' => 2147483648, // 2GB
+                        'status' => 'active',
+                        'sub_admin' => 'admin2',
+                    ],
+                    [
+                        'id' => 3,
+                        'username' => 'user3',
+                        'data_used' => 3221225472, // 3GB
+                        'status' => 'active',
+                        'sub_admin' => 'admin1',
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->listConfigsByAdmin('admin1');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(2)
+        ->and($result[0]['username'])->toBe('user1')
+        ->and($result[0]['used_traffic'])->toBe(1073741824)
+        ->and($result[1]['username'])->toBe('user3')
+        ->and($result[1]['used_traffic'])->toBe(3221225472);
+});
+
+test('listConfigsByAdmin handles various usage field formats', function () {
+    Http::fake([
+        '*/api/v1/users/list_all' => Http::response([
+            'data' => [
+                'users' => [
+                    [
+                        'id' => 1,
+                        'username' => 'user1',
+                        'userInfo' => [
+                            'total_traffic_bytes' => 5368709120,
+                        ],
+                        'sub_admin' => 'admin1',
+                    ],
+                    [
+                        'id' => 2,
+                        'username' => 'user2',
+                        'upload_bytes' => 1073741824,
+                        'download_bytes' => 2147483648,
+                        'sub_admin' => 'admin1',
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->listConfigsByAdmin('admin1');
+
+    expect($result)->toBeArray()
+        ->and($result)->toHaveCount(2)
+        ->and($result[0]['used_traffic'])->toBe(5368709120)
+        ->and($result[1]['used_traffic'])->toBe(3221225472); // 1GB + 2GB
+});
