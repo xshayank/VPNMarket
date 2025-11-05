@@ -396,6 +396,7 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                     'panel_user_id' => $remoteUserId,
                     'external_username' => $remoteUsername,
                     'status' => $status,
+                    // Prefer used_traffic, fallback to data_used (both should be equal for Eylandoo)
                     'usage_bytes' => $remoteConfig['used_traffic'] ?? $remoteConfig['data_used'] ?? 0,
                     'traffic_limit_bytes' => $remoteConfig['data_limit'] ?? 0,
                     'disabled_at' => $disabledAt,
