@@ -4,12 +4,14 @@ namespace Modules\Reseller\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $reseller = $request->user()->reseller;
+        // Fetch reseller with fresh data from DB to ensure traffic_used_bytes is current
+        $reseller = $request->user()->reseller()->first();
 
         if ($reseller->isPlanBased()) {
             $stats = [
@@ -39,6 +41,12 @@ class DashboardController extends Controller
                 'configs_remaining' => $configsRemaining,
                 'is_unlimited_limit' => $isUnlimitedLimit,
             ];
+
+            Log::info('Reseller dashboard loaded', [
+                'reseller_id' => $reseller->id,
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_used_gb' => $stats['traffic_used_gb'],
+            ]);
         }
 
         return view('reseller::dashboard', [
