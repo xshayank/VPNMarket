@@ -316,7 +316,7 @@ class ResellerTimeWindowTrafficEnforcementTest extends TestCase
 
         // Run the command
         $this->artisan('reseller:enforce-time-windows')
-            ->expectsOutput("Found 1 resellers eligible for reactivation")
+            ->expectsOutput("Checking 1 suspended resellers for reactivation")
             ->expectsOutput("  - Skipped reseller #{$reseller->id}: no traffic remaining")
             ->assertExitCode(0);
 

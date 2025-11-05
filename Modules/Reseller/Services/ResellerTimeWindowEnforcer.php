@@ -13,8 +13,7 @@ class ResellerTimeWindowEnforcer
 {
     public function __construct(
         protected ResellerProvisioner $provisioner
-    ) {
-    }
+    ) {}
 
     /**
      * Get the current time in app timezone with minute precision
@@ -29,11 +28,57 @@ class ResellerTimeWindowEnforcer
      */
     private function getPanel(int $panelId, array &$panelCache): ?Panel
     {
-        if (!isset($panelCache[$panelId])) {
+        if (! isset($panelCache[$panelId])) {
             $panelCache[$panelId] = Panel::find($panelId);
         }
-        
+
         return $panelCache[$panelId];
+    }
+
+    /**
+     * Suspend reseller if their time window has expired OR they have no traffic remaining
+     *
+     * @param  Reseller  $reseller  The reseller to potentially suspend
+     * @param  string  $reason  The reason for suspension: 'window_expired' or 'quota_exhausted'
+     * @return bool True if reseller was suspended, false otherwise
+     */
+    public function suspendDueToLimits(Reseller $reseller, string $reason): bool
+    {
+        // Only check traffic-based resellers
+        if (! $reseller->isTrafficBased()) {
+            return false;
+        }
+
+        // Check if already suspended
+        if ($reseller->isSuspended()) {
+            return false;
+        }
+
+        Log::info("Suspending reseller {$reseller->id} due to {$reason}");
+
+        // Suspend the reseller
+        $reseller->update(['status' => 'suspended']);
+
+        // Create audit log
+        AuditLog::log(
+            action: 'reseller_suspended_by_enforcement',
+            targetType: 'reseller',
+            targetId: $reseller->id,
+            reason: $reason,
+            meta: [
+                'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                'suspended_at' => now()->toDateTimeString(),
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_total_bytes' => $reseller->traffic_total_bytes,
+            ],
+            actorType: null,
+            actorId: null  // System action
+        );
+
+        // Disable all active configs
+        $this->disableResellerConfigs($reseller, $reason);
+
+        return true;
     }
 
     /**
@@ -42,7 +87,7 @@ class ResellerTimeWindowEnforcer
     public function suspendIfExpired(Reseller $reseller): bool
     {
         // Only check traffic-based resellers
-        if (!$reseller->isTrafficBased()) {
+        if (! $reseller->isTrafficBased()) {
             return false;
         }
 
@@ -53,8 +98,8 @@ class ResellerTimeWindowEnforcer
 
         // Check if window has expired
         $now = $this->getAppTimezoneNow();
-        
-        if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->gt($now)) {
+
+        if (! $reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->gt($now)) {
             return false;
         }
 
@@ -89,30 +134,32 @@ class ResellerTimeWindowEnforcer
     public function reactivateIfEligible(Reseller $reseller): bool
     {
         // Only check traffic-based resellers
-        if (!$reseller->isTrafficBased()) {
+        if (! $reseller->isTrafficBased()) {
             return false;
         }
 
         // Only process suspended resellers
-        if (!$reseller->isSuspended()) {
+        if (! $reseller->isSuspended()) {
             return false;
         }
 
         // Check if window is now valid
         $now = $this->getAppTimezoneNow();
-        
-        if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->lte($now)) {
+
+        if (! $reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->lte($now)) {
             Log::debug("Skipping reactivation for reseller {$reseller->id}: window invalid or expired");
+
             return false;
         }
 
         // CRITICAL FIX: Check if reseller has traffic remaining before reactivation
         // This prevents reactivating a reseller who still has exhausted quota
-        if (!$reseller->hasTrafficRemaining()) {
+        if (! $reseller->hasTrafficRemaining()) {
             Log::info("Skipping reactivation for reseller {$reseller->id}: window valid but no traffic remaining", [
                 'traffic_used_bytes' => $reseller->traffic_used_bytes,
                 'traffic_total_bytes' => $reseller->traffic_total_bytes,
             ]);
+
             return false;
         }
 
@@ -150,8 +197,11 @@ class ResellerTimeWindowEnforcer
 
     /**
      * Disable all active configs for a reseller
+     *
+     * @param  Reseller  $reseller  The reseller whose configs should be disabled
+     * @param  string  $reason  The reason for disabling: 'window_expired', 'quota_exhausted', etc.
      */
-    protected function disableResellerConfigs(Reseller $reseller): void
+    protected function disableResellerConfigs(Reseller $reseller, string $reason = 'reseller_time_window_expired'): void
     {
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'active')
@@ -175,7 +225,7 @@ class ResellerTimeWindowEnforcer
                 // Disable on remote panel
                 $remoteResult = $this->provisioner->disableConfig($config);
 
-                if (!$remoteResult['success']) {
+                if (! $remoteResult['success']) {
                     Log::warning("Failed to disable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     $failedCount++;
                 }
@@ -183,7 +233,10 @@ class ResellerTimeWindowEnforcer
                 // Update local status regardless of remote result
                 $meta = $config->meta ?? [];
                 $meta['suspended_by_time_window'] = true;
-                
+                $meta['disabled_by_reseller_suspension'] = true;
+                $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
+
                 $config->update([
                     'status' => 'disabled',
                     'disabled_at' => now(),
@@ -202,7 +255,7 @@ class ResellerTimeWindowEnforcer
                     'reseller_config_id' => $config->id,
                     'type' => 'auto_disabled',
                     'meta' => [
-                        'reason' => 'reseller_time_window_expired',
+                        'reason' => $reason,
                         'remote_success' => $remoteResult['success'],
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
@@ -213,10 +266,10 @@ class ResellerTimeWindowEnforcer
 
                 // Create audit log
                 AuditLog::log(
-                    action: 'reseller_config_disabled_by_time_window',
+                    action: 'reseller_config_disabled_by_enforcement',
                     targetType: 'config',
                     targetId: $config->id,
-                    reason: 'reseller_time_window_expired',
+                    reason: $reason,
                     meta: [
                         'reseller_id' => $reseller->id,
                         'remote_success' => $remoteResult['success'],
@@ -231,7 +284,7 @@ class ResellerTimeWindowEnforcer
 
                 $disabledCount++;
             } catch (\Exception $e) {
-                Log::error("Exception disabling config {$config->id}: " . $e->getMessage());
+                Log::error("Exception disabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
             }
         }
@@ -271,7 +324,7 @@ class ResellerTimeWindowEnforcer
                 // Enable on remote panel
                 $remoteResult = $this->provisioner->enableConfig($config);
 
-                if (!$remoteResult['success']) {
+                if (! $remoteResult['success']) {
                     Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                     $failedCount++;
                 }
@@ -279,7 +332,7 @@ class ResellerTimeWindowEnforcer
                 // Update local status - remove the time window flag
                 $meta = $config->meta ?? [];
                 unset($meta['suspended_by_time_window']);
-                
+
                 $config->update([
                     'status' => 'active',
                     'disabled_at' => null,
@@ -327,7 +380,7 @@ class ResellerTimeWindowEnforcer
 
                 $enabledCount++;
             } catch (\Exception $e) {
-                Log::error("Exception enabling config {$config->id}: " . $e->getMessage());
+                Log::error("Exception enabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
             }
         }

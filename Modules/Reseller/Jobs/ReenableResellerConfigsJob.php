@@ -40,43 +40,31 @@ class ReenableResellerConfigsJob implements ShouldQueue
         Log::info('Starting reseller config re-enable job', ['reseller_id' => $this->resellerId]);
 
         // If specific reseller ID provided, load that reseller directly
-        // and check conditions (don't filter by suspended status)
+        // When called with a specific ID, we trust the caller's intent (e.g., admin activation)
+        // and skip defensive checks - just verify reseller exists and is traffic-based
         if ($this->resellerId !== null) {
-            Log::info("Processing specific reseller", ['reseller_id' => $this->resellerId]);
-            
+            Log::info('Processing specific reseller', ['reseller_id' => $this->resellerId]);
+
             $reseller = Reseller::where('id', $this->resellerId)
                 ->where('type', 'traffic')
                 ->first();
-                
-            if (!$reseller) {
+
+            if (! $reseller) {
                 Log::info('Reseller not found or not traffic-based', ['reseller_id' => $this->resellerId]);
+
                 return;
             }
-            
-            // Apply grace thresholds for consistency with disable logic
-            $resellerGrace = $this->getResellerGraceSettings();
-            $effectiveResellerLimit = $this->applyGrace(
-                $reseller->traffic_total_bytes,
-                $resellerGrace['percent'],
-                $resellerGrace['bytes']
-            );
-            
-            $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
-            $isWindowValid = $reseller->isWindowValid();
-            
-            // Log decision for debugging
-            if (!$hasTrafficRemaining || !$isWindowValid) {
-                Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
-                    'has_traffic_remaining' => $hasTrafficRemaining,
-                    'is_window_valid' => $isWindowValid,
-                    'traffic_used_bytes' => $reseller->traffic_used_bytes,
-                    'traffic_total_bytes' => $reseller->traffic_total_bytes,
-                    'effective_limit' => $effectiveResellerLimit,
-                    'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
-                ]);
-                return;
-            }
-            
+
+            // Log reseller state for debugging
+            Log::info("Re-enabling configs for reseller {$reseller->id}", [
+                'reseller_status' => $reseller->status,
+                'has_traffic_remaining' => $reseller->hasTrafficRemaining(),
+                'is_window_valid' => $reseller->isWindowValid(),
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_total_bytes' => $reseller->traffic_total_bytes,
+                'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+            ]);
+
             $resellers = collect([$reseller]);
         } else {
             // When no specific reseller ID, find all suspended traffic-based resellers
@@ -91,12 +79,12 @@ class ReenableResellerConfigsJob implements ShouldQueue
                         $resellerGrace['percent'],
                         $resellerGrace['bytes']
                     );
-                    
+
                     $hasTrafficRemaining = $reseller->traffic_used_bytes < $effectiveResellerLimit;
                     $isWindowValid = $reseller->isWindowValid();
-                    
+
                     // Log decision for debugging
-                    if (!$hasTrafficRemaining || !$isWindowValid) {
+                    if (! $hasTrafficRemaining || ! $isWindowValid) {
                         Log::info("Skipping reseller {$reseller->id} - not eligible for re-enable", [
                             'has_traffic_remaining' => $hasTrafficRemaining,
                             'is_window_valid' => $isWindowValid,
@@ -106,7 +94,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
                             'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
                         ]);
                     }
-                    
+
                     return $hasTrafficRemaining && $isWindowValid;
                 });
         }
@@ -161,16 +149,17 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 // 1. disabled_by_reseller_suspension (quota exhaustion)
                 // 2. suspended_by_time_window (time window expiration)
                 // Explicitly check for true to avoid re-enabling configs with marker set to false
-                $hasQuotaMarker = isset($config->meta['disabled_by_reseller_suspension']) 
+                $hasQuotaMarker = isset($config->meta['disabled_by_reseller_suspension'])
                     && $config->meta['disabled_by_reseller_suspension'] === true;
-                $hasTimeWindowMarker = isset($config->meta['suspended_by_time_window']) 
+                $hasTimeWindowMarker = isset($config->meta['suspended_by_time_window'])
                     && $config->meta['suspended_by_time_window'] === true;
-                    
+
                 return $hasQuotaMarker || $hasTimeWindowMarker;
             });
 
         if ($configs->isEmpty()) {
             Log::info("No configs marked for re-enable for reseller {$reseller->id}");
+
             return;
         }
 
@@ -198,7 +187,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 unset($meta['disabled_by_reseller_suspension_reason']);
                 unset($meta['disabled_by_reseller_suspension_at']);
                 unset($meta['suspended_by_time_window']);
-                
+
                 $config->update([
                     'status' => 'active',
                     'disabled_at' => null,
@@ -247,23 +236,23 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     /**
      * Calculate the effective limit with grace threshold applied
-     * 
-     * @param int $limit The base limit in bytes
-     * @param float $gracePercent Grace percentage (e.g., 2.0 for 2%)
-     * @param int $graceBytes Grace in bytes (e.g., 50MB)
+     *
+     * @param  int  $limit  The base limit in bytes
+     * @param  float  $gracePercent  Grace percentage (e.g., 2.0 for 2%)
+     * @param  int  $graceBytes  Grace in bytes (e.g., 50MB)
      * @return int The limit plus maximum grace
      */
     protected function applyGrace(int $limit, float $gracePercent, int $graceBytes): int
     {
         $percentGrace = (int) ($limit * ($gracePercent / 100));
         $maxGrace = max($percentGrace, $graceBytes);
-        
+
         return $limit + $maxGrace;
     }
 
     /**
      * Get grace settings for reseller-level checks
-     * 
+     *
      * @return array ['percent' => float, 'bytes' => int]
      */
     protected function getResellerGraceSettings(): array
