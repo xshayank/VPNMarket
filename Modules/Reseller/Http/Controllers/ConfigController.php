@@ -601,14 +601,6 @@ class ConfigController extends Controller
             abort(403);
         }
 
-        // Check if config can be reset (24h rate limit)
-        if (! $config->canResetUsage()) {
-            $lastResetAt = \Carbon\Carbon::parse($config->getLastResetAt());
-            $nextResetAt = $lastResetAt->copy()->addHours(24);
-
-            return back()->with('error', 'Usage can only be reset once per 24 hours. Next reset available at: '.$nextResetAt->format('Y-m-d H:i:s'));
-        }
-
         $toSettle = $config->usage_bytes;
 
         $remoteResultFinal = null;
