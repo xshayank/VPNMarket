@@ -40,6 +40,7 @@
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">نام کاربری</th>
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden sm:table-cell">محدودیت ترافیک</th>
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden md:table-cell">مصرف شده</th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden lg:table-cell">مصرف قبلی</th>
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100 hidden sm:table-cell">تاریخ انقضا</th>
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">وضعیت</th>
                                 <th class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-700 dark:text-gray-100">عملیات</th>
@@ -58,12 +59,22 @@
                                             <div class="text-xs text-gray-600 dark:text-gray-400 mt-1 sm:hidden space-y-0.5">
                                                 <div>محدودیت: {{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</div>
                                                 <div class="md:hidden">مصرف: {{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</div>
+                                                @if ($config->getSettledUsageBytes() > 0)
+                                                    <div class="lg:hidden text-gray-500">مصرف قبلی: {{ round($config->getSettledUsageBytes() / (1024 * 1024 * 1024), 2) }} GB</div>
+                                                @endif
                                                 <div>انقضا: {{ $config->expires_at->format('Y-m-d') }}</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden sm:table-cell">{{ round($config->traffic_limit_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
                                     <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden md:table-cell">{{ round($config->usage_bytes / (1024 * 1024 * 1024), 2) }} GB</td>
+                                    <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-500 dark:text-gray-400 hidden lg:table-cell">
+                                        @if ($config->getSettledUsageBytes() > 0)
+                                            {{ round($config->getSettledUsageBytes() / (1024 * 1024 * 1024), 2) }} GB
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td class="px-2 md:px-4 py-3 text-xs md:text-base text-gray-900 dark:text-gray-100 hidden sm:table-cell">{{ $config->expires_at->format('Y-m-d') }}</td>
                                     <td class="px-2 md:px-4 py-3">
                                         <span class="px-2 py-1 rounded text-xs {{ $config->status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100' }}">
