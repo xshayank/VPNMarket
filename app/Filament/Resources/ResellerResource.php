@@ -664,6 +664,7 @@ class ResellerResource extends Resource
 
                             foreach ($records as $record) {
                                 if ($record->status !== 'active') {
+                                    $previousStatus = $record->status;
                                     $record->update(['status' => 'active']);
                                     $activatedCount++;
 
@@ -674,7 +675,7 @@ class ResellerResource extends Resource
                                         targetId: $record->id,
                                         reason: 'admin_bulk_action',
                                         meta: [
-                                            'previous_status' => $record->getOriginal('status'),
+                                            'previous_status' => $previousStatus,
                                         ]
                                     );
 

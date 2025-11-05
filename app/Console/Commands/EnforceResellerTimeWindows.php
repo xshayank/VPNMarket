@@ -66,7 +66,14 @@ class EnforceResellerTimeWindows extends Command
 
                     // Suspend if EITHER condition fails
                     if (! $windowValid || ! $hasTraffic) {
-                        $reason = ! $windowValid ? 'window_expired' : 'quota_exhausted';
+                        // Prioritize quota exhaustion if both conditions fail, or use the specific reason
+                        if (! $windowValid && ! $hasTraffic) {
+                            $reason = 'quota_exhausted'; // Quota is more critical
+                        } elseif (! $windowValid) {
+                            $reason = 'window_expired';
+                        } else {
+                            $reason = 'quota_exhausted';
+                        }
 
                         if ($enforcer->suspendDueToLimits($reseller, $reason)) {
                             $suspendedCount++;
