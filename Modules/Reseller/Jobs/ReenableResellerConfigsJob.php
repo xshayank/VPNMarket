@@ -174,8 +174,8 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 // Detailed logging before enable attempt
                 $panel = $config->panel_id ? Panel::find($config->panel_id) : null;
                 $metaSnapshot = $config->meta ?? [];
-                
-                Log::info("Attempting to re-enable config", [
+
+                Log::info('Attempting to re-enable config', [
                     'reseller_id' => $reseller->id,
                     'config_id' => $config->id,
                     'panel_id' => $config->panel_id,

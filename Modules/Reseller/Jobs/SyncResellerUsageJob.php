@@ -169,11 +169,11 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             ->sum(function ($config) {
                 return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
             });
-        
+
         // Subtract admin forgiven bytes to get effective usage
         $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
         $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
-        
+
         $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
         Log::info("Reseller {$reseller->id} usage updated", [
@@ -523,7 +523,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 $meta['disabled_by_reseller_suspension_reason'] = $reason;
                 $meta['disabled_at'] = now()->toIso8601String();
                 $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
-                
+
                 $config->update([
                     'status' => 'disabled',
                     'disabled_at' => now(),
