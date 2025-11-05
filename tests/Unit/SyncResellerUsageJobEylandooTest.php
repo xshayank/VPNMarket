@@ -75,3 +75,41 @@ test('fetchEylandooUsage handles various API response formats', function () {
     // getUserUsageBytes should parse this to 5GB
     expect($result)->toBe(5368709120);
 });
+
+test('fetchEylandooUsage returns null for empty username', function () {
+    $credentials = [
+        'url' => 'https://example.com',
+        'api_token' => 'test-api-key-123',
+        'extra' => [],
+    ];
+
+    $job = new SyncResellerUsageJob;
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('fetchEylandooUsage');
+    $method->setAccessible(true);
+
+    $result = $method->invoke($job, $credentials, '', null);
+
+    expect($result)->toBeNull();
+});
+
+test('fetchEylandooUsage returns null when user not found', function () {
+    Http::fake([
+        '*/api/v1/users/nonexistent' => Http::response(null, 404),
+    ]);
+
+    $credentials = [
+        'url' => 'https://example.com',
+        'api_token' => 'test-api-key-123',
+        'extra' => [],
+    ];
+
+    $job = new SyncResellerUsageJob;
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('fetchEylandooUsage');
+    $method->setAccessible(true);
+
+    $result = $method->invoke($job, $credentials, 'nonexistent', null);
+
+    expect($result)->toBeNull();
+});
