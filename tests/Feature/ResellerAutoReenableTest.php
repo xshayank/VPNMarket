@@ -40,9 +40,14 @@ test('job re-enables configs when reseller recovers from quota exhaustion', func
         'panel_type' => 'marzban',
         'panel_user_id' => 'test_user_123',
         'disabled_at' => now()->subHours(2),
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+            'disabled_by_reseller_suspension_at' => now()->subHours(2)->toIso8601String(),
+        ],
     ]);
 
-    // Create the auto_disabled event
+    // Create the auto_disabled event (for backwards compatibility/audit trail)
     ResellerConfigEvent::create([
         'reseller_config_id' => $config->id,
         'type' => 'auto_disabled',
@@ -113,6 +118,11 @@ test('job re-enables configs when reseller window is extended', function () {
         'panel_type' => 'marzneshin',
         'panel_user_id' => 'test_user_1',
         'disabled_at' => now()->subHours(1),
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_suspension_reason' => 'reseller_window_expired',
+            'disabled_by_reseller_suspension_at' => now()->subHours(1)->toIso8601String(),
+        ],
     ]);
 
     $config2 = ResellerConfig::factory()->create([
@@ -122,9 +132,14 @@ test('job re-enables configs when reseller window is extended', function () {
         'panel_type' => 'marzneshin',
         'panel_user_id' => 'test_user_2',
         'disabled_at' => now()->subHours(1),
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_suspension_reason' => 'reseller_window_expired',
+            'disabled_by_reseller_suspension_at' => now()->subHours(1)->toIso8601String(),
+        ],
     ]);
 
-    // Create auto_disabled events
+    // Create auto_disabled events (for backwards compatibility/audit trail)
     ResellerConfigEvent::create([
         'reseller_config_id' => $config1->id,
         'type' => 'auto_disabled',
@@ -206,6 +221,11 @@ test('job does not re-enable manually disabled configs', function () {
         'panel_type' => 'xui',
         'panel_user_id' => 'auto_user',
         'disabled_at' => now()->subHours(2),
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+            'disabled_by_reseller_suspension_at' => now()->subHours(2)->toIso8601String(),
+        ],
     ]);
 
     ResellerConfigEvent::create([
@@ -264,6 +284,11 @@ test('job handles remote enable failures gracefully', function () {
         'panel_type' => 'marzban',
         'panel_user_id' => 'failing_user',
         'disabled_at' => now()->subHours(1),
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+            'disabled_by_reseller_suspension_at' => now()->subHours(1)->toIso8601String(),
+        ],
     ]);
 
     ResellerConfigEvent::create([
@@ -375,6 +400,11 @@ test('job respects rate limiting of 3 configs per second', function () {
             'panel_type' => 'marzban',
             'panel_user_id' => "user_{$i}",
             'disabled_at' => now()->subHours(1),
+            'meta' => [
+                'disabled_by_reseller_suspension' => true,
+                'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+                'disabled_by_reseller_suspension_at' => now()->subHours(1)->toIso8601String(),
+            ],
         ]);
 
         ResellerConfigEvent::create([

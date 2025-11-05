@@ -326,9 +326,9 @@ class ResellerUsageSyncTest extends TestCase
             '*/api/users/*/enable' => Http::response([], 200),
         ]);
 
-        // Run re-enable job with provisioner
+        // Run re-enable job with provisioner (process all eligible resellers)
         $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
-        $job = new ReenableResellerConfigsJob;
+        $job = new ReenableResellerConfigsJob(null);
         $job->handle($provisioner);
 
         // Config should be re-enabled

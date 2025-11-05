@@ -106,6 +106,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
             ->get()
             ->filter(function ($config) {
                 // Only re-enable configs with the disabled_by_reseller_suspension marker
+                // Explicitly check for true to avoid re-enabling configs with marker set to false
                 return isset($config->meta['disabled_by_reseller_suspension']) 
                     && $config->meta['disabled_by_reseller_suspension'] === true;
             });
