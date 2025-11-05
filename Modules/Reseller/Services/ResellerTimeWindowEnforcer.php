@@ -59,12 +59,6 @@ class ResellerTimeWindowEnforcer
         }
 
         Log::info("Suspending reseller {$reseller->id} due to expired time window");
-        
-        if (!$reseller->window_ends_at || $reseller->window_ends_at->startOfMinute()->gt($now)) {
-            return false;
-        }
-
-        Log::info("Suspending reseller {$reseller->id} due to expired time window");
 
         // Suspend the reseller
         $reseller->update(['status' => 'suspended']);
