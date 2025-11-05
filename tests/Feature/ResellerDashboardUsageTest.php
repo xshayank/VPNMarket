@@ -116,7 +116,7 @@ class ResellerDashboardUsageTest extends TestCase
 
         // Verify the dashboard stats show the correct traffic usage
         $expectedUsageGb = round($expectedTotalBytes / (1024 * 1024 * 1024), 2); // 3.00 GB
-        $this->assertEquals($expectedUsageGb, $stats['traffic_used_gb']);
+        $this->assertEquals($expectedTotalBytes, $stats['traffic_consumed_bytes']);
         $this->assertEquals(10.0, $stats['traffic_total_gb']); // 10 GB total
         $this->assertEquals(7.0, $stats['traffic_remaining_gb']); // 7 GB remaining
     }
@@ -193,7 +193,7 @@ class ResellerDashboardUsageTest extends TestCase
 
         // Verify the dashboard includes settled usage
         $expectedUsageGb = round($expectedTotalBytes / (1024 * 1024 * 1024), 2); // 1.5 GB
-        $this->assertEquals($expectedUsageGb, $stats['traffic_used_gb']);
+        $this->assertEquals($expectedTotalBytes, $stats['traffic_consumed_bytes']);
     }
 
     public function test_dashboard_shows_zero_traffic_for_new_reseller(): void
@@ -219,7 +219,7 @@ class ResellerDashboardUsageTest extends TestCase
         $stats = $response->viewData('stats');
 
         // Verify the dashboard shows zero usage
-        $this->assertEquals(0.0, $stats['traffic_used_gb']);
+        $this->assertEquals(0, $stats['traffic_consumed_bytes']);
         $this->assertEquals(10.0, $stats['traffic_total_gb']);
         $this->assertEquals(10.0, $stats['traffic_remaining_gb']);
     }

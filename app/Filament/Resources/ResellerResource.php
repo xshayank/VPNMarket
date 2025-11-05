@@ -537,29 +537,40 @@ class ResellerResource extends Resource
                     ->color('warning')
                     ->visible(fn (Reseller $record): bool => $record->type === 'traffic' && auth()->user()?->is_admin)
                     ->requiresConfirmation()
-                    ->modalHeading('بازنشانی مصرف ترافیک')
-                    ->modalDescription('این عملیات مصرف ترافیک ریسلر را به صفر تنظیم می‌کند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟')
-                    ->modalSubmitActionLabel('بله، بازنشانی شود')
-                    ->modalCancelActionLabel('انصراف')
+                    ->modalHeading('بازنشانی مصرف ترافیک (Reset Traffic Usage)')
+                    ->modalDescription('این عملیات شمارنده کل مصرف ترافیک ریسلر را به صفر تنظیم می‌کند (بخشودگی سهمیه). کانفیگ‌های فردی ریسلر دست نخورده باقی می‌مانند. این تغییر محدودیت کل ترافیک را تغییر نمی‌دهد. آیا مطمئن هستید؟ / This resets the reseller\'s aggregate traffic counter to 0 (quota forgiveness). Individual configs remain untouched. This does not change the total traffic limit. Continue?')
+                    ->modalSubmitActionLabel('بله، بازنشانی شود (Yes, Reset)')
+                    ->modalCancelActionLabel('انصراف (Cancel)')
                     ->action(function (Reseller $record) {
                         try {
                             $oldUsedBytes = $record->traffic_used_bytes;
+                            
+                            // Calculate the actual usage from configs
+                            $totalUsageFromConfigs = $record->configs()
+                                ->get()
+                                ->sum(function ($config) {
+                                    return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+                                });
 
-                            // Reset usage to zero
+                            // Set admin_forgiven_bytes to the total config usage
+                            // This way, effective usage = totalUsageFromConfigs - admin_forgiven_bytes = 0
                             $record->update([
-                                'traffic_used_bytes' => 0,
+                                'admin_forgiven_bytes' => $totalUsageFromConfigs,
+                                'traffic_used_bytes' => 0,  // Sync job will maintain this at 0
                             ]);
 
                             // Create audit log
                             \App\Models\AuditLog::log(
-                                action: 'reseller_usage_reset',
+                                action: 'reseller_usage_admin_reset',
                                 targetType: 'reseller',
                                 targetId: $record->id,
                                 reason: 'admin_action',
                                 meta: [
                                     'old_traffic_used_bytes' => $oldUsedBytes,
                                     'new_traffic_used_bytes' => 0,
+                                    'admin_forgiven_bytes' => $totalUsageFromConfigs,
                                     'traffic_total_bytes' => $record->traffic_total_bytes,
+                                    'note' => 'Admin quota forgiveness - config usage intact, forgiven bytes tracked',
                                 ]
                             );
 
@@ -572,7 +583,7 @@ class ResellerResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('مصرف ترافیک با موفقیت بازنشانی شد')
-                                ->body('مصرف ترافیک ریسلر به صفر تنظیم شد')
+                                ->body('شمارنده مصرف ریسلر به صفر تنظیم شد (کانفیگ‌ها دست نخورده)')
                                 ->send();
                         } catch (\Exception $e) {
                             Notification::make()
