@@ -47,52 +47,84 @@ class EnforceResellerTimeWindows extends Command
             $this->info('Starting reseller time window enforcement...');
             Log::info('Starting reseller time window enforcement command');
 
-            $now = now()->timezone(config('app.timezone', 'Asia/Tehran'))->startOfMinute();
-
-            // Find active resellers whose window has expired
-            $expiredResellers = Reseller::where('type', 'traffic')
+            // Get all active traffic-based resellers and check both window and quota
+            $activeResellers = Reseller::where('type', 'traffic')
                 ->where('status', 'active')
-                ->whereNotNull('window_ends_at')
-                ->where('window_ends_at', '<=', $now)
                 ->get();
 
-            $this->info("Found {$expiredResellers->count()} resellers with expired windows");
-            Log::info("Found {$expiredResellers->count()} resellers with expired windows");
+            $this->info("Checking {$activeResellers->count()} active traffic resellers");
+            Log::info("Checking {$activeResellers->count()} active traffic resellers for suspension");
 
             $suspendedCount = 0;
-            foreach ($expiredResellers as $reseller) {
+            $skippedCount = 0;
+            
+            foreach ($activeResellers as $reseller) {
                 try {
-                    if ($enforcer->suspendIfExpired($reseller)) {
-                        $suspendedCount++;
-                        $this->line("  - Suspended reseller #{$reseller->id}");
+                    // Check both conditions: window validity and traffic quota
+                    $windowValid = $reseller->isWindowValid();
+                    $hasTraffic = $reseller->hasTrafficRemaining();
+                    
+                    // Suspend if EITHER condition fails
+                    if (!$windowValid || !$hasTraffic) {
+                        $reason = !$windowValid ? 'window_expired' : 'quota_exhausted';
+                        
+                        if ($enforcer->suspendDueToLimits($reseller, $reason)) {
+                            $suspendedCount++;
+                            $this->line("  - Suspended reseller #{$reseller->id} (reason: {$reason})");
+                            Log::info("Suspended reseller {$reseller->id}", [
+                                'reason' => $reason,
+                                'window_valid' => $windowValid,
+                                'has_traffic' => $hasTraffic,
+                            ]);
+                        }
+                    } else {
+                        $skippedCount++;
                     }
                 } catch (\Exception $e) {
-                    $this->error("  - Failed to suspend reseller #{$reseller->id}: {$e->getMessage()}");
-                    Log::error("Failed to suspend reseller {$reseller->id}: ".$e->getMessage());
+                    $this->error("  - Failed to process reseller #{$reseller->id}: {$e->getMessage()}");
+                    Log::error("Failed to process reseller {$reseller->id}: ".$e->getMessage());
                 }
             }
+            
+            Log::info("Suspension check completed: {$suspendedCount} suspended, {$skippedCount} remain active");
 
-            // Find suspended resellers whose window has been extended
-            $eligibleResellers = Reseller::where('type', 'traffic')
+            // Check suspended resellers for reactivation eligibility
+            $suspendedResellers = Reseller::where('type', 'traffic')
                 ->where('status', 'suspended')
-                ->whereNotNull('window_ends_at')
-                ->where('window_ends_at', '>', $now)
                 ->get();
 
-            $this->info("Found {$eligibleResellers->count()} resellers eligible for reactivation");
-            Log::info("Found {$eligibleResellers->count()} resellers eligible for reactivation");
+            $this->info("Checking {$suspendedResellers->count()} suspended resellers for reactivation");
+            Log::info("Checking {$suspendedResellers->count()} suspended resellers for reactivation eligibility");
 
             $reactivatedCount = 0;
-            foreach ($eligibleResellers as $reseller) {
+            $skippedReactivationCount = 0;
+            
+            foreach ($suspendedResellers as $reseller) {
                 try {
+                    // Check both conditions for reactivation
+                    $windowValid = $reseller->isWindowValid();
+                    $hasTraffic = $reseller->hasTrafficRemaining();
+                    
                     $result = $enforcer->reactivateIfEligible($reseller);
                     if ($result) {
                         $reactivatedCount++;
                         $this->line("  - Reactivated reseller #{$reseller->id}");
+                        Log::info("Reactivated reseller {$reseller->id}", [
+                            'window_valid' => $windowValid,
+                            'has_traffic' => $hasTraffic,
+                        ]);
                     } else {
+                        $skippedReactivationCount++;
                         // Log why reactivation was skipped
-                        if (!$reseller->hasTrafficRemaining()) {
+                        if (!$windowValid && !$hasTraffic) {
+                            $this->line("  - Skipped reseller #{$reseller->id}: window invalid AND no traffic");
+                            Log::debug("Skipped reactivation for reseller {$reseller->id}: both conditions fail");
+                        } elseif (!$windowValid) {
+                            $this->line("  - Skipped reseller #{$reseller->id}: window invalid");
+                            Log::debug("Skipped reactivation for reseller {$reseller->id}: window invalid");
+                        } elseif (!$hasTraffic) {
                             $this->line("  - Skipped reseller #{$reseller->id}: no traffic remaining");
+                            Log::debug("Skipped reactivation for reseller {$reseller->id}: no traffic remaining");
                         }
                     }
                 } catch (\Exception $e) {
@@ -100,6 +132,8 @@ class EnforceResellerTimeWindows extends Command
                     Log::error("Failed to reactivate reseller {$reseller->id}: ".$e->getMessage());
                 }
             }
+            
+            Log::info("Reactivation check completed: {$reactivatedCount} reactivated, {$skippedReactivationCount} remain suspended");
 
             $duration = round(microtime(true) - $startTime, 2);
             $this->info("Enforcement completed in {$duration}s: {$suspendedCount} suspended, {$reactivatedCount} reactivated");

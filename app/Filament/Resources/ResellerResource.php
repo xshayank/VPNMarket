@@ -659,10 +659,37 @@ class ResellerResource extends Resource
                         ->color('success')
                         ->requiresConfirmation()
                         ->action(function ($records) {
-                            $records->each(fn (Reseller $record) => $record->update(['status' => 'active']));
+                            $activatedCount = 0;
+                            $reenableJobsDispatched = 0;
+                            
+                            foreach ($records as $record) {
+                                if ($record->status !== 'active') {
+                                    $record->update(['status' => 'active']);
+                                    $activatedCount++;
+                                    
+                                    // Create audit log
+                                    \App\Models\AuditLog::log(
+                                        action: 'reseller_bulk_activated',
+                                        targetType: 'reseller',
+                                        targetId: $record->id,
+                                        reason: 'admin_bulk_action',
+                                        meta: [
+                                            'previous_status' => $record->getOriginal('status'),
+                                        ]
+                                    );
+                                    
+                                    // If reseller has traffic remaining and valid window, dispatch re-enable job
+                                    if ($record->type === 'traffic' && $record->hasTrafficRemaining() && $record->isWindowValid()) {
+                                        \Illuminate\Support\Facades\Log::info("Dispatching ReenableResellerConfigsJob after bulk activation for reseller {$record->id}");
+                                        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($record->id);
+                                        $reenableJobsDispatched++;
+                                    }
+                                }
+                            }
+                            
                             Notification::make()
                                 ->success()
-                                ->title('ریسلرهای انتخاب شده با موفقیت فعال شدند')
+                                ->title("ریسلرهای انتخاب شده با موفقیت فعال شدند ({$activatedCount} فعال شد، {$reenableJobsDispatched} کانفیگ برای فعال‌سازی)")
                                 ->send();
                         }),
 

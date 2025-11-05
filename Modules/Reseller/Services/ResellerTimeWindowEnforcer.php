@@ -37,6 +37,52 @@ class ResellerTimeWindowEnforcer
     }
 
     /**
+     * Suspend reseller if their time window has expired OR they have no traffic remaining
+     * 
+     * @param Reseller $reseller The reseller to potentially suspend
+     * @param string $reason The reason for suspension: 'window_expired' or 'quota_exhausted'
+     * @return bool True if reseller was suspended, false otherwise
+     */
+    public function suspendDueToLimits(Reseller $reseller, string $reason): bool
+    {
+        // Only check traffic-based resellers
+        if (!$reseller->isTrafficBased()) {
+            return false;
+        }
+
+        // Check if already suspended
+        if ($reseller->isSuspended()) {
+            return false;
+        }
+
+        Log::info("Suspending reseller {$reseller->id} due to {$reason}");
+
+        // Suspend the reseller
+        $reseller->update(['status' => 'suspended']);
+
+        // Create audit log
+        AuditLog::log(
+            action: 'reseller_suspended_by_enforcement',
+            targetType: 'reseller',
+            targetId: $reseller->id,
+            reason: $reason,
+            meta: [
+                'window_ends_at' => $reseller->window_ends_at?->toDateTimeString(),
+                'suspended_at' => now()->toDateTimeString(),
+                'traffic_used_bytes' => $reseller->traffic_used_bytes,
+                'traffic_total_bytes' => $reseller->traffic_total_bytes,
+            ],
+            actorType: null,
+            actorId: null  // System action
+        );
+
+        // Disable all active configs
+        $this->disableResellerConfigs($reseller, $reason);
+
+        return true;
+    }
+
+    /**
      * Suspend reseller if their time window has expired
      */
     public function suspendIfExpired(Reseller $reseller): bool
@@ -150,8 +196,11 @@ class ResellerTimeWindowEnforcer
 
     /**
      * Disable all active configs for a reseller
+     * 
+     * @param Reseller $reseller The reseller whose configs should be disabled
+     * @param string $reason The reason for disabling: 'window_expired', 'quota_exhausted', etc.
      */
-    protected function disableResellerConfigs(Reseller $reseller): void
+    protected function disableResellerConfigs(Reseller $reseller, string $reason = 'reseller_time_window_expired'): void
     {
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'active')
@@ -183,6 +232,9 @@ class ResellerTimeWindowEnforcer
                 // Update local status regardless of remote result
                 $meta = $config->meta ?? [];
                 $meta['suspended_by_time_window'] = true;
+                $meta['disabled_by_reseller_suspension'] = true;
+                $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
                 
                 $config->update([
                     'status' => 'disabled',
@@ -202,7 +254,7 @@ class ResellerTimeWindowEnforcer
                     'reseller_config_id' => $config->id,
                     'type' => 'auto_disabled',
                     'meta' => [
-                        'reason' => 'reseller_time_window_expired',
+                        'reason' => $reason,
                         'remote_success' => $remoteResult['success'],
                         'attempts' => $remoteResult['attempts'],
                         'last_error' => $remoteResult['last_error'],
@@ -213,10 +265,10 @@ class ResellerTimeWindowEnforcer
 
                 // Create audit log
                 AuditLog::log(
-                    action: 'reseller_config_disabled_by_time_window',
+                    action: 'reseller_config_disabled_by_enforcement',
                     targetType: 'config',
                     targetId: $config->id,
-                    reason: 'reseller_time_window_expired',
+                    reason: $reason,
                     meta: [
                         'reseller_id' => $reseller->id,
                         'remote_success' => $remoteResult['success'],
