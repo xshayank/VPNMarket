@@ -23,14 +23,32 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     public $timeout = 600;
 
+    protected ?int $resellerId;
+
+    /**
+     * Create a new job instance.
+     *
+     * @param  int|null  $resellerId  Specific reseller ID to process, or null to process all eligible
+     */
+    public function __construct(?int $resellerId = null)
+    {
+        $this->resellerId = $resellerId;
+    }
+
     public function handle(ResellerProvisioner $provisioner): void
     {
-        Log::info('Starting reseller config re-enable job');
+        Log::info('Starting reseller config re-enable job', ['reseller_id' => $this->resellerId]);
 
         // Get suspended traffic-based resellers that now have quota and valid window
-        $resellers = Reseller::where('status', 'suspended')
-            ->where('type', 'traffic')
-            ->get()
+        $query = Reseller::where('status', 'suspended')
+            ->where('type', 'traffic');
+
+        // If specific reseller ID provided, only process that reseller
+        if ($this->resellerId !== null) {
+            $query->where('id', $this->resellerId);
+        }
+
+        $resellers = $query->get()
             ->filter(function ($reseller) {
                 // Apply grace thresholds for consistency with disable logic
                 $resellerGrace = $this->getResellerGraceSettings();
@@ -47,7 +65,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
             });
 
         if ($resellers->isEmpty()) {
-            Log::info('No eligible resellers for re-enable');
+            Log::info('No eligible resellers for re-enable', ['reseller_id' => $this->resellerId]);
 
             return;
         }
@@ -82,33 +100,19 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
-        // Find disabled configs that were auto-disabled by the system
+        // Find disabled configs that were auto-disabled by reseller suspension (using meta marker)
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
-            ->whereHas('events', function ($query) {
-                $query->where('type', 'auto_disabled')
-                    ->whereJsonContains('meta->reason', 'reseller_quota_exhausted')
-                    ->orWhereJsonContains('meta->reason', 'reseller_window_expired');
-            })
-            ->get();
-
-        // Filter configs to only those whose last event was auto_disabled with the right reason
-        $configs = $configs->filter(function ($config) {
-            $lastEvent = $config->events()
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            if (! $lastEvent) {
-                return false;
-            }
-
-            // Only re-enable if the last event was auto_disabled with reseller-level reason
-            return $lastEvent->type === 'auto_disabled'
-                && isset($lastEvent->meta['reason'])
-                && in_array($lastEvent->meta['reason'], ['reseller_quota_exhausted', 'reseller_window_expired']);
-        });
+            ->get()
+            ->filter(function ($config) {
+                // Only re-enable configs with the disabled_by_reseller_suspension marker
+                // Explicitly check for true to avoid re-enabling configs with marker set to false
+                return isset($config->meta['disabled_by_reseller_suspension']) 
+                    && $config->meta['disabled_by_reseller_suspension'] === true;
+            });
 
         if ($configs->isEmpty()) {
+            Log::info("No configs marked for re-enable for reseller {$reseller->id}");
             return;
         }
 
@@ -130,10 +134,16 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     $failedCount++;
                 }
 
-                // Update local status regardless of remote result
+                // Update local status and clear the meta marker
+                $meta = $config->meta ?? [];
+                unset($meta['disabled_by_reseller_suspension']);
+                unset($meta['disabled_by_reseller_suspension_reason']);
+                unset($meta['disabled_by_reseller_suspension_at']);
+                
                 $config->update([
                     'status' => 'active',
                     'disabled_at' => null,
+                    'meta' => $meta,
                 ]);
 
                 ResellerConfigEvent::create([

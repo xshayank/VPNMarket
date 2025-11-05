@@ -295,7 +295,7 @@ class ResellerUsageSyncTest extends TestCase
             'window_ends_at' => now()->addDays(30),
         ]);
 
-        // Create a config that was auto-disabled
+        // Create a config that was auto-disabled by reseller suspension
         $config = ResellerConfig::factory()->create([
             'reseller_id' => $reseller->id,
             'panel_id' => $panel->id,
@@ -306,9 +306,14 @@ class ResellerUsageSyncTest extends TestCase
             'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
             'usage_bytes' => 1 * 1024 * 1024 * 1024,
             'expires_at' => now()->addDays(30),
+            'meta' => [
+                'disabled_by_reseller_suspension' => true,
+                'disabled_by_reseller_suspension_reason' => 'reseller_quota_exhausted',
+                'disabled_by_reseller_suspension_at' => now()->toIso8601String(),
+            ],
         ]);
 
-        // Create auto_disabled event
+        // Create auto_disabled event (for backwards compatibility/audit trail)
         ResellerConfigEvent::create([
             'reseller_config_id' => $config->id,
             'type' => 'auto_disabled',
@@ -321,9 +326,9 @@ class ResellerUsageSyncTest extends TestCase
             '*/api/users/*/enable' => Http::response([], 200),
         ]);
 
-        // Run re-enable job with provisioner
+        // Run re-enable job with provisioner (process all eligible resellers)
         $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
-        $job = new ReenableResellerConfigsJob;
+        $job = new ReenableResellerConfigsJob(null);
         $job->handle($provisioner);
 
         // Config should be re-enabled
