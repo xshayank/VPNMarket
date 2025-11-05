@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Panel;
 use App\Models\ResellerConfig;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Modules\Reseller\Jobs\SyncResellerUsageJob;
 
 class SyncResellerConfigUsage extends Command
@@ -81,6 +82,30 @@ class SyncResellerConfigUsage extends Command
             $this->line("  Current:  {$usage} bytes ({$this->formatBytes($usage)})");
             $this->line('  Delta:    '.($usage - $oldUsage).' bytes ('.$this->formatBytes($usage - $oldUsage).')');
             $this->newLine();
+
+            // Recalculate and persist reseller aggregate immediately
+            $reseller = $config->reseller;
+            $oldResellerUsage = $reseller->traffic_used_bytes;
+            $totalUsageBytesFromDB = $reseller->configs()
+                ->get()
+                ->sum(function ($c) {
+                    return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
+                });
+            $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
+
+            $this->info('💾 Updated reseller aggregate traffic_used_bytes');
+            $this->line("  Reseller ID: {$reseller->id}");
+            $this->line("  Previous: {$oldResellerUsage} bytes ({$this->formatBytes($oldResellerUsage)})");
+            $this->line("  Current:  {$totalUsageBytesFromDB} bytes ({$this->formatBytes($totalUsageBytesFromDB)})");
+            $this->line('  Delta:    '.($totalUsageBytesFromDB - $oldResellerUsage).' bytes ('.$this->formatBytes($totalUsageBytesFromDB - $oldResellerUsage).')');
+            $this->newLine();
+
+            Log::info('Manual config sync updated reseller aggregate', [
+                'reseller_id' => $reseller->id,
+                'config_id' => $config->id,
+                'old_reseller_usage_bytes' => $oldResellerUsage,
+                'new_reseller_usage_bytes' => $totalUsageBytesFromDB,
+            ]);
 
             $this->info('✅ Sync completed successfully');
 
