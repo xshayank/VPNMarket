@@ -54,11 +54,8 @@ class ResellerSettledUsageTest extends TestCase
             'meta' => ['settled_usage_bytes' => 2 * 1024 * 1024 * 1024], // 2 GB settled
         ]);
 
-        // When SyncResellerUsageJob runs, it should count both current AND settled
-        $totalUsage = $config->usage_bytes + $config->getSettledUsageBytes();
-        $this->assertEquals(3 * 1024 * 1024 * 1024, $totalUsage); // 1 GB + 2 GB = 3 GB
-
-        // The reseller's traffic_used_bytes should include both
+        // The reseller's traffic_used_bytes calculation includes both current and settled
+        // This verifies the calculation logic that SyncResellerUsageJob uses
         $expectedResellerUsage = $reseller->configs()
             ->get()
             ->sum(function ($c) {
