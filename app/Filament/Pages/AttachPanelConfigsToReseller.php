@@ -379,6 +379,15 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                     }
                 }
 
+                // Build meta with usage tracking fields when available
+                $meta = [];
+                if (isset($remoteConfig['used_traffic'])) {
+                    $meta['used_traffic'] = (int) $remoteConfig['used_traffic'];
+                }
+                if (isset($remoteConfig['data_used'])) {
+                    $meta['data_used'] = (int) $remoteConfig['data_used'];
+                }
+
                 // Create ResellerConfig
                 $config = ResellerConfig::create([
                     'reseller_id' => $reseller->id,
@@ -387,11 +396,13 @@ class AttachPanelConfigsToReseller extends Page implements HasForms
                     'panel_user_id' => $remoteUserId,
                     'external_username' => $remoteUsername,
                     'status' => $status,
-                    'usage_bytes' => $remoteConfig['used_traffic'] ?? 0,
+                    // Prefer used_traffic, fallback to data_used (both should be equal for Eylandoo)
+                    'usage_bytes' => $remoteConfig['used_traffic'] ?? $remoteConfig['data_used'] ?? 0,
                     'traffic_limit_bytes' => $remoteConfig['data_limit'] ?? 0,
                     'disabled_at' => $disabledAt,
                     'expires_at' => now()->addDays(30), // Default expiry
                     'created_by' => auth()->id(),
+                    'meta' => ! empty($meta) ? $meta : null,
                 ]);
 
                 $configIds[] = $config->id;

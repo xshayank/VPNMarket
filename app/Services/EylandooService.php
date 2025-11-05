@@ -112,8 +112,10 @@ class EylandooService
                 $parseResult = $this->parseUsageFromResponse($userData);
                 $usageBytes = $parseResult['bytes'] ?? 0;
 
-                // Add used_traffic at the top level of the response
+                // Add used_traffic and data_used at the top level of the response
+                // Both set to the same value for Eylandoo (Marzban/Marzneshin compatibility)
                 $userData['used_traffic'] = $usageBytes;
+                $userData['data_used'] = $usageBytes;
 
                 return $userData;
             }
@@ -695,14 +697,16 @@ class EylandooService
                 $data = $response->json();
                 $users = $data['data']['users'] ?? [];
 
-                // Add normalized 'used_traffic' to each user
+                // Add normalized 'used_traffic' and 'data_used' to each user
                 return array_map(function ($user) {
                     // Parse usage from the user data
                     $parseResult = $this->parseUsageFromResponse($user);
                     $usageBytes = $parseResult['bytes'] ?? 0;
 
-                    // Add used_traffic at the top level
+                    // Add used_traffic and data_used at the top level
+                    // Both set to the same value for Eylandoo (Marzban/Marzneshin compatibility)
                     $user['used_traffic'] = $usageBytes;
+                    $user['data_used'] = $usageBytes;
 
                     return $user;
                 }, $users);
@@ -741,6 +745,7 @@ class EylandooService
                         'username' => $user['username'],
                         'status' => $user['status'] ?? 'active',
                         'used_traffic' => $usageBytes,
+                        'data_used' => $usageBytes,
                         'data_limit' => $user['data_limit'] ?? null,
                         'admin' => $user['sub_admin'] ?? null,
                         'owner_username' => $user['sub_admin'] ?? null,

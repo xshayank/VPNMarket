@@ -1071,6 +1071,8 @@ test('getUser injects normalized used_traffic field', function () {
     expect($result)->toBeArray()
         ->and($result)->toHaveKey('used_traffic')
         ->and($result['used_traffic'])->toBe(1073741824)
+        ->and($result)->toHaveKey('data_used')
+        ->and($result['data_used'])->toBe(1073741824)
         ->and($result['data']['username'])->toBe('testuser');
 });
 
@@ -1096,7 +1098,9 @@ test('getUser used_traffic field uses parseUsageFromResponse logic', function ()
 
     expect($result)->toBeArray()
         ->and($result)->toHaveKey('used_traffic')
-        ->and($result['used_traffic'])->toBe(5368709120);
+        ->and($result['used_traffic'])->toBe(5368709120)
+        ->and($result)->toHaveKey('data_used')
+        ->and($result['data_used'])->toBe(5368709120);
 });
 
 test('getUser used_traffic is 0 when no usage data present', function () {
@@ -1119,7 +1123,9 @@ test('getUser used_traffic is 0 when no usage data present', function () {
 
     expect($result)->toBeArray()
         ->and($result)->toHaveKey('used_traffic')
-        ->and($result['used_traffic'])->toBe(0);
+        ->and($result['used_traffic'])->toBe(0)
+        ->and($result)->toHaveKey('data_used')
+        ->and($result['data_used'])->toBe(0);
 });
 
 test('listUsers includes normalized used_traffic for each user', function () {
@@ -1154,8 +1160,12 @@ test('listUsers includes normalized used_traffic for each user', function () {
         ->and($result)->toHaveCount(2)
         ->and($result[0])->toHaveKey('used_traffic')
         ->and($result[0]['used_traffic'])->toBe(1073741824)
+        ->and($result[0])->toHaveKey('data_used')
+        ->and($result[0]['data_used'])->toBe(1073741824)
         ->and($result[1])->toHaveKey('used_traffic')
-        ->and($result[1]['used_traffic'])->toBe(2147483648);
+        ->and($result[1]['used_traffic'])->toBe(2147483648)
+        ->and($result[1])->toHaveKey('data_used')
+        ->and($result[1]['data_used'])->toBe(2147483648);
 });
 
 test('listConfigsByAdmin includes normalized used_traffic', function () {
@@ -1201,8 +1211,10 @@ test('listConfigsByAdmin includes normalized used_traffic', function () {
         ->and($result)->toHaveCount(2)
         ->and($result[0]['username'])->toBe('user1')
         ->and($result[0]['used_traffic'])->toBe(1073741824)
+        ->and($result[0]['data_used'])->toBe(1073741824)
         ->and($result[1]['username'])->toBe('user3')
-        ->and($result[1]['used_traffic'])->toBe(3221225472);
+        ->and($result[1]['used_traffic'])->toBe(3221225472)
+        ->and($result[1]['data_used'])->toBe(3221225472);
 });
 
 test('listConfigsByAdmin handles various usage field formats', function () {
@@ -1241,5 +1253,7 @@ test('listConfigsByAdmin handles various usage field formats', function () {
     expect($result)->toBeArray()
         ->and($result)->toHaveCount(2)
         ->and($result[0]['used_traffic'])->toBe(5368709120)
-        ->and($result[1]['used_traffic'])->toBe(3221225472); // 1GB + 2GB
+        ->and($result[0]['data_used'])->toBe(5368709120)
+        ->and($result[1]['used_traffic'])->toBe(3221225472) // 1GB + 2GB
+        ->and($result[1]['data_used'])->toBe(3221225472);
 });

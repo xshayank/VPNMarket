@@ -370,35 +370,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             $nodeHostname
         );
 
-        // Get user data - now returns normalized 'used_traffic' like Marzban/Marzneshin
-        $user = $service->getUser($username);
-
-        if (! $user) {
-            Log::warning("Eylandoo usage fetch failed for user {$username} (user not found)", [
-                'config_id' => $configId,
-                'panel_url' => $panelUrl,
-            ]);
-
-            return null;
-        }
-
-        // Read 'used_traffic' from response (like Marzban/Marzneshin)
-        // Fallback to getUserUsageBytes() if used_traffic is missing
-        if (isset($user['used_traffic'])) {
-            $usage = (int) $user['used_traffic'];
-            Log::info("Eylandoo usage for user {$username}: {$usage} bytes (from used_traffic)", [
-                'config_id' => $configId,
-            ]);
-
-            return $usage;
-        }
-
-        // Fallback: parse directly using getUserUsageBytes
-        Log::debug('Eylandoo used_traffic not found, falling back to getUserUsageBytes', [
-            'username' => $username,
-            'config_id' => $configId,
-        ]);
-
+        // Fetch usage using getUserUsageBytes (like Marzban/Marzneshin approach)
         $usage = $service->getUserUsageBytes($username);
 
         if ($usage === null) {
@@ -410,9 +382,20 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             return null;
         }
 
-        Log::info("Eylandoo usage for user {$username}: {$usage} bytes (from fallback)", [
+        Log::info("Eylandoo usage for user {$username}: {$usage} bytes", [
             'config_id' => $configId,
         ]);
+
+        // Persist meta fields for compatibility and trace (like Marzneshin/Marzban)
+        if ($configId) {
+            $config = ResellerConfig::find($configId);
+            if ($config) {
+                $meta = $config->meta ?? [];
+                $meta['used_traffic'] = $usage;
+                $meta['data_used'] = $usage;
+                $config->update(['meta' => $meta]);
+            }
+        }
 
         return $usage;
     }
