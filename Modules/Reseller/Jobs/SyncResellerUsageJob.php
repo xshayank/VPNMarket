@@ -161,11 +161,12 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
 
         // Update reseller's total traffic usage from ALL configs (not just active)
         // This ensures reseller suspension decision is based on complete usage picture
-        // Sum ONLY usage_bytes (exclude settled_usage_bytes) so reseller homepage reflects resets
+        // Include settled_usage_bytes to prevent abuse (resellers resetting to bypass quota)
+        // For display purposes, use getCurrentTrafficUsedBytes() which excludes settled
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($config) {
-                return $config->usage_bytes;
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 

@@ -83,10 +83,14 @@ class ResellerUsageSyncSchedulerTest extends TestCase
         $config->refresh();
         $this->assertEquals(2 * 1024 * 1024 * 1024, $config->usage_bytes);
 
-        // Verify reseller aggregate includes ONLY usage_bytes, NOT settled_usage_bytes
+        // Verify reseller aggregate includes usage_bytes + settled_usage_bytes (2 GB + 3 GB = 5 GB)
+        // This prevents abuse while getCurrentTrafficUsedBytes() shows current usage only
         $reseller->refresh();
-        $this->assertEquals(2 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should exclude settled_usage_bytes');
-        $this->assertNotEquals(5 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should NOT include settled_usage_bytes');
+        $this->assertEquals(5 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should include settled_usage_bytes for quota enforcement');
+        
+        // Verify current usage method excludes settled
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(2 * 1024 * 1024 * 1024, $currentUsage, 'Current usage should exclude settled for display');
     }
 
     public function test_sync_job_executes_synchronously_without_queue_worker(): void
@@ -188,17 +192,21 @@ class ResellerUsageSyncSchedulerTest extends TestCase
         $meta['settled_usage_bytes'] = $currentSettled + $toSettle;
         $config->update(['usage_bytes' => 0, 'meta' => $meta]);
 
-        // Recalculate reseller aggregate (excluding settled_usage_bytes)
+        // Recalculate reseller aggregate (including settled_usage_bytes for quota enforcement)
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($c) {
-                return $c->usage_bytes;
+                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
-        // Verify reseller aggregate dropped to 0 after reset
+        // Verify reseller aggregate still includes settled usage (3 GB) for quota enforcement
         $reseller->refresh();
-        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Reseller aggregate should drop to 0 after reset (excluding settled usage)');
+        $this->assertEquals(3 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should include settled usage for quota');
+
+        // But getCurrentTrafficUsedBytes() should show 0 for display purposes
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(0, $currentUsage, 'Current usage should be 0 after reset for display');
 
         // Verify settled usage is preserved in config meta
         $config->refresh();

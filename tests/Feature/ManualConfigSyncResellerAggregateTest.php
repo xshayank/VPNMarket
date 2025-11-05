@@ -209,11 +209,15 @@ class ManualConfigSyncResellerAggregateTest extends TestCase
         $config->refresh();
         $this->assertEquals(1 * 1024 * 1024 * 1024, $config->usage_bytes);
 
-        // Assert reseller aggregate includes ONLY usage_bytes, NOT settled_usage_bytes (1 GB, not 3 GB)
-        // This is the new behavior - settled usage is NOT counted toward reseller limit
+        // Assert reseller aggregate includes usage_bytes + settled_usage_bytes (1 GB + 2 GB = 3 GB)
+        // This prevents resellers from abusing reset to bypass quota
         $reseller->refresh();
-        $expectedTotal = 1 * 1024 * 1024 * 1024; // Only current usage, not settled
-        $this->assertEquals($expectedTotal, $reseller->traffic_used_bytes, 'Reseller aggregate should NOT include settled usage');
+        $expectedTotal = (1 * 1024 * 1024 * 1024) + (2 * 1024 * 1024 * 1024);
+        $this->assertEquals($expectedTotal, $reseller->traffic_used_bytes, 'Reseller aggregate should include settled usage for quota enforcement');
+
+        // But getCurrentTrafficUsedBytes() should return only current usage (1 GB) for display
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(1 * 1024 * 1024 * 1024, $currentUsage, 'Current usage should exclude settled for display');
     }
 
     public function test_manual_sync_command_handles_config_not_found(): void

@@ -86,11 +86,11 @@ class ConfigResetResellerAggregateTest extends TestCase
             'meta' => $meta,
         ]);
 
-        // Recalculate and persist reseller aggregate after reset (excluding settled_usage_bytes)
+        // Recalculate and persist reseller aggregate after reset (including settled_usage_bytes)
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($c) {
-                return $c->usage_bytes;
+                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
@@ -101,9 +101,13 @@ class ConfigResetResellerAggregateTest extends TestCase
         // Verify settled usage was updated
         $this->assertEquals(5 * 1024 * 1024 * 1024, data_get($config->meta, 'settled_usage_bytes'), 'Settled usage should be 5 GB');
 
-        // Verify reseller aggregate was updated to 0 (excluding settled usage)
+        // Verify reseller aggregate includes settled usage (5 GB) for quota enforcement
         $reseller->refresh();
-        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Reseller aggregate should be 0 after reset (excluding settled usage)');
+        $this->assertEquals(5 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should include settled usage for quota');
+        
+        // But getCurrentTrafficUsedBytes() should show 0 for display
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(0, $currentUsage, 'Current usage should be 0 for display');
     }
 
     public function test_config_reset_with_multiple_configs_updates_aggregate_correctly(): void
@@ -171,11 +175,11 @@ class ConfigResetResellerAggregateTest extends TestCase
         $meta['last_reset_at'] = now()->toDateTimeString();
         $config1->update(['usage_bytes' => 0, 'meta' => $meta]);
 
-        // Recalculate reseller aggregate (excluding settled_usage_bytes)
+        // Recalculate reseller aggregate (including settled_usage_bytes)
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($c) {
-                return $c->usage_bytes;
+                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
@@ -188,9 +192,13 @@ class ConfigResetResellerAggregateTest extends TestCase
         $config2->refresh();
         $this->assertEquals(3 * 1024 * 1024 * 1024, $config2->usage_bytes, 'Config2 usage should remain 3 GB');
 
-        // Verify reseller aggregate reflects only config2's current usage (3 GB)
+        // Verify reseller aggregate includes settled (5 GB) + config2 current (3 GB) = 8 GB
         $reseller->refresh();
-        $this->assertEquals(3 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should be 3 GB (config2 only, excluding settled)');
+        $this->assertEquals(8 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should be 8 GB (5 GB settled + 3 GB current)');
+        
+        // But getCurrentTrafficUsedBytes() should show only config2 current usage (3 GB)
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(3 * 1024 * 1024 * 1024, $currentUsage, 'Current usage should be 3 GB for display');
     }
 
     public function test_config_reset_for_eylandoo_zeros_meta_fields(): void
@@ -257,11 +265,11 @@ class ConfigResetResellerAggregateTest extends TestCase
 
         $config->update(['usage_bytes' => 0, 'meta' => $meta]);
 
-        // Recalculate reseller aggregate
+        // Recalculate reseller aggregate (including settled)
         $totalUsageBytesFromDB = $reseller->configs()
             ->get()
             ->sum(function ($c) {
-                return $c->usage_bytes;
+                return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
@@ -272,8 +280,12 @@ class ConfigResetResellerAggregateTest extends TestCase
         $this->assertEquals(0, data_get($config->meta, 'data_used'), 'Eylandoo data_used should be 0');
         $this->assertEquals(2 * 1024 * 1024 * 1024, data_get($config->meta, 'settled_usage_bytes'), 'Settled usage should be 2 GB');
 
-        // Verify reseller aggregate was updated
+        // Verify reseller aggregate includes settled usage (2 GB) for quota
         $reseller->refresh();
-        $this->assertEquals(0, $reseller->traffic_used_bytes, 'Reseller aggregate should be 0 after reset');
+        $this->assertEquals(2 * 1024 * 1024 * 1024, $reseller->traffic_used_bytes, 'Reseller aggregate should be 2 GB (settled) for quota');
+        
+        // But getCurrentTrafficUsedBytes() should show 0 for display
+        $currentUsage = $reseller->getCurrentTrafficUsedBytes();
+        $this->assertEquals(0, $currentUsage, 'Current usage should be 0 for display');
     }
 }
