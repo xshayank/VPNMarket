@@ -516,9 +516,16 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 }
 
                 // Update local status after remote attempt (regardless of result)
+                // Mark config as disabled by reseller suspension for re-enable tracking
+                $meta = $config->meta ?? [];
+                $meta['disabled_by_reseller_suspension'] = true;
+                $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
+                
                 $config->update([
                     'status' => 'disabled',
                     'disabled_at' => now(),
+                    'meta' => $meta,
                 ]);
 
                 ResellerConfigEvent::create([

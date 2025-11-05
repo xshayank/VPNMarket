@@ -64,7 +64,7 @@ class EditReseller extends EditRecord
                         // If reseller was suspended and now has remaining quota and valid window,
                         // dispatch job to re-enable configs
                         if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
-                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($this->record->id);
                         }
 
                         \Filament\Notifications\Notification::make()
@@ -126,7 +126,7 @@ class EditReseller extends EditRecord
                         // If reseller was suspended and now has remaining quota and valid window,
                         // dispatch job to re-enable configs
                         if ($this->record->status === 'suspended' && $this->record->hasTrafficRemaining() && $this->record->isWindowValid()) {
-                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch();
+                            \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($this->record->id);
                         }
 
                         \Filament\Notifications\Notification::make()
