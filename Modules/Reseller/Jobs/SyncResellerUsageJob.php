@@ -126,7 +126,16 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 $usage = $this->fetchConfigUsage($config);
 
                 if ($usage !== null) {
+                    // Update usage_bytes
                     $config->update(['usage_bytes' => $usage]);
+
+                    // For Eylandoo configs, also persist usage in meta for compatibility
+                    if ($config->panel_type === 'eylandoo') {
+                        $meta = $config->meta ?? [];
+                        $meta['used_traffic'] = $usage;
+                        $meta['data_used'] = $usage;
+                        $config->update(['meta' => $meta]);
+                    }
 
                     // Only check per-config limits if config overrun is NOT allowed
                     if (! $allowConfigOverrun) {
@@ -370,7 +379,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             $nodeHostname
         );
 
-        // Fetch usage using getUserUsageBytes (like Marzban/Marzneshin approach)
+        // Fetch usage using ONLY getUserUsageBytes (per requirement)
         $usage = $service->getUserUsageBytes($username);
 
         if ($usage === null) {
@@ -385,17 +394,6 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         Log::info("Eylandoo usage for user {$username}: {$usage} bytes", [
             'config_id' => $configId,
         ]);
-
-        // Persist meta fields for compatibility and trace (like Marzneshin/Marzban)
-        if ($configId) {
-            $config = ResellerConfig::find($configId);
-            if ($config) {
-                $meta = $config->meta ?? [];
-                $meta['used_traffic'] = $usage;
-                $meta['data_used'] = $usage;
-                $config->update(['meta' => $meta]);
-            }
-        }
 
         return $usage;
     }
