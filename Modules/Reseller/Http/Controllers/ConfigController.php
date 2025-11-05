@@ -665,7 +665,7 @@ class ConfigController extends Controller
             $totalUsageBytesFromDB = $reseller->configs()
                 ->get()
                 ->sum(function ($c) {
-                    return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
+                    return $c->usage_bytes;
                 });
             $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 

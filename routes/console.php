@@ -30,26 +30,12 @@ Schedule::call(function () {
 })->hourly();
 
 // Schedule reseller usage sync job
-// Configurable interval: 1-5 minutes (default: 5 minutes)
-// Supports dynamic interval via 'reseller.usage_sync_interval_minutes' setting
-// The interval is read at runtime to support changes without redeployment
+// Runs every minute and executes synchronously (no queue worker needed)
+// This ensures reliable execution and immediate updates to reseller aggregates
 Schedule::call(function () {
-    $intervalMinutes = Setting::getInt('reseller.usage_sync_interval_minutes', 5);
-
-    // Clamp interval to [1, 5] minutes range
-    if ($intervalMinutes < 1) {
-        $intervalMinutes = 1;
-    }
-    if ($intervalMinutes > 5) {
-        $intervalMinutes = 5;
-    }
-
-    // Check if current minute is a multiple of the interval
-    $currentMinute = now()->minute;
-    if ($currentMinute % $intervalMinutes === 0) {
-        Log::info("Scheduling SyncResellerUsageJob (interval: {$intervalMinutes} minutes)");
-        SyncResellerUsageJob::dispatch();
-    }
+    Log::info('Scheduler tick: Running SyncResellerUsageJob');
+    SyncResellerUsageJob::dispatchSync();
+    Log::info('Scheduler tick: SyncResellerUsageJob completed');
 })->everyMinute();
 
 // Schedule reseller config re-enable job
