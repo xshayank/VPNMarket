@@ -160,6 +160,12 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             });
         $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
 
+        Log::info("Reseller {$reseller->id} usage updated", [
+            'reseller_id' => $reseller->id,
+            'traffic_used_bytes' => $totalUsageBytesFromDB,
+            'traffic_used_gb' => round($totalUsageBytesFromDB / (1024 * 1024 * 1024), 2),
+        ]);
+
         // Check reseller-level limits with grace
         $resellerGrace = $this->getResellerGraceSettings();
         $effectiveResellerLimit = $this->applyGrace(
