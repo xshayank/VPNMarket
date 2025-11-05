@@ -106,7 +106,7 @@ class EditReseller extends EditRecord
 
                         // Create initial audit log for job dispatch
                         \App\Models\AuditLog::log(
-                            action: 'reseller_usage_reset_initiated',
+                            action: 'reseller_usage_reset_started',
                             targetType: 'reseller',
                             targetId: $this->record->id,
                             reason: 'admin_action',

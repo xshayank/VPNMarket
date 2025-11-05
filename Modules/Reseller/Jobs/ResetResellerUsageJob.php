@@ -19,9 +19,11 @@ class ResetResellerUsageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries = 1;
+    public $tries = 3;
 
     public $timeout = 600;
+
+    public $backoff = [60, 180]; // Retry after 60s, then 180s
 
     protected Reseller $reseller;
 
@@ -48,7 +50,8 @@ class ResetResellerUsageJob implements ShouldQueue
         $totalBytesSettled = 0;
 
         // Get all configs for this reseller (active and inactive)
-        $configs = $this->reseller->configs()->get();
+        // Eager load panels to avoid N+1 queries
+        $configs = $this->reseller->configs()->with('panel')->get();
 
         if ($configs->isEmpty()) {
             Log::info("Reseller {$this->reseller->id} has no configs to reset");
@@ -85,13 +88,11 @@ class ResetResellerUsageJob implements ShouldQueue
                     // Try to reset on remote panel
                     $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
 
-                    if ($config->panel_id) {
+                    if ($config->panel_id && $config->panel) {
                         try {
-                            $panel = Panel::findOrFail($config->panel_id);
-
                             $remoteResult = $provisioner->resetUserUsage(
-                                $panel->panel_type,
-                                $panel->getCredentials(),
+                                $config->panel->panel_type,
+                                $config->panel->getCredentials(),
                                 $config->panel_user_id
                             );
 
@@ -99,7 +100,7 @@ class ResetResellerUsageJob implements ShouldQueue
                                 $remoteSuccessCount++;
                             } else {
                                 $remoteFailCount++;
-                                Log::warning("Failed to reset usage for config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
+                                Log::warning("Failed to reset usage for config {$config->id} on remote panel {$config->panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
                             }
                         } catch (\Exception $e) {
                             $remoteFailCount++;
@@ -152,7 +153,7 @@ class ResetResellerUsageJob implements ShouldQueue
 
         // Create audit log entry
         AuditLog::log(
-            action: 'reseller_usage_reset',
+            action: 'reseller_usage_reset_completed',
             targetType: 'reseller',
             targetId: $this->reseller->id,
             reason: 'admin_action',

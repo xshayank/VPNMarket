@@ -115,7 +115,7 @@ class ResellerUsageResetTest extends TestCase
         $this->assertCount(2, ResellerConfigEvent::where('type', 'usage_reset')->get());
 
         // Verify audit log was created
-        $this->assertCount(1, AuditLog::where('action', 'reseller_usage_reset')->where('target_id', $reseller->id)->get());
+        $this->assertCount(1, AuditLog::where('action', 'reseller_usage_reset_completed')->where('target_id', $reseller->id)->get());
     }
 
     public function test_reset_job_handles_eylandoo_configs(): void
