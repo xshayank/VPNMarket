@@ -394,7 +394,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         }
 
         // Fallback: parse directly using getUserUsageBytes
-        Log::debug("Eylandoo used_traffic not found, falling back to getUserUsageBytes", [
+        Log::debug('Eylandoo used_traffic not found, falling back to getUserUsageBytes', [
             'username' => $username,
             'config_id' => $configId,
         ]);

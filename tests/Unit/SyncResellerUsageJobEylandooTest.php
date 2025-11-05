@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\EylandooService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Modules\Reseller\Jobs\SyncResellerUsageJob;
@@ -35,7 +34,7 @@ test('fetchEylandooUsage reads used_traffic from getUser response', function () 
         ],
     ];
 
-    $job = new SyncResellerUsageJob();
+    $job = new SyncResellerUsageJob;
 
     // Use reflection to access protected method
     $reflection = new ReflectionClass($job);
@@ -70,7 +69,7 @@ test('fetchEylandooUsage handles missing used_traffic with fallback', function (
         ],
     ];
 
-    $job = new SyncResellerUsageJob();
+    $job = new SyncResellerUsageJob;
     $reflection = new ReflectionClass($job);
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
@@ -88,7 +87,7 @@ test('fetchEylandooUsage returns null for empty username', function () {
         'extra' => [],
     ];
 
-    $job = new SyncResellerUsageJob();
+    $job = new SyncResellerUsageJob;
     $reflection = new ReflectionClass($job);
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
@@ -109,7 +108,7 @@ test('fetchEylandooUsage returns null when user not found', function () {
         'extra' => [],
     ];
 
-    $job = new SyncResellerUsageJob();
+    $job = new SyncResellerUsageJob;
     $reflection = new ReflectionClass($job);
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
@@ -135,7 +134,7 @@ test('fetchEylandooUsage handles various usage field formats via used_traffic', 
         'extra' => [],
     ];
 
-    $job = new SyncResellerUsageJob();
+    $job = new SyncResellerUsageJob;
     $reflection = new ReflectionClass($job);
     $method = $reflection->getMethod('fetchEylandooUsage');
     $method->setAccessible(true);
