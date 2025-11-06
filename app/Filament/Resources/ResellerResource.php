@@ -209,28 +209,15 @@ class ResellerResource extends Resource
                                             return [];
                                         }
 
-                                        try {
-                                            $credentials = $panel->getCredentials();
+                                        // Use cached method (5 minute cache)
+                                        $nodes = $panel->getCachedEylandooNodes();
+                                        $options = [];
 
-                                            $eylandooService = new \App\Services\EylandooService(
-                                                $credentials['url'],
-                                                $credentials['api_token'],
-                                                $credentials['extra']['node_hostname'] ?? ''
-                                            );
-
-                                            $nodes = $eylandooService->listNodes();
-                                            $options = [];
-
-                                            foreach ($nodes as $node) {
-                                                $options[$node['id']] = $node['name'];
-                                            }
-
-                                            return $options;
-                                        } catch (\Exception $e) {
-                                            \Illuminate\Support\Facades\Log::error('Failed to load Eylandoo nodes: '.$e->getMessage());
-
-                                            return [];
+                                        foreach ($nodes as $node) {
+                                            $options[$node['id']] = $node['name'];
                                         }
+
+                                        return $options;
                                     })
                                     ->helperText('انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، ریسلر می‌تواند از تمام نودها استفاده کند.')
                                     ->columns(2),

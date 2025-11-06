@@ -72,4 +72,34 @@ class Panel extends Model
             'extra' => $this->extra ?? [],
         ];
     }
+
+    /**
+     * Get Eylandoo nodes with caching (5 minutes)
+     * 
+     * @return array Array of nodes with id and name
+     */
+    public function getCachedEylandooNodes(): array
+    {
+        if ($this->panel_type !== 'eylandoo') {
+            return [];
+        }
+
+        $cacheKey = "panel:{$this->id}:eylandoo_nodes";
+        
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () {
+            try {
+                $credentials = $this->getCredentials();
+                $service = new \App\Services\EylandooService(
+                    $credentials['url'],
+                    $credentials['api_token'],
+                    $credentials['extra']['node_hostname'] ?? ''
+                );
+                
+                return $service->listNodes();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to fetch Eylandoo nodes for panel {$this->id}: " . $e->getMessage());
+                return [];
+            }
+        });
+    }
 }
