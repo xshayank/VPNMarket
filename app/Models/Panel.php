@@ -89,15 +89,45 @@ class Panel extends Model
         return \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () {
             try {
                 $credentials = $this->getCredentials();
+                
+                // Validate credentials
+                if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                    \Illuminate\Support\Facades\Log::warning("Eylandoo nodes fetch: Missing credentials for panel {$this->id}", [
+                        'panel_id' => $this->id,
+                        'panel_name' => $this->name,
+                        'has_url' => !empty($credentials['url']),
+                        'has_api_token' => !empty($credentials['api_token']),
+                    ]);
+                    return [];
+                }
+                
                 $service = new \App\Services\EylandooService(
                     $credentials['url'],
                     $credentials['api_token'],
                     $credentials['extra']['node_hostname'] ?? ''
                 );
                 
-                return $service->listNodes();
+                $nodes = $service->listNodes();
+                
+                if (empty($nodes)) {
+                    \Illuminate\Support\Facades\Log::info("Eylandoo nodes fetch: API returned no nodes for panel {$this->id}", [
+                        'panel_id' => $this->id,
+                        'panel_name' => $this->name,
+                        'url' => $credentials['url'],
+                    ]);
+                } else {
+                    \Illuminate\Support\Facades\Log::debug("Eylandoo nodes fetch: Successfully retrieved " . count($nodes) . " nodes for panel {$this->id}");
+                }
+                
+                return $nodes;
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to fetch Eylandoo nodes for panel {$this->id}: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Failed to fetch Eylandoo nodes for panel {$this->id}: " . $e->getMessage(), [
+                    'panel_id' => $this->id,
+                    'panel_name' => $this->name,
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 return [];
             }
         });

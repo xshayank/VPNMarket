@@ -85,6 +85,7 @@ class ResellerResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live()
+                            ->reactive()
                             ->required()
                             ->helperText('پنل V2Ray که این ریسلر از آن استفاده می‌کند'),
 
@@ -198,19 +199,31 @@ class ResellerResource extends Resource
                             ->schema([
                                 Forms\Components\CheckboxList::make('eylandoo_allowed_node_ids')
                                     ->label('انتخاب نودها (اختیاری)')
+                                    ->live()
                                     ->options(function (Forms\Get $get) {
                                         $panelId = $get('panel_id');
                                         if (! $panelId) {
+                                            \Illuminate\Support\Facades\Log::debug('Eylandoo nodes: No panel_id in form state');
                                             return [];
                                         }
 
                                         $panel = \App\Models\Panel::find($panelId);
-                                        if (! $panel || $panel->panel_type !== 'eylandoo') {
+                                        if (! $panel) {
+                                            \Illuminate\Support\Facades\Log::debug("Eylandoo nodes: Panel {$panelId} not found");
+                                            return [];
+                                        }
+
+                                        if ($panel->panel_type !== 'eylandoo') {
                                             return [];
                                         }
 
                                         // Use cached method (5 minute cache)
                                         $nodes = $panel->getCachedEylandooNodes();
+                                        
+                                        if (empty($nodes)) {
+                                            \Illuminate\Support\Facades\Log::warning("Eylandoo nodes: No nodes returned for panel {$panelId}. Check panel credentials and API connectivity.");
+                                        }
+                                        
                                         $options = [];
 
                                         foreach ($nodes as $node) {
