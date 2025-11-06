@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
-    // Create admin user (without role assignment - simpler)
+    // Create admin user using is_admin flag (simpler than role-based auth)
     $this->admin = User::factory()->create(['is_admin' => true]);
 
     // Create reseller user

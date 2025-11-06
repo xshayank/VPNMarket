@@ -75,7 +75,7 @@ class Panel extends Model
 
     /**
      * Get Eylandoo nodes with caching (5 minutes)
-     * 
+     *
      * @return array Array of nodes with id and name
      */
     public function getCachedEylandooNodes(): array
