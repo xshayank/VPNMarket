@@ -734,4 +734,60 @@ class ResellerProvisioner
             return false;
         }, "reset user usage for {$panelUserId}");
     }
+
+    /**
+     * Fetch Eylandoo nodes for a panel
+     * Helper method that can be used in Filament forms and reseller config creation
+     *
+     * @param  Panel  $panel  The panel to fetch nodes from
+     * @return array Array of nodes with 'id' and 'name' keys
+     */
+    public function fetchEylandooNodes(Panel $panel): array
+    {
+        if ($panel->panel_type !== 'eylandoo') {
+            return [];
+        }
+
+        try {
+            $credentials = $panel->getCredentials();
+
+            // Validate credentials
+            if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                Log::warning('fetchEylandooNodes: Missing credentials', [
+                    'panel_id' => $panel->id,
+                    'panel_name' => $panel->name,
+                ]);
+
+                return [];
+            }
+
+            $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+
+            $service = new EylandooService(
+                $credentials['url'],
+                $credentials['api_token'],
+                $nodeHostname
+            );
+
+            $nodes = $service->listNodes();
+
+            if (empty($nodes)) {
+                Log::info('fetchEylandooNodes: No nodes returned from API', [
+                    'panel_id' => $panel->id,
+                    'panel_name' => $panel->name,
+                ]);
+            }
+
+            return $nodes;
+        } catch (\Exception $e) {
+            Log::error('fetchEylandooNodes: Exception occurred', [
+                'panel_id' => $panel->id,
+                'panel_name' => $panel->name,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
 }
