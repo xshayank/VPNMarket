@@ -358,6 +358,99 @@ class EnforceResellerTimeWindowsCommandTest extends TestCase
         $this->assertArrayNotHasKey('disabled_by_reseller_id', $config->meta ?? []);
     }
 
+    public function test_configs_flagged_correctly_for_window_expiry(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create reseller with expired window but enough traffic
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 2 * 1024 * 1024 * 1024, // Has traffic
+            'window_starts_at' => now()->subDays(30),
+            'window_ends_at' => now()->subMinutes(10), // Expired window
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'active',
+        ]);
+
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/disable' => Http::response([], 200),
+        ]);
+
+        Artisan::call('reseller:enforce-time-windows');
+
+        $config->refresh();
+        $this->assertEquals('disabled', $config->status);
+        // Should have suspended_by_time_window flag (window expired)
+        $this->assertTrue($config->meta['suspended_by_time_window'] ?? false);
+        // Should NOT have disabled_by_reseller_suspension flag (not quota issue)
+        $this->assertArrayNotHasKey('disabled_by_reseller_suspension', $config->meta ?? []);
+    }
+
+    public function test_configs_flagged_correctly_for_quota_exhaustion(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create reseller with valid window but exhausted quota
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 11 * 1024 * 1024 * 1024, // Quota exhausted
+            'window_starts_at' => now()->subDays(10),
+            'window_ends_at' => now()->addDays(20), // Valid window
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'active',
+        ]);
+
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/disable' => Http::response([], 200),
+        ]);
+
+        Artisan::call('reseller:enforce-time-windows');
+
+        $config->refresh();
+        $this->assertEquals('disabled', $config->status);
+        // Should have disabled_by_reseller_suspension flag (quota exhausted)
+        $this->assertTrue($config->meta['disabled_by_reseller_suspension'] ?? false);
+        $this->assertEquals('quota_exhausted', $config->meta['disabled_by_reseller_suspension_reason'] ?? null);
+        // Should NOT have suspended_by_time_window flag (not window issue)
+        $this->assertArrayNotHasKey('suspended_by_time_window', $config->meta ?? []);
+    }
+
     public function test_scheduler_registration(): void
     {
         // Set feature flag to true (default)

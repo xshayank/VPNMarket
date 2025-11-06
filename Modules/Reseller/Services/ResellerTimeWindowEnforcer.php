@@ -397,12 +397,21 @@ class ResellerTimeWindowEnforcer
 
                 // Update local status regardless of remote result
                 $meta = $config->meta ?? [];
-                $meta['suspended_by_time_window'] = true;
-                $meta['disabled_by_reseller_suspension'] = true;  // Boolean true for consistency
+
+                // Set appropriate flag based on the actual reason
+                if (str_contains($reason, 'window') || $reason === 'window_expired') {
+                    // Time window related suspension
+                    $meta['suspended_by_time_window'] = true;
+                } else {
+                    // Quota exhaustion or other reseller suspension reasons
+                    $meta['disabled_by_reseller_suspension'] = true;
+                    $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                    $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
+                }
+
+                // Common fields for all suspension types
                 $meta['disabled_by_reseller_id'] = $reseller->id;
-                $meta['disabled_by_reseller_suspension_reason'] = $reason;
                 $meta['disabled_at'] = now()->toIso8601String();
-                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
 
                 $config->update([
                     'status' => 'disabled',
