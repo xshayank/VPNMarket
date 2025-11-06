@@ -171,7 +171,7 @@
                         eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
                     } else {
                         // Create empty state message using DOM methods (XSS-safe)
-                        eylandooNodesContainer.innerHTML = '';
+                        eylandooNodesContainer.replaceChildren(); // Clear container
                         const emptyMsg = document.createElement('p');
                         emptyMsg.className = 'text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded';
                         emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
@@ -184,12 +184,12 @@
                     connectionsInput.value = '1'; // Reset to default
                     
                     eylandooNodesField.style.display = 'none';
-                    eylandooNodesContainer.innerHTML = '';
+                    eylandooNodesContainer.replaceChildren(); // Clear container
                 }
             }
             
             function populateEylandooNodes(nodes) {
-                eylandooNodesContainer.innerHTML = '';
+                eylandooNodesContainer.replaceChildren(); // Clear container
                 
                 nodes.forEach(function(node) {
                     const label = document.createElement('label');
