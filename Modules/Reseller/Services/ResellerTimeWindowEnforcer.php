@@ -8,6 +8,7 @@ use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use Illuminate\Support\Facades\Log;
+use Modules\Reseller\Jobs\ReenableResellerConfigsJob;
 
 class ResellerTimeWindowEnforcer
 {
@@ -205,9 +206,9 @@ class ResellerTimeWindowEnforcer
 
         try {
             // Attempt to run the job synchronously
-            if (class_exists('\Modules\Reseller\Jobs\ReenableResellerConfigsJob')) {
+            if (class_exists(ReenableResellerConfigsJob::class)) {
                 Log::info("Dispatching ReenableResellerConfigsJob (sync) for reseller {$reseller->id}");
-                \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatchSync($reseller->id);
+                ReenableResellerConfigsJob::dispatchSync($reseller->id);
                 Log::info("ReenableResellerConfigsJob completed synchronously for reseller {$reseller->id}");
             } else {
                 Log::warning("ReenableResellerConfigsJob class not found, using inline fallback for reseller {$reseller->id}");
@@ -249,16 +250,9 @@ class ResellerTimeWindowEnforcer
                 $suspendedByWindow = $meta['suspended_by_time_window'] ?? null;
                 $disabledByResellerId = $meta['disabled_by_reseller_id'] ?? null;
 
-                // Consider truthy if: true, 1, '1', 'true' or if disabled_by_reseller_id matches
-                $isMarkedByReseller = $disabledByReseller === true
-                    || $disabledByReseller === 1
-                    || $disabledByReseller === '1'
-                    || $disabledByReseller === 'true';
-
-                $isMarkedByWindow = $suspendedByWindow === true
-                    || $suspendedByWindow === 1
-                    || $suspendedByWindow === '1'
-                    || $suspendedByWindow === 'true';
+                // Check if marked by reseller suspension or time window
+                $isMarkedByReseller = $this->isTruthy($disabledByReseller);
+                $isMarkedByWindow = $this->isTruthy($suspendedByWindow);
 
                 return $isMarkedByReseller || $isMarkedByWindow || ($disabledByResellerId === $reseller->id);
             });
@@ -565,5 +559,19 @@ class ResellerTimeWindowEnforcer
         }
 
         Log::info("Auto-enable completed for reseller {$reseller->id}: {$enabledCount} enabled, {$failedCount} failed");
+    }
+
+    /**
+     * Check if a value is truthy (handles various boolean representations)
+     *
+     * @param  mixed  $value  The value to check
+     * @return bool True if value is truthy (true, 1, '1', 'true')
+     */
+    protected function isTruthy(mixed $value): bool
+    {
+        return $value === true
+            || $value === 1
+            || $value === '1'
+            || $value === 'true';
     }
 }
