@@ -206,6 +206,7 @@ class ResellerTimeWindowEnforcer
 
         try {
             // Attempt to run the job synchronously
+            // Note: class_exists check is defensive - handles case where Reseller module is disabled at runtime
             if (class_exists(ReenableResellerConfigsJob::class)) {
                 Log::info("Dispatching ReenableResellerConfigsJob (sync) for reseller {$reseller->id}");
                 ReenableResellerConfigsJob::dispatchSync($reseller->id);
@@ -239,6 +240,8 @@ class ResellerTimeWindowEnforcer
         Log::info("Starting inline config re-enable for reseller {$reseller->id}");
 
         // Find configs with suspension markers
+        // Note: Using filter() instead of SQL query because we need to check multiple
+        // truthy formats (true, 1, '1', 'true') which would be complex in JSON SQL
         $configs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
             ->get()
