@@ -61,33 +61,21 @@ class ConfigController extends Controller
         // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
         foreach ($panels as $panel) {
             if ($panel->panel_type === 'eylandoo') {
-                try {
-                    $credentials = $panel->getCredentials();
-                    $service = new \App\Services\EylandooService(
-                        $credentials['url'],
-                        $credentials['api_token'],
-                        $credentials['extra']['node_hostname'] ?? ''
-                    );
-                    $allNodes = $service->listNodes();
-                    
-                    // If reseller has node whitelist, filter nodes
-                    if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
-                        $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
-                        $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
-                            return in_array($node['id'], $allowedNodeIds);
-                        });
-                    } else {
-                        $nodes = $allNodes;
-                    }
-                    
-                    if (!empty($nodes)) {
-                        $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Failed to fetch Eylandoo nodes for panel', [
-                        'panel_id' => $panel->id,
-                        'error' => $e->getMessage()
-                    ]);
+                // Use cached method (5 minute cache)
+                $allNodes = $panel->getCachedEylandooNodes();
+                
+                // If reseller has node whitelist, filter nodes
+                if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
+                    $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+                    $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
+                        return in_array($node['id'], $allowedNodeIds);
+                    });
+                } else {
+                    $nodes = $allNodes;
+                }
+                
+                if (!empty($nodes)) {
+                    $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
                 }
             }
         }
