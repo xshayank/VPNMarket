@@ -140,20 +140,61 @@ class ReenableResellerConfigsJob implements ShouldQueue
     protected function reenableResellerConfigs(Reseller $reseller, ResellerProvisioner $provisioner): void
     {
         // Find configs that were auto-disabled by reseller suspension using JSON queries
-        // Query for configs with meta->disabled_by_reseller_suspension = true (handle mixed types: true, '1', 1)
-        // We use whereRaw to handle all truthy variations (boolean true, string '1', integer 1)
-        $configs = ResellerConfig::where('reseller_id', $reseller->id)
+        // Query for configs with meta->disabled_by_reseller_suspension = true (handle mixed types: true, '1', 1, 'true')
+        // We use whereRaw to handle all truthy variations (boolean true, string '1', integer 1, string 'true')
+        $configsFromQuery = ResellerConfig::where('reseller_id', $reseller->id)
             ->where(function ($query) {
-                // Match configs where disabled_by_reseller_suspension is truthy (handles true, '1', 1)
+                // Match configs where disabled_by_reseller_suspension is truthy (handles true, '1', 1, 'true')
                 $query->whereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = TRUE")
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = '1'")
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = 1")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_reseller_suspension') = 'true'")
                     // Also handle time window suspension marker
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = TRUE")
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = '1'")
-                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = 1");
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = 1")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.suspended_by_time_window') = 'true'");
             })
             ->get();
+
+        // FALLBACK: Also check all disabled configs and filter in PHP to catch edge cases
+        // where JSON query might miss due to type coercion or unusual values
+        // Use chunking to avoid loading all configs into memory at once
+        $allDisabledConfigs = collect();
+        ResellerConfig::where('reseller_id', $reseller->id)
+            ->where('status', 'disabled')
+            ->chunk(500, function ($configs) use ($reseller, &$allDisabledConfigs) {
+                $filtered = $configs->filter(function ($config) use ($reseller) {
+                    $meta = $config->meta ?? [];
+                    // Check if any suspension marker exists and is truthy
+                    $disabledByReseller = $meta['disabled_by_reseller_suspension'] ?? null;
+                    $suspendedByWindow = $meta['suspended_by_time_window'] ?? null;
+                    $disabledByResellerId = $meta['disabled_by_reseller_id'] ?? null;
+
+                    // Consider truthy if: true, 1, '1', 'true' or if disabled_by_reseller_id matches this reseller
+                    $isMarkedByReseller = $disabledByReseller === true
+                        || $disabledByReseller === 1
+                        || $disabledByReseller === '1'
+                        || $disabledByReseller === 'true';
+
+                    $isMarkedByWindow = $suspendedByWindow === true
+                        || $suspendedByWindow === 1
+                        || $suspendedByWindow === '1'
+                        || $suspendedByWindow === 'true';
+
+                    return $isMarkedByReseller || $isMarkedByWindow || ($disabledByResellerId === $reseller->id);
+                });
+                $allDisabledConfigs = $allDisabledConfigs->concat($filtered);
+            });
+
+        // Merge and deduplicate configs from both sources
+        $configs = $configsFromQuery->merge($allDisabledConfigs)->unique('id');
+
+        Log::info("Config detection for reseller {$reseller->id}", [
+            'from_json_query' => $configsFromQuery->count(),
+            'from_php_filter' => $allDisabledConfigs->count(),
+            'total_unique' => $configs->count(),
+        ]);
 
         if ($configs->isEmpty()) {
             Log::info("No configs marked for re-enable for reseller {$reseller->id}");
