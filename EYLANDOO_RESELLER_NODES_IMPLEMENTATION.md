@@ -270,9 +270,12 @@ public function getCachedEylandooNodes(): array
 ## Testing
 
 ### Test Coverage
-**File**: `tests/Feature/EylandooNodesTest.php`
+**Files**: 
+- `tests/Feature/EylandooNodesTest.php` (18 tests)
+- `tests/Feature/EylandooNodesAdminFormTest.php` (9 tests)
+- `tests/Unit/ResellerProvisionerEylandooTest.php` (9 tests)
 
-#### Test Cases (25 tests, 77 assertions):
+#### Test Cases (34 tests total, 105 assertions):
 1. ✅ Eylandoo service can list nodes
 2. ✅ Panel model caches nodes (5 minutes)
 3. ✅ Reseller config create shows filtered nodes
@@ -287,15 +290,18 @@ public function getCachedEylandooNodes(): array
 12. ✅ Name field prioritization
 13. ✅ Admin form displays nodes correctly
 14. ✅ Missing credentials handling
-15. ... and more
+15. ✅ Provisioner accepts node_ids parameter
+16. ✅ Provisioner omits nodes when empty
+17. ... and more
 
 ### Running Tests:
 ```bash
-php artisan test --filter=EylandooNodes
+# Run all Eylandoo nodes related tests
+php artisan test tests/Feature/EylandooNodesTest.php tests/Feature/EylandooNodesAdminFormTest.php tests/Unit/ResellerProvisionerEylandooTest.php
 
 # Results:
-# Tests:  2 skipped, 25 passed (77 assertions)
-# Duration: 2.99s
+# Tests:  2 skipped, 34 passed (105 assertions)
+# Duration: 3.43s
 ```
 
 ## Security Considerations
