@@ -3,8 +3,23 @@
 ## Overview
 This document describes the complete implementation of the Eylandoo nodes selector feature for resellers in the VpnMarket application. This feature allows resellers to select specific Eylandoo nodes when creating configs, with admin-controlled restrictions.
 
-## Problem Statement
-Resellers with Eylandoo panels could not select nodes when creating configs, even though admins could set allowed nodes for resellers. The nodes needed to be sent to the Eylandoo API during user creation.
+## Problem Statement (RESOLVED)
+1. ~~Resellers with Eylandoo panels could not select nodes when creating configs~~ ✅ **FIXED**
+2. ~~The nodes field was not visible when no nodes were available~~ ✅ **FIXED**
+3. Nodes needed to be sent to the Eylandoo API during user creation ✅ **IMPLEMENTED**
+
+## Latest Update (v2)
+**Date**: Current session  
+**Change**: Made nodes field always visible for Eylandoo panels, even when empty
+
+**Before:**
+- Field only visible when `$eylandoo_nodes` array was not empty
+- Users confused when field didn't appear
+
+**After:**
+- Field always visible for Eylandoo panels
+- Shows helpful empty state message when no nodes available
+- Clear communication about what happens without node selection
 
 ## Solution Architecture
 
@@ -82,26 +97,31 @@ if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
 ### 2. Frontend - View Layer
 **File**: `Modules/Reseller/resources/views/configs/create.blade.php`
 
-#### HTML Structure (Lines 119-130)
+#### HTML Structure (Lines 119-130) - **UPDATED v2**
 ```blade
-@if (count($eylandoo_nodes) > 0)
-    <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
-        <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-            نودهای Eylandoo (اختیاری)
-        </label>
-        <div class="space-y-3" id="eylandoo_nodes_container">
-            <!-- Nodes will be populated dynamically based on selected panel -->
-        </div>
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.
-        </p>
+<!-- Eylandoo Nodes selection - ALWAYS VISIBLE for Eylandoo panels -->
+<div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
+    <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
+        نودهای Eylandoo (اختیاری)
+    </label>
+    <div class="space-y-3" id="eylandoo_nodes_container">
+        <!-- Nodes will be populated dynamically based on selected panel -->
     </div>
-@endif
+    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="eylandoo_nodes_helper">
+        انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.
+    </p>
+</div>
 ```
 
-#### JavaScript Logic (Lines 145-211)
+**Key Changes in v2:**
+- ❌ Removed `@if (count($eylandoo_nodes) > 0)` wrapper
+- ✅ Field now always rendered in DOM
+- ✅ Added `id="eylandoo_nodes_helper"` to helper text for dynamic updates
+
+#### JavaScript Logic (Lines 145-211) - **UPDATED v2**
 ```javascript
 const eylandooNodesData = @json($eylandoo_nodes ?? []);
+const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
 
 function toggleConnectionsField() {
     const selectedOption = panelSelect.options[panelSelect.selectedIndex];
@@ -109,10 +129,17 @@ function toggleConnectionsField() {
     const panelId = selectedOption.value;
     
     if (panelType === 'eylandoo') {
-        // Show and populate nodes for this Eylandoo panel
+        // ALWAYS show nodes field for Eylandoo panels
+        eylandooNodesField.style.display = 'block';
+        
+        // Populate nodes if available, otherwise show empty state message
         if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
-            eylandooNodesField.style.display = 'block';
             populateEylandooNodes(eylandooNodesData[panelId]);
+            eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است...';
+        } else {
+            // Show empty state message
+            eylandooNodesContainer.innerHTML = '<p class="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded">هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.</p>';
+            eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
         }
     } else {
         eylandooNodesField.style.display = 'none';
@@ -123,21 +150,63 @@ function populateEylandooNodes(nodes) {
     eylandooNodesContainer.innerHTML = '';
     
     nodes.forEach(function(node) {
+        const label = document.createElement('label');
+        label.className = 'flex items-center text-sm md:text-base text-gray-900 dark:text-gray-100 min-h-[44px] sm:min-h-0';
+        
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.name = 'node_ids[]';
         checkbox.value = node.id;
+        checkbox.className = 'w-5 h-5 md:w-4 md:h-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 ml-2';
         
         const span = document.createElement('span');
         span.textContent = node.name + ' (ID: ' + node.id + ')';
         
-        // Append to container
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        eylandooNodesContainer.appendChild(label);
     });
 }
 ```
 
-**Key Features:**
-- Nodes field hidden initially, shown only for Eylandoo panels
+**Key Features (v2):**
+- ✅ Field ALWAYS visible for Eylandoo panels (even when empty)
+- ✅ Empty state shows helpful message in styled container
+- ✅ Dynamic helper text based on node availability
+- ✅ Consistent UX with Marzneshin services selector
+- ✅ Mobile-responsive styling
+
+**Visual Example:**
+
+**Scenario 1: Panel WITH nodes**
+```
+┌─────────────────────────────────────────────────┐
+│ نودهای Eylandoo (اختیاری)                      │
+├─────────────────────────────────────────────────┤
+│ ☐ Node US-1 (ID: 1)                             │
+│ ☐ Node EU-2 (ID: 2)                             │
+│ ☐ Node ASIA-3 (ID: 3)                           │
+├─────────────────────────────────────────────────┤
+│ انتخاب نود اختیاری است. اگر هیچ نودی           │
+│ انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد    │
+│ می‌شود.                                          │
+└─────────────────────────────────────────────────┘
+```
+
+**Scenario 2: Panel WITHOUT nodes (NEW in v2)**
+```
+┌─────────────────────────────────────────────────┐
+│ نودهای Eylandoo (اختیاری)                      │
+├─────────────────────────────────────────────────┤
+│ ╔═══════════════════════════════════════════╗   │
+│ ║ هیچ نودی برای این پنل یافت نشد. کانفیگ   ║   │
+│ ║ بدون محدودیت نود ایجاد خواهد شد.         ║   │
+│ ╚═══════════════════════════════════════════╝   │
+├─────────────────────────────────────────────────┤
+│ در صورت عدم وجود نود، کانفیگ با تمام نودهای    │
+│ موجود در پنل کار خواهد کرد.                    │
+└─────────────────────────────────────────────────┘
+```
 - Dynamically populates checkboxes based on selected panel
 - Displays node name + ID (ID as fallback if name missing)
 - Consistent UX with Marzneshin services selector
