@@ -68,9 +68,9 @@ class ConfigController extends Controller
                 if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
                     $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
                     $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
-                        // Note: node['id'] is string, allowedNodeIds may contain int or string
-                        // in_array uses loose comparison by default, so '1' == 1
-                        return in_array($node['id'], $allowedNodeIds) || in_array((int)$node['id'], $allowedNodeIds);
+                        // Note: PHP's in_array() with loose comparison handles string/int matching
+                        // so '1' == 1 automatically
+                        return in_array($node['id'], $allowedNodeIds);
                     });
                 } else {
                     $nodes = $allNodes;
@@ -153,9 +153,9 @@ class ConfigController extends Controller
             $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
 
             foreach ($nodeIds as $nodeId) {
-                // Note: nodeId may be string or int, allowedNodeIds may contain int or string
-                // Check both to ensure compatibility
-                if (! in_array($nodeId, $allowedNodeIds) && ! in_array((int)$nodeId, $allowedNodeIds)) {
+                // Note: PHP's in_array() with loose comparison handles string/int matching
+                // so '1' == 1 automatically
+                if (! in_array($nodeId, $allowedNodeIds)) {
                     return back()->with('error', 'One or more selected nodes are not allowed for your account.');
                 }
             }

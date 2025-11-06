@@ -782,9 +782,7 @@ class EylandooService
         if (empty($nodes)) {
             Log::info('Eylandoo parseNodesList: No valid nodes found in response');
         } else {
-            Log::debug("Eylandoo parseNodesList: Successfully parsed {count} nodes", [
-                'count' => count($nodes),
-            ]);
+            Log::debug('Eylandoo parseNodesList: Successfully parsed ' . count($nodes) . ' nodes');
         }
 
         return $nodes;
