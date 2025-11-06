@@ -56,11 +56,11 @@ test('admin can see nodes on reseller create page when eylandoo panel selected',
     $nodes = $this->eylandooPanel->getCachedEylandooNodes();
     
     expect($nodes)->toHaveCount(3)
-        ->and($nodes[0]['id'])->toBe(1)
+        ->and($nodes[0]['id'])->toBe('1') // String ID
         ->and($nodes[0]['name'])->toBe('US Node 1')
-        ->and($nodes[1]['id'])->toBe(2)
+        ->and($nodes[1]['id'])->toBe('2') // String ID
         ->and($nodes[1]['name'])->toBe('EU Node 1')
-        ->and($nodes[2]['id'])->toBe(3)
+        ->and($nodes[2]['id'])->toBe('3') // String ID
         ->and($nodes[2]['name'])->toBe('Asia Node 1');
 });
 
@@ -113,7 +113,7 @@ test('nodes are cached for 5 minutes', function () {
     // Second call - should use cache
     $nodes2 = $this->eylandooPanel->getCachedEylandooNodes();
     expect($nodes2)->toHaveCount(3) // Still 3 nodes from cache
-        ->and($nodes2[0]['id'])->toBe(1); // Still first node from cache
+        ->and($nodes2[0]['id'])->toBe('1'); // Still first node from cache, string ID
 });
 
 test('marzban panel returns empty nodes array', function () {
