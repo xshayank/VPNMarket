@@ -162,7 +162,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
         $allDisabledConfigs = ResellerConfig::where('reseller_id', $reseller->id)
             ->where('status', 'disabled')
             ->get()
-            ->filter(function ($config) {
+            ->filter(function ($config) use ($reseller) {
                 $meta = $config->meta ?? [];
                 // Check if any suspension marker exists and is truthy
                 $disabledByReseller = $meta['disabled_by_reseller_suspension'] ?? null;
@@ -180,7 +180,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     || $suspendedByWindow === '1'
                     || $suspendedByWindow === 'true';
 
-                return $isMarkedByReseller || $isMarkedByWindow || ($disabledByResellerId === $config->reseller_id);
+                return $isMarkedByReseller || $isMarkedByWindow || ($disabledByResellerId === $reseller->id);
             });
 
         // Merge and deduplicate configs from both sources
