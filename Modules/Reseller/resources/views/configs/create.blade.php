@@ -117,17 +117,15 @@
                     @endif
 
                     <!-- Eylandoo Nodes selection -->
-                    @if (count($eylandoo_nodes) > 0)
-                        <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
-                            <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-                                نودهای Eylandoo (اختیاری)
-                            </label>
-                            <div class="space-y-3" id="eylandoo_nodes_container">
-                                <!-- Nodes will be populated dynamically based on selected panel -->
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.</p>
+                    <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
+                        <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
+                            نودهای Eylandoo (اختیاری)
+                        </label>
+                        <div class="space-y-3" id="eylandoo_nodes_container">
+                            <!-- Nodes will be populated dynamically based on selected panel -->
                         </div>
-                    @endif
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="eylandoo_nodes_helper">انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.</p>
+                    </div>
 
                     <div class="flex flex-col sm:flex-row gap-3 md:gap-4 mt-6">
                         <button type="submit" class="w-full sm:w-auto px-4 py-3 md:py-2 h-12 md:h-10 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm md:text-base font-medium">
@@ -150,6 +148,7 @@
             const connectionsInput = document.getElementById('connections_input');
             const eylandooNodesField = document.getElementById('eylandoo_nodes_field');
             const eylandooNodesContainer = document.getElementById('eylandoo_nodes_container');
+            const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
             
             // Eylandoo nodes data from server
             const eylandooNodesData = @json($eylandoo_nodes ?? []);
@@ -163,12 +162,21 @@
                     connectionsField.style.display = 'block';
                     connectionsInput.required = true;
                     
-                    // Show and populate nodes for this Eylandoo panel
+                    // Always show nodes field for Eylandoo panels
+                    eylandooNodesField.style.display = 'block';
+                    
+                    // Populate nodes if available, otherwise show empty state message
                     if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
-                        eylandooNodesField.style.display = 'block';
                         populateEylandooNodes(eylandooNodesData[panelId]);
+                        eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
                     } else {
-                        eylandooNodesField.style.display = 'none';
+                        // Create empty state message using DOM methods (XSS-safe)
+                        eylandooNodesContainer.replaceChildren(); // Clear container
+                        const emptyMsg = document.createElement('p');
+                        emptyMsg.className = 'text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded';
+                        emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
+                        eylandooNodesContainer.appendChild(emptyMsg);
+                        eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
                     }
                 } else {
                     connectionsField.style.display = 'none';
@@ -176,12 +184,12 @@
                     connectionsInput.value = '1'; // Reset to default
                     
                     eylandooNodesField.style.display = 'none';
-                    eylandooNodesContainer.innerHTML = '';
+                    eylandooNodesContainer.replaceChildren(); // Clear container
                 }
             }
             
             function populateEylandooNodes(nodes) {
-                eylandooNodesContainer.innerHTML = '';
+                eylandooNodesContainer.replaceChildren(); // Clear container
                 
                 nodes.forEach(function(node) {
                     const label = document.createElement('label');
@@ -195,7 +203,9 @@
                     // Nodes are now optional - do not check by default
                     
                     const span = document.createElement('span');
-                    span.textContent = node.name + ' (ID: ' + node.id + ')';
+                    // Use node name if available, otherwise fallback to ID (matches backend behavior)
+                    const nodeName = node.name || node.id || 'Unknown';
+                    span.textContent = nodeName + ' (ID: ' + node.id + ')';
                     
                     label.appendChild(checkbox);
                     label.appendChild(span);
