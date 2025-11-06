@@ -170,7 +170,12 @@
                         populateEylandooNodes(eylandooNodesData[panelId]);
                         eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
                     } else {
-                        eylandooNodesContainer.innerHTML = '<p class="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded">هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.</p>';
+                        // Create empty state message using DOM methods (XSS-safe)
+                        eylandooNodesContainer.innerHTML = '';
+                        const emptyMsg = document.createElement('p');
+                        emptyMsg.className = 'text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded';
+                        emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
+                        eylandooNodesContainer.appendChild(emptyMsg);
                         eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
                     }
                 } else {
@@ -198,7 +203,9 @@
                     // Nodes are now optional - do not check by default
                     
                     const span = document.createElement('span');
-                    span.textContent = node.name + ' (ID: ' + node.id + ')';
+                    // Use node name if available, otherwise fallback to ID (matches backend behavior)
+                    const nodeName = node.name || node.id || 'Unknown';
+                    span.textContent = nodeName + ' (ID: ' + node.id + ')';
                     
                     label.appendChild(checkbox);
                     label.appendChild(span);
