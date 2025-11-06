@@ -516,13 +516,23 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 }
 
                 // Update local status after remote attempt (regardless of result)
-                // Mark config as disabled by reseller suspension for re-enable tracking
+                // Mark config with appropriate flag based on actual reason
                 $meta = $config->meta ?? [];
-                $meta['disabled_by_reseller_suspension'] = true;  // Boolean true for consistency
+                
+                // Set appropriate flag based on the actual reason (same logic as ResellerTimeWindowEnforcer)
+                if (str_contains($reason, 'window') || $reason === 'reseller_window_expired') {
+                    // Time window related suspension
+                    $meta['suspended_by_time_window'] = true;
+                } else {
+                    // Quota exhaustion or other reseller suspension reasons
+                    $meta['disabled_by_reseller_suspension'] = true;
+                    $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                    $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
+                }
+                
+                // Common fields for all suspension types
                 $meta['disabled_by_reseller_id'] = $reseller->id;
-                $meta['disabled_by_reseller_suspension_reason'] = $reason;
                 $meta['disabled_at'] = now()->toIso8601String();
-                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
 
                 $config->update([
                     'status' => 'disabled',

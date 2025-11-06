@@ -8,6 +8,7 @@ use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerConfigEvent;
 use Illuminate\Support\Facades\Log;
+use Modules\Reseller\Jobs\ReenableResellerConfigsJob;
 
 class ResellerTimeWindowEnforcer
 {
@@ -188,11 +189,175 @@ class ResellerTimeWindowEnforcer
             actorId: null  // System action
         );
 
-        // Dispatch job to re-enable configs that were disabled by reseller suspension
-        Log::info("Dispatching ReenableResellerConfigsJob for reseller {$reseller->id}");
-        \Modules\Reseller\Jobs\ReenableResellerConfigsJob::dispatch($reseller->id);
+        // Re-enable configs synchronously with fallback logic
+        $this->reenableConfigsWithFallback($reseller);
 
         return true;
+    }
+
+    /**
+     * Re-enable configs for a reseller, using synchronous job dispatch with inline fallback
+     *
+     * @param  Reseller  $reseller  The reseller whose configs should be re-enabled
+     */
+    protected function reenableConfigsWithFallback(Reseller $reseller): void
+    {
+        Log::info("Starting synchronous config re-enable for reseller {$reseller->id}");
+
+        try {
+            // Attempt to run the job synchronously
+            // Note: class_exists check is defensive - handles case where Reseller module is disabled at runtime
+            if (class_exists(ReenableResellerConfigsJob::class)) {
+                Log::info("Dispatching ReenableResellerConfigsJob (sync) for reseller {$reseller->id}");
+                ReenableResellerConfigsJob::dispatchSync($reseller->id);
+                Log::info("ReenableResellerConfigsJob completed synchronously for reseller {$reseller->id}");
+            } else {
+                Log::warning("ReenableResellerConfigsJob class not found, using inline fallback for reseller {$reseller->id}");
+                $this->inlineReenableConfigs($reseller);
+            }
+        } catch (\Exception $e) {
+            Log::error("ReenableResellerConfigsJob failed for reseller {$reseller->id}: {$e->getMessage()}", [
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            Log::info("Falling back to inline config re-enable for reseller {$reseller->id}");
+
+            try {
+                $this->inlineReenableConfigs($reseller);
+            } catch (\Exception $fallbackException) {
+                Log::error("Inline fallback also failed for reseller {$reseller->id}: {$fallbackException->getMessage()}");
+            }
+        }
+    }
+
+    /**
+     * Inline fallback to re-enable configs when job system is unavailable
+     *
+     * @param  Reseller  $reseller  The reseller whose configs should be re-enabled
+     */
+    protected function inlineReenableConfigs(Reseller $reseller): void
+    {
+        Log::info("Starting inline config re-enable for reseller {$reseller->id}");
+
+        // Find configs with suspension markers
+        // Note: Using filter() instead of SQL query because we need to check multiple
+        // truthy formats (true, 1, '1', 'true') which would be complex in JSON SQL
+        $configs = ResellerConfig::where('reseller_id', $reseller->id)
+            ->where('status', 'disabled')
+            ->get()
+            ->filter(function ($config) use ($reseller) {
+                $meta = $config->meta ?? [];
+
+                // Check for various suspension markers
+                $disabledByReseller = $meta['disabled_by_reseller_suspension'] ?? null;
+                $suspendedByWindow = $meta['suspended_by_time_window'] ?? null;
+                $disabledByResellerId = $meta['disabled_by_reseller_id'] ?? null;
+
+                // Check if marked by reseller suspension or time window
+                $isMarkedByReseller = $this->isTruthy($disabledByReseller);
+                $isMarkedByWindow = $this->isTruthy($suspendedByWindow);
+
+                return $isMarkedByReseller || $isMarkedByWindow || ($disabledByResellerId === $reseller->id);
+            });
+
+        if ($configs->isEmpty()) {
+            Log::info("No configs found for inline re-enable for reseller {$reseller->id}");
+
+            return;
+        }
+
+        Log::info("Found {$configs->count()} configs for inline re-enable for reseller {$reseller->id}");
+
+        $enabledCount = 0;
+        $failedCount = 0;
+        $panelCache = [];
+
+        foreach ($configs as $config) {
+            try {
+                // Apply rate limiting
+                $this->provisioner->applyRateLimit($enabledCount);
+
+                Log::info("Inline re-enabling config {$config->id} for reseller {$reseller->id}", [
+                    'panel_id' => $config->panel_id,
+                    'panel_user_id' => $config->panel_user_id,
+                ]);
+
+                // Best-effort remote enable
+                $remoteResult = $this->provisioner->enableConfig($config);
+
+                if (! $remoteResult['success']) {
+                    Log::warning("Remote enable failed for config {$config->id}, proceeding with DB update", [
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                    ]);
+                }
+
+                // Update local status and clear markers
+                $meta = $config->meta ?? [];
+                unset($meta['disabled_by_reseller_suspension']);
+                unset($meta['disabled_by_reseller_suspension_reason']);
+                unset($meta['disabled_by_reseller_suspension_at']);
+                unset($meta['disabled_by_reseller_id']);
+                unset($meta['disabled_at']);
+                unset($meta['suspended_by_time_window']);
+
+                $config->update([
+                    'status' => 'active',
+                    'disabled_at' => null,
+                    'meta' => $meta,
+                ]);
+
+                Log::info("Config {$config->id} re-enabled (inline) for reseller {$reseller->id}", [
+                    'remote_success' => $remoteResult['success'],
+                ]);
+
+                // Get panel type with caching
+                $panelType = null;
+                if ($config->panel_id) {
+                    $panel = $this->getPanel($config->panel_id, $panelCache);
+                    $panelType = $panel?->panel_type;
+                }
+
+                // Create config event
+                ResellerConfigEvent::create([
+                    'reseller_config_id' => $config->id,
+                    'type' => 'auto_enabled',
+                    'meta' => [
+                        'reason' => 'reseller_recovered_inline',
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $panelType,
+                    ],
+                ]);
+
+                // Create audit log
+                AuditLog::log(
+                    action: 'config_auto_enabled',
+                    targetType: 'config',
+                    targetId: $config->id,
+                    reason: 'reseller_recovered_inline',
+                    meta: [
+                        'reseller_id' => $reseller->id,
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                        'panel_id' => $config->panel_id,
+                        'panel_type_used' => $panelType,
+                    ],
+                    actorType: null,
+                    actorId: null  // System action
+                );
+
+                $enabledCount++;
+            } catch (\Exception $e) {
+                Log::error("Failed to inline re-enable config {$config->id}: {$e->getMessage()}");
+                $failedCount++;
+            }
+        }
+
+        Log::info("Inline config re-enable completed for reseller {$reseller->id}: {$enabledCount} enabled, {$failedCount} failed");
     }
 
     /**
@@ -232,12 +397,21 @@ class ResellerTimeWindowEnforcer
 
                 // Update local status regardless of remote result
                 $meta = $config->meta ?? [];
-                $meta['suspended_by_time_window'] = true;
-                $meta['disabled_by_reseller_suspension'] = true;  // Boolean true for consistency
+
+                // Set appropriate flag based on the actual reason
+                if (str_contains($reason, 'window') || $reason === 'window_expired') {
+                    // Time window related suspension
+                    $meta['suspended_by_time_window'] = true;
+                } else {
+                    // Quota exhaustion or other reseller suspension reasons
+                    $meta['disabled_by_reseller_suspension'] = true;
+                    $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                    $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
+                }
+
+                // Common fields for all suspension types
                 $meta['disabled_by_reseller_id'] = $reseller->id;
-                $meta['disabled_by_reseller_suspension_reason'] = $reason;
                 $meta['disabled_at'] = now()->toIso8601String();
-                $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
 
                 $config->update([
                     'status' => 'disabled',
@@ -397,5 +571,19 @@ class ResellerTimeWindowEnforcer
         }
 
         Log::info("Auto-enable completed for reseller {$reseller->id}: {$enabledCount} enabled, {$failedCount} failed");
+    }
+
+    /**
+     * Check if a value is truthy (handles various boolean representations)
+     *
+     * @param  mixed  $value  The value to check
+     * @return bool True if value is truthy (true, 1, '1', 'true')
+     */
+    protected function isTruthy(mixed $value): bool
+    {
+        return $value === true
+            || $value === 1
+            || $value === '1'
+            || $value === 'true';
     }
 }

@@ -218,6 +218,239 @@ class EnforceResellerTimeWindowsCommandTest extends TestCase
         $this->assertEquals('disabled', $config->status);
     }
 
+    public function test_configs_reenabled_synchronously_on_reactivation(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create suspended reseller with valid window and traffic
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'suspended',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 2 * 1024 * 1024 * 1024,
+            'window_starts_at' => now()->subDays(10),
+            'window_ends_at' => now()->addDays(20), // Valid window
+        ]);
+
+        // Create multiple disabled configs with various suspension markers
+        $config1 = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'disabled',
+            'disabled_at' => now(),
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 1 * 1024 * 1024 * 1024,
+            'expires_at' => now()->addDays(30),
+            'meta' => ['suspended_by_time_window' => true, 'disabled_by_reseller_id' => $reseller->id],
+        ]);
+
+        $config2 = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser2',
+            'status' => 'disabled',
+            'disabled_at' => now(),
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 1 * 1024 * 1024 * 1024,
+            'expires_at' => now()->addDays(30),
+            'meta' => ['disabled_by_reseller_suspension' => true],
+        ]);
+
+        // Mock HTTP responses
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/enable' => Http::response([], 200),
+        ]);
+
+        // Run the command
+        $exitCode = Artisan::call('reseller:enforce-time-windows');
+
+        // Assert command succeeded
+        $this->assertEquals(0, $exitCode);
+
+        // Assert reseller was reactivated
+        $reseller->refresh();
+        $this->assertEquals('active', $reseller->status);
+
+        // Assert both configs were re-enabled synchronously
+        $config1->refresh();
+        $config2->refresh();
+
+        $this->assertEquals('active', $config1->status);
+        $this->assertEquals('active', $config2->status);
+        $this->assertArrayNotHasKey('suspended_by_time_window', $config1->meta ?? []);
+        $this->assertArrayNotHasKey('disabled_by_reseller_id', $config1->meta ?? []);
+        $this->assertArrayNotHasKey('disabled_by_reseller_suspension', $config2->meta ?? []);
+    }
+
+    public function test_inline_fallback_reenables_configs_when_job_fails(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create suspended reseller with valid window and traffic
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'suspended',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 2 * 1024 * 1024 * 1024,
+            'window_starts_at' => now()->subDays(10),
+            'window_ends_at' => now()->addDays(20), // Valid window
+        ]);
+
+        // Create disabled config
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'disabled',
+            'disabled_at' => now(),
+            'traffic_limit_bytes' => 5 * 1024 * 1024 * 1024,
+            'usage_bytes' => 1 * 1024 * 1024 * 1024,
+            'expires_at' => now()->addDays(30),
+            'meta' => [
+                'disabled_by_reseller_suspension' => true,
+                'disabled_by_reseller_id' => $reseller->id,
+            ],
+        ]);
+
+        // Mock HTTP to simulate remote panel being available
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/enable' => Http::response([], 200),
+        ]);
+
+        // Run the command - even if job system has issues, inline fallback should work
+        $exitCode = Artisan::call('reseller:enforce-time-windows');
+
+        // Assert command succeeded
+        $this->assertEquals(0, $exitCode);
+
+        // Assert reseller was reactivated
+        $reseller->refresh();
+        $this->assertEquals('active', $reseller->status);
+
+        // Assert config was re-enabled (either by job or fallback)
+        $config->refresh();
+        $this->assertEquals('active', $config->status);
+        $this->assertArrayNotHasKey('disabled_by_reseller_suspension', $config->meta ?? []);
+        $this->assertArrayNotHasKey('disabled_by_reseller_id', $config->meta ?? []);
+    }
+
+    public function test_configs_flagged_correctly_for_window_expiry(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create reseller with expired window but enough traffic
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 2 * 1024 * 1024 * 1024, // Has traffic
+            'window_starts_at' => now()->subDays(30),
+            'window_ends_at' => now()->subMinutes(10), // Expired window
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'active',
+        ]);
+
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/disable' => Http::response([], 200),
+        ]);
+
+        Artisan::call('reseller:enforce-time-windows');
+
+        $config->refresh();
+        $this->assertEquals('disabled', $config->status);
+        // Should have suspended_by_time_window flag (window expired)
+        $this->assertTrue($config->meta['suspended_by_time_window'] ?? false);
+        // Should NOT have disabled_by_reseller_suspension flag (not quota issue)
+        $this->assertArrayNotHasKey('disabled_by_reseller_suspension', $config->meta ?? []);
+    }
+
+    public function test_configs_flagged_correctly_for_quota_exhaustion(): void
+    {
+        // Create a panel
+        $panel = Panel::create([
+            'name' => 'Test Panel',
+            'url' => 'https://example.com',
+            'panel_type' => 'marzneshin',
+            'username' => 'admin',
+            'password' => 'password',
+            'is_active' => true,
+            'extra' => ['node_hostname' => 'https://node.example.com'],
+        ]);
+
+        // Create reseller with valid window but exhausted quota
+        $reseller = Reseller::factory()->create([
+            'type' => 'traffic',
+            'status' => 'active',
+            'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+            'traffic_used_bytes' => 11 * 1024 * 1024 * 1024, // Quota exhausted
+            'window_starts_at' => now()->subDays(10),
+            'window_ends_at' => now()->addDays(20), // Valid window
+        ]);
+
+        $config = ResellerConfig::factory()->create([
+            'reseller_id' => $reseller->id,
+            'panel_id' => $panel->id,
+            'panel_type' => 'marzneshin',
+            'panel_user_id' => 'testuser1',
+            'status' => 'active',
+        ]);
+
+        Http::fake([
+            '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+            '*/api/users/*/disable' => Http::response([], 200),
+        ]);
+
+        Artisan::call('reseller:enforce-time-windows');
+
+        $config->refresh();
+        $this->assertEquals('disabled', $config->status);
+        // Should have disabled_by_reseller_suspension flag (quota exhausted)
+        $this->assertTrue($config->meta['disabled_by_reseller_suspension'] ?? false);
+        $this->assertEquals('quota_exhausted', $config->meta['disabled_by_reseller_suspension_reason'] ?? null);
+        // Should NOT have suspended_by_time_window flag (not window issue)
+        $this->assertArrayNotHasKey('suspended_by_time_window', $config->meta ?? []);
+    }
+
     public function test_scheduler_registration(): void
     {
         // Set feature flag to true (default)
