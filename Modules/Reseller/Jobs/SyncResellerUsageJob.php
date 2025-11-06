@@ -169,11 +169,11 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             ->sum(function ($config) {
                 return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
             });
-        
+
         // Subtract admin forgiven bytes to get effective usage
         $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
         $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
-        
+
         $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
         Log::info("Reseller {$reseller->id} usage updated", [
@@ -518,14 +518,25 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
                 // Update local status after remote attempt (regardless of result)
                 // Mark config as disabled by reseller suspension for re-enable tracking
                 $meta = $config->meta ?? [];
-                $meta['disabled_by_reseller_suspension'] = true;
+                $meta['disabled_by_reseller_suspension'] = true;  // Boolean true for consistency
+                $meta['disabled_by_reseller_id'] = $reseller->id;
                 $meta['disabled_by_reseller_suspension_reason'] = $reason;
+                $meta['disabled_at'] = now()->toIso8601String();
                 $meta['disabled_by_reseller_suspension_at'] = now()->toIso8601String();
-                
+
                 $config->update([
                     'status' => 'disabled',
                     'disabled_at' => now(),
                     'meta' => $meta,
+                ]);
+
+                // Log per-config disable
+                Log::info("Config {$config->id} auto-disabled by reseller suspension", [
+                    'reseller_id' => $reseller->id,
+                    'config_id' => $config->id,
+                    'reason' => $reason,
+                    'panel_id' => $config->panel_id,
+                    'remote_success' => $remoteResult['success'],
                 ]);
 
                 ResellerConfigEvent::create([

@@ -41,9 +41,9 @@ Schedule::call(function () {
 // Schedule reseller config re-enable job
 // Runs every minute to quickly re-enable configs when reseller recovers
 Schedule::call(function () {
-    Log::info('Scheduler tick: Running ReenableResellerConfigsJob');
+    Log::info('Scheduler tick: ReenableResellerConfigsJob - dispatching to queue');
     ReenableResellerConfigsJob::dispatch();
-    Log::info('Scheduler tick: ReenableResellerConfigsJob dispatched');
+    Log::info('Scheduler tick: ReenableResellerConfigsJob dispatched successfully (will run async on queue)');
 })->everyMinute();
 
 // Schedule reseller time window enforcement command

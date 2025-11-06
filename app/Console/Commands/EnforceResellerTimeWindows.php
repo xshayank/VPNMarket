@@ -110,9 +110,13 @@ class EnforceResellerTimeWindows extends Command
                     if ($result) {
                         $reactivatedCount++;
                         $this->line("  - Reactivated reseller #{$reseller->id}");
-                        Log::info("Reactivated reseller {$reseller->id}", [
+
+                        // Log reactivation and dispatch of re-enable job
+                        Log::info("Reseller {$reseller->id} reactivated, ReenableResellerConfigsJob dispatched", [
+                            'reseller_id' => $reseller->id,
                             'window_valid' => $windowValid,
                             'has_traffic' => $hasTraffic,
+                            'job_dispatched' => true,
                         ]);
                     } else {
                         $skippedReactivationCount++;
