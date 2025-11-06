@@ -59,7 +59,7 @@ test('eylandoo service can list nodes', function () {
     $nodes = $service->listNodes();
 
     expect($nodes)->toHaveCount(3)
-        ->and($nodes[0]['id'])->toBe(1)
+        ->and($nodes[0]['id'])->toBe('1') // String ID
         ->and($nodes[0]['name'])->toBe('Node 1');
 });
 
@@ -99,7 +99,7 @@ test('panel model caches eylandoo nodes', function () {
     // Second call - should use cache, not hit API
     $nodes2 = $this->eylandooPanel->getCachedEylandooNodes();
     expect($nodes2)->toHaveCount(2) // Still 2 nodes from cache
-        ->and($nodes2[0]['id'])->toBe(1); // Still Node 1 from cache
+        ->and($nodes2[0]['id'])->toBe('1'); // Still Node 1 from cache, string ID
 });
 
 test('reseller config create shows filtered nodes', function () {
@@ -118,19 +118,19 @@ test('reseller config create shows filtered nodes', function () {
     // Test the node filtering logic directly without full HTTP request
     $allNodes = $this->eylandooPanel->getCachedEylandooNodes();
     
-    // Filter by reseller whitelist
+    // Filter by reseller whitelist (convert IDs to string for comparison)
     $allowedNodeIds = $this->reseller->eylandoo_allowed_node_ids;
     $filteredNodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
-        return in_array($node['id'], $allowedNodeIds);
+        return in_array((int)$node['id'], $allowedNodeIds); // Convert string ID to int for comparison
     });
     
     // Should only contain nodes 1 and 2 (filtered by reseller's whitelist)
     expect($filteredNodes)->toHaveCount(2);
     
     $nodeIds = array_column($filteredNodes, 'id');
-    expect($nodeIds)->toContain(1)
-        ->and($nodeIds)->toContain(2)
-        ->and($nodeIds)->not->toContain(3); // Node 3 is filtered out
+    expect($nodeIds)->toContain('1') // String IDs now
+        ->and($nodeIds)->toContain('2')
+        ->and($nodeIds)->not->toContain('3'); // Node 3 is filtered out
 })->skip('Integration test - requires Vite build');
 
 test('reseller config create includes nodes in provision request', function () {
@@ -252,7 +252,7 @@ test('cache can be cleared and refreshed', function () {
     // First call - should cache result
     $nodes1 = $this->eylandooPanel->getCachedEylandooNodes();
     expect($nodes1)->toHaveCount(1)
-        ->and($nodes1[0]['id'])->toBe(1);
+        ->and($nodes1[0]['id'])->toBe('1'); // String ID
 
     // Verify cache exists
     expect(Cache::has($cacheKey))->toBeTrue();
@@ -294,4 +294,214 @@ test('non eylandoo panel returns empty nodes', function () {
     $nodes = $marzbanPanel->getCachedEylandooNodes();
     expect($nodes)->toBeArray()
         ->and($nodes)->toBeEmpty();
+});
+
+// New tests for robust parsing scenarios
+test('eylandoo service handles nodes without name field - uses id as label', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                'nodes' => [
+                    ['id' => 'n1'], // No name field
+                    ['id' => 'n2'], // No name field
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(2)
+        ->and($nodes[0]['id'])->toBe('n1')
+        ->and($nodes[0]['name'])->toBe('n1') // ID used as name
+        ->and($nodes[1]['id'])->toBe('n2')
+        ->and($nodes[1]['name'])->toBe('n2'); // ID used as name
+});
+
+test('eylandoo service handles data wrapped response with title field', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                ['id' => 2, 'title' => 'Edge-2'], // Using title instead of name
+                ['id' => 3, 'title' => 'Edge-3'],
+            ],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(2)
+        ->and($nodes[0]['id'])->toBe('2')
+        ->and($nodes[0]['name'])->toBe('Edge-2') // title used as name
+        ->and($nodes[1]['id'])->toBe('3')
+        ->and($nodes[1]['name'])->toBe('Edge-3');
+});
+
+test('eylandoo service handles direct array response', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            ['id' => 1, 'name' => 'Direct Node 1'],
+            ['id' => 2, 'name' => 'Direct Node 2'],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(2)
+        ->and($nodes[0]['name'])->toBe('Direct Node 1')
+        ->and($nodes[1]['name'])->toBe('Direct Node 2');
+});
+
+test('eylandoo service handles nodes with host field fallback', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                'nodes' => [
+                    ['id' => 10, 'host' => 'node10.example.com'], // Using host as fallback
+                    ['id' => 11, 'hostname' => 'node11.example.com'], // Using hostname as fallback
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(2)
+        ->and($nodes[0]['id'])->toBe('10')
+        ->and($nodes[0]['name'])->toBe('node10.example.com') // host used as name
+        ->and($nodes[1]['id'])->toBe('11')
+        ->and($nodes[1]['name'])->toBe('node11.example.com'); // hostname used as name
+});
+
+test('eylandoo service handles items wrapped response (paginated)', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'items' => [
+                ['id' => 1, 'name' => 'Paginated Node 1'],
+                ['id' => 2, 'name' => 'Paginated Node 2'],
+            ],
+            'total' => 2,
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(2)
+        ->and($nodes[0]['name'])->toBe('Paginated Node 1');
+});
+
+test('eylandoo service returns empty array for invalid payload', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'success' => false,
+            'error' => 'Not authorized',
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toBeArray()
+        ->and($nodes)->toBeEmpty();
+});
+
+test('eylandoo service handles empty nodes array', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                'nodes' => [],
+            ],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toBeArray()
+        ->and($nodes)->toBeEmpty();
+});
+
+test('eylandoo service prioritizes name over other fields', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                'nodes' => [
+                    ['id' => 1, 'name' => 'Name Field', 'title' => 'Title Field', 'host' => 'host.example.com'],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = new \App\Services\EylandooService(
+        $this->eylandooPanel->url,
+        $this->eylandooPanel->api_token,
+        $this->eylandooPanel->extra['node_hostname'] ?? ''
+    );
+
+    $nodes = $service->listNodes();
+
+    expect($nodes)->toHaveCount(1)
+        ->and($nodes[0]['name'])->toBe('Name Field'); // name takes priority
+});
+
+test('reseller provisioner fetchEylandooNodes works correctly', function () {
+    Http::fake([
+        'eylandoo.example.com/api/v1/nodes' => Http::response([
+            'data' => [
+                'nodes' => [
+                    ['id' => 1, 'name' => 'Node 1'],
+                    ['id' => 2, 'title' => 'Node 2 Title'], // title fallback
+                    ['id' => 3], // ID fallback
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $provisioner = new \Modules\Reseller\Services\ResellerProvisioner();
+    $nodes = $provisioner->fetchEylandooNodes($this->eylandooPanel);
+
+    expect($nodes)->toHaveCount(3)
+        ->and($nodes[0]['name'])->toBe('Node 1')
+        ->and($nodes[1]['name'])->toBe('Node 2 Title') // title used
+        ->and($nodes[2]['name'])->toBe('3'); // ID used as fallback
 });

@@ -651,36 +651,161 @@ class EylandooService
     }
 
     /**
-     * List all available nodes
+     * List all available nodes with robust parsing
+     * Handles multiple response shapes and provides fallback labels
      *
-     * @return array Array of nodes
+     * @return array Array of nodes with 'id' and 'name' keys
      */
     public function listNodes(): array
     {
         try {
             $response = $this->client()->get($this->baseUrl.'/api/v1/nodes');
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $nodes = $data['data']['nodes'] ?? [];
+            if (! $response->successful()) {
+                Log::warning('Eylandoo List Nodes failed:', ['status' => $response->status()]);
 
-                // Map to simple format: id => name
-                return array_map(function ($node) {
-                    return [
-                        'id' => $node['id'],
-                        'name' => $node['name'],
-                    ];
-                }, $nodes);
+                return [];
             }
 
-            Log::warning('Eylandoo List Nodes failed:', ['status' => $response->status()]);
+            $data = $response->json();
 
-            return [];
+            // Parse nodes from various response shapes
+            return $this->parseNodesList($data);
         } catch (\Exception $e) {
             Log::error('Eylandoo List Nodes Exception:', ['message' => $e->getMessage()]);
 
             return [];
         }
+    }
+
+    /**
+     * Parse nodes list from API response with resilient handling
+     * Mirrors the robust parsing strategy used for Marzneshin nodes
+     *
+     * Supported response shapes:
+     * - Array of objects: [{id, name?}]
+     * - Wrapped object: { data: [{id, name?}], meta?: {...} }
+     * - Nested wrapper: { data: { nodes: [{id, name?}] } }
+     *
+     * @param  mixed  $payload  API response payload
+     * @return array Normalized array of nodes with 'id' and 'name'
+     */
+    protected function parseNodesList($payload): array
+    {
+        if (! is_array($payload)) {
+            Log::warning('Eylandoo parseNodesList: Invalid payload type', [
+                'type' => gettype($payload),
+            ]);
+
+            return [];
+        }
+
+        // Check for success:false flag (treat as empty result)
+        if (isset($payload['success']) && $payload['success'] === false) {
+            Log::info('Eylandoo parseNodesList: API returned success:false');
+
+            return [];
+        }
+
+        // Try to extract nodes array from various wrappers
+        $rawNodes = null;
+
+        // Shape 1: Direct array of nodes (least common but possible)
+        if ($this->isNodeArray($payload)) {
+            $rawNodes = $payload;
+            Log::debug('Eylandoo parseNodesList: Using direct array shape');
+        }
+        // Shape 2: Nested wrapper - data.nodes (most common)
+        elseif (isset($payload['data']['nodes']) && is_array($payload['data']['nodes'])) {
+            $rawNodes = $payload['data']['nodes'];
+            Log::debug('Eylandoo parseNodesList: Using data.nodes shape');
+        }
+        // Shape 3: Wrapped in data (alternative shape)
+        elseif (isset($payload['data']) && is_array($payload['data']) && $this->isNodeArray($payload['data'])) {
+            $rawNodes = $payload['data'];
+            Log::debug('Eylandoo parseNodesList: Using data array shape');
+        }
+        // Shape 4: Wrapped in items (paginated response)
+        elseif (isset($payload['items']) && is_array($payload['items'])) {
+            $rawNodes = $payload['items'];
+            Log::debug('Eylandoo parseNodesList: Using items array shape');
+        }
+        // Shape 5: Wrapped in nodes key at root
+        elseif (isset($payload['nodes']) && is_array($payload['nodes'])) {
+            $rawNodes = $payload['nodes'];
+            Log::debug('Eylandoo parseNodesList: Using nodes array shape');
+        }
+
+        if ($rawNodes === null) {
+            Log::warning('Eylandoo parseNodesList: No nodes array found in response', [
+                'available_keys' => array_keys($payload),
+            ]);
+
+            return [];
+        }
+
+        // Parse each node with resilient label fallback
+        $nodes = [];
+        foreach ($rawNodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            // Extract ID (required)
+            $id = $node['id'] ?? null;
+            if ($id === null) {
+                Log::warning('Eylandoo parseNodesList: Node missing ID', [
+                    'node_keys' => array_keys($node),
+                ]);
+                continue;
+            }
+
+            // Extract name with multiple fallbacks
+            // Priority: name > title > host > hostname > address > id
+            $name = $node['name'] ?? $node['title'] ?? $node['host'] ?? $node['hostname'] ?? $node['address'] ?? null;
+
+            if ($name === null || $name === '') {
+                // Last resort: use ID as the name
+                $name = (string) $id;
+                Log::info("Eylandoo parseNodesList: Using ID as name for node {$id}", [
+                    'node_id' => $id,
+                    'available_keys' => array_keys($node),
+                ]);
+            }
+
+            $nodes[] = [
+                'id' => (string) $id, // Ensure ID is string for consistency
+                'name' => (string) $name, // Ensure name is string
+            ];
+        }
+
+        if (empty($nodes)) {
+            Log::info('Eylandoo parseNodesList: No valid nodes found in response');
+        } else {
+            Log::debug("Eylandoo parseNodesList: Successfully parsed {count} nodes", [
+                'count' => count($nodes),
+            ]);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * Check if array appears to be a node array (has elements with 'id' key)
+     *
+     * @param  array  $arr  Array to check
+     * @return bool True if appears to be node array
+     */
+    protected function isNodeArray(array $arr): bool
+    {
+        if (empty($arr)) {
+            return false;
+        }
+
+        // Check if first element has an 'id' key
+        $first = reset($arr);
+
+        return is_array($first) && isset($first['id']);
     }
 
     /**
