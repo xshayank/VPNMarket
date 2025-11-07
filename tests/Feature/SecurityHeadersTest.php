@@ -1,7 +1,5 @@
 <?php
 
-use Tests\TestCase;
-
 test('security headers are applied to web requests', function () {
     $response = $this->get('/');
 
