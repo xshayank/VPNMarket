@@ -51,6 +51,7 @@ class ConfigController extends Controller
 
         $marzneshinServices = [];
         $eylandooNodes = [];
+        $showNodesSelector = false;
 
         // If reseller has Marzneshin service whitelist, fetch available services
         if ($reseller->marzneshin_allowed_service_ids) {
@@ -61,6 +62,8 @@ class ConfigController extends Controller
         // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
         foreach ($panels as $panel) {
             if ($panel->panel_type === 'eylandoo') {
+                $showNodesSelector = true;
+                
                 // Use cached method (5 minute cache)
                 $allNodes = $panel->getCachedEylandooNodes();
                 
@@ -76,9 +79,20 @@ class ConfigController extends Controller
                     $nodes = $allNodes;
                 }
                 
-                if (!empty($nodes)) {
-                    $eylandooNodes[$panel->id] = array_values($nodes); // Re-index array
-                }
+                // Always set nodes array for Eylandoo panels, even if empty
+                $eylandooNodes[$panel->id] = !empty($nodes) ? array_values($nodes) : [];
+                
+                // Log node selection data for debugging
+                Log::info('Eylandoo nodes loaded for config creation', [
+                    'reseller_id' => $reseller->id,
+                    'panel_id' => $panel->id,
+                    'panel_type' => $panel->panel_type,
+                    'all_nodes_count' => count($allNodes),
+                    'filtered_nodes_count' => count($eylandooNodes[$panel->id]),
+                    'has_node_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
+                    'allowed_node_ids' => $reseller->eylandoo_allowed_node_ids ?? [],
+                    'showNodesSelector' => $showNodesSelector,
+                ]);
             }
         }
 
@@ -87,6 +101,7 @@ class ConfigController extends Controller
             'panels' => $panels,
             'marzneshin_services' => $marzneshinServices,
             'eylandoo_nodes' => $eylandooNodes,
+            'showNodesSelector' => $showNodesSelector,
         ]);
     }
 
@@ -148,17 +163,41 @@ class ConfigController extends Controller
         }
 
         // Validate Eylandoo node whitelist
+        $nodeIds = $request->node_ids ?? [];
+        $filteredOutCount = 0;
+        
         if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
-            $nodeIds = $request->node_ids ?? [];
             $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
 
             foreach ($nodeIds as $nodeId) {
                 // Note: PHP's in_array() with loose comparison handles string/int matching
                 // so '1' == 1 automatically
                 if (! in_array($nodeId, $allowedNodeIds)) {
-                    return back()->with('error', 'One or more selected nodes are not allowed for your account.');
+                    $filteredOutCount++;
+                    Log::warning('Node selection rejected - not in whitelist', [
+                        'reseller_id' => $reseller->id,
+                        'panel_id' => $panel->id,
+                        'rejected_node_id' => $nodeId,
+                        'allowed_node_ids' => $allowedNodeIds,
+                    ]);
                 }
             }
+            
+            if ($filteredOutCount > 0) {
+                return back()->with('error', 'One or more selected nodes are not allowed for your account.');
+            }
+        }
+        
+        // Log node selection for Eylandoo configs
+        if ($panel->panel_type === 'eylandoo') {
+            Log::info('Config creation with Eylandoo nodes', [
+                'reseller_id' => $reseller->id,
+                'panel_id' => $panel->id,
+                'selected_nodes_count' => count($nodeIds),
+                'selected_node_ids' => $nodeIds,
+                'filtered_out_count' => $filteredOutCount,
+                'has_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
+            ]);
         }
 
         DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {

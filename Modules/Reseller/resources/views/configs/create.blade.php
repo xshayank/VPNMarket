@@ -117,6 +117,9 @@
                     @endif
 
                     <!-- Eylandoo Nodes selection -->
+                    {{-- This field is shown/hidden dynamically via JavaScript based on selected panel type.
+                         Server-side flag: showNodesSelector = {{ $showNodesSelector ? 'true' : 'false' }}
+                         When panel_type === 'eylandoo', the field appears even if no nodes are available. --}}
                     <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
                             نودهای Eylandoo (اختیاری)
@@ -152,11 +155,26 @@
             
             // Eylandoo nodes data from server
             const eylandooNodesData = @json($eylandoo_nodes ?? []);
+            const showNodesSelector = @json($showNodesSelector ?? false);
+            
+            // Log initial state for debugging
+            console.log('Config create page initialized', {
+                showNodesSelector: showNodesSelector,
+                eylandooNodesDataKeys: Object.keys(eylandooNodesData),
+                eylandooNodesData: eylandooNodesData
+            });
             
             function toggleConnectionsField() {
                 const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                 const panelType = selectedOption.getAttribute('data-panel-type');
                 const panelId = selectedOption.value;
+                
+                console.log('Panel selection changed', {
+                    panelId: panelId,
+                    panelType: panelType,
+                    hasNodesForPanel: eylandooNodesData[panelId] !== undefined,
+                    nodesCount: eylandooNodesData[panelId] ? eylandooNodesData[panelId].length : 0
+                });
                 
                 if (panelType === 'eylandoo') {
                     connectionsField.style.display = 'block';
@@ -169,6 +187,7 @@
                     if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
                         populateEylandooNodes(eylandooNodesData[panelId]);
                         eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
+                        console.log('Populated Eylandoo nodes', { count: eylandooNodesData[panelId].length });
                     } else {
                         // Create empty state message using DOM methods (XSS-safe)
                         eylandooNodesContainer.replaceChildren(); // Clear container
@@ -177,6 +196,7 @@
                         emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
                         eylandooNodesContainer.appendChild(emptyMsg);
                         eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
+                        console.log('Showing empty state for Eylandoo nodes');
                     }
                 } else {
                     connectionsField.style.display = 'none';
@@ -185,6 +205,7 @@
                     
                     eylandooNodesField.style.display = 'none';
                     eylandooNodesContainer.replaceChildren(); // Clear container
+                    console.log('Hidden Eylandoo nodes field (non-Eylandoo panel)');
                 }
             }
             
