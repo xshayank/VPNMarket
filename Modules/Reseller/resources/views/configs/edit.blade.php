@@ -94,6 +94,7 @@
                         <input 
                             type="number" 
                             min="1"
+                            max="100"
                             id="max_clients" 
                             name="max_clients" 
                             value="{{ old('max_clients', $config->meta['max_clients'] ?? 1) }}"

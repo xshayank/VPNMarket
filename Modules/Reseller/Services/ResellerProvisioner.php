@@ -728,7 +728,8 @@ class ResellerProvisioner
                             $updateData['data_limit'] = $payload['data_limit'];
                         }
                         if (isset($payload['expire'])) {
-                            $updateData['expire'] = is_int($payload['expire']) ? $payload['expire'] : $payload['expire']->getTimestamp();
+                            $expire = $payload['expire'];
+                            $updateData['expire'] = is_int($expire) ? $expire : ($expire ? $expire->getTimestamp() : null);
                         }
                         return $service->updateUser($panelUserId, $updateData);
                     }
@@ -746,9 +747,12 @@ class ResellerProvisioner
                             $updateData['total'] = $payload['data_limit'];
                         }
                         if (isset($payload['expire'])) {
-                            $updateData['expiryTime'] = is_int($payload['expire']) 
-                                ? $payload['expire'] * 1000 
-                                : $payload['expire']->timestamp * 1000;
+                            $expire = $payload['expire'];
+                            if ($expire) {
+                                $updateData['expiryTime'] = is_int($expire) 
+                                    ? $expire * 1000 
+                                    : $expire->timestamp * 1000;
+                            }
                         }
                         return $service->updateUser($panelUserId, $updateData);
                     }

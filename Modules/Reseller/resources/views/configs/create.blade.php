@@ -65,7 +65,7 @@
                             حداکثر تعداد کلاینت‌های همزمان
                             <span class="text-red-500">*</span>
                         </label>
-                        <input type="number" name="max_clients" id="max_clients_input" min="1" value="{{ old('max_clients', 1) }}"
+                        <input type="number" name="max_clients" id="max_clients_input" min="1" max="100" value="{{ old('max_clients', 1) }}"
                             class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
                             placeholder="مثال: 2">
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">تعداد کلاینت‌هایی که می‌توانند به طور همزمان متصل شوند (فقط برای پنل Eylandoo)</p>

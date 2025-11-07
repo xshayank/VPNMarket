@@ -1,5 +1,7 @@
 <?php
 
+namespace Tests\Feature;
+
 use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;

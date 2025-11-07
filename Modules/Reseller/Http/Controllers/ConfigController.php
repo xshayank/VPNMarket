@@ -150,7 +150,7 @@ class ConfigController extends Controller
             'service_ids.*' => 'integer',
             'node_ids' => 'nullable|array',
             'node_ids.*' => 'integer',
-            'max_clients' => 'nullable|integer|min:1',
+            'max_clients' => 'nullable|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -557,7 +557,7 @@ class ConfigController extends Controller
         $validator = Validator::make($request->all(), [
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_at' => 'required|date|after_or_equal:today',
-            'max_clients' => 'nullable|integer|min:1',
+            'max_clients' => 'nullable|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
