@@ -157,24 +157,29 @@
             const eylandooNodesData = @json($eylandoo_nodes ?? []);
             const showNodesSelector = @json($showNodesSelector ?? false);
             
-            // Log initial state for debugging
-            console.log('Config create page initialized', {
-                showNodesSelector: showNodesSelector,
-                eylandooNodesDataKeys: Object.keys(eylandooNodesData),
-                eylandooNodesData: eylandooNodesData
-            });
+            // Debug logging (only in development - can be disabled via APP_DEBUG)
+            const debugMode = @json(config('app.debug', false));
+            if (debugMode) {
+                console.log('Config create page initialized', {
+                    showNodesSelector: showNodesSelector,
+                    eylandooNodesDataKeys: Object.keys(eylandooNodesData),
+                    eylandooNodesData: eylandooNodesData
+                });
+            }
             
             function toggleConnectionsField() {
                 const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                 const panelType = selectedOption.getAttribute('data-panel-type');
                 const panelId = selectedOption.value;
                 
-                console.log('Panel selection changed', {
-                    panelId: panelId,
-                    panelType: panelType,
-                    hasNodesForPanel: eylandooNodesData[panelId] !== undefined,
-                    nodesCount: eylandooNodesData[panelId] ? eylandooNodesData[panelId].length : 0
-                });
+                if (debugMode) {
+                    console.log('Panel selection changed', {
+                        panelId: panelId,
+                        panelType: panelType,
+                        hasNodesForPanel: eylandooNodesData[panelId] !== undefined,
+                        nodesCount: eylandooNodesData[panelId] ? eylandooNodesData[panelId].length : 0
+                    });
+                }
                 
                 if (panelType === 'eylandoo') {
                     connectionsField.style.display = 'block';
@@ -187,7 +192,9 @@
                     if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
                         populateEylandooNodes(eylandooNodesData[panelId]);
                         eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
-                        console.log('Populated Eylandoo nodes', { count: eylandooNodesData[panelId].length });
+                        if (debugMode) {
+                            console.log('Populated Eylandoo nodes', { count: eylandooNodesData[panelId].length });
+                        }
                     } else {
                         // Create empty state message using DOM methods (XSS-safe)
                         eylandooNodesContainer.replaceChildren(); // Clear container
@@ -196,7 +203,9 @@
                         emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
                         eylandooNodesContainer.appendChild(emptyMsg);
                         eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
-                        console.log('Showing empty state for Eylandoo nodes');
+                        if (debugMode) {
+                            console.log('Showing empty state for Eylandoo nodes');
+                        }
                     }
                 } else {
                     connectionsField.style.display = 'none';
@@ -205,8 +214,9 @@
                     
                     eylandooNodesField.style.display = 'none';
                     eylandooNodesContainer.replaceChildren(); // Clear container
-                    console.log('Hidden Eylandoo nodes field (non-Eylandoo panel)');
-                }
+                    if (debugMode) {
+                        console.log('Hidden Eylandoo nodes field (non-Eylandoo panel)');
+                    }
             }
             
             function populateEylandooNodes(nodes) {
