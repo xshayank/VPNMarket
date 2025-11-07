@@ -601,8 +601,8 @@ class ConfigController extends Controller
                     $panel = Panel::findOrFail($config->panel_id);
                     $provisioner = new ResellerProvisioner;
 
-                    // For Eylandoo panels, also update max_clients if it changed
-                    if ($panel->panel_type === 'eylandoo' && $maxClients !== $oldMaxClients) {
+                    // For Eylandoo panels, use updateUser to support max_clients updates
+                    if ($panel->panel_type === 'eylandoo') {
                         $remoteResult = $provisioner->updateUser(
                             $panel->panel_type,
                             $panel->getCredentials(),
@@ -614,13 +614,15 @@ class ConfigController extends Controller
                             ]
                         );
                         
-                        Log::info('Updated Eylandoo user with max_clients', [
-                            'config_id' => $config->id,
-                            'old_max_clients' => $oldMaxClients,
-                            'new_max_clients' => $maxClients,
-                        ]);
+                        if ($maxClients !== $oldMaxClients) {
+                            Log::info('Updated Eylandoo user with max_clients', [
+                                'config_id' => $config->id,
+                                'old_max_clients' => $oldMaxClients,
+                                'new_max_clients' => $maxClients,
+                            ]);
+                        }
                     } else {
-                        // For other panels or if max_clients didn't change, use standard update
+                        // For other panels, use standard updateUserLimits
                         $remoteResult = $provisioner->updateUserLimits(
                             $panel->panel_type,
                             $panel->getCredentials(),
