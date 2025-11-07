@@ -39,7 +39,6 @@ class SecurityLog
             'api_key',
             'token',
             'secret',
-            'credentials',
             'auth',
             'authorization',
             'apiKey',
@@ -62,7 +61,8 @@ class SecurityLog
                 }
             }
 
-            if ($isSensitive) {
+            if ($isSensitive && !is_array($value)) {
+                // Only redact if it's not an array (to allow nested objects like 'credentials' => [...])
                 $data[$key] = '[REDACTED]';
             } elseif (is_array($value)) {
                 $data[$key] = self::redactArray($value);
