@@ -85,6 +85,27 @@
                         </p>
                     </div>
 
+                    <!-- Max clients field for Eylandoo -->
+                    @if($config->panel_type === 'eylandoo')
+                    <div>
+                        <label for="max_clients" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 text-right">
+                            حداکثر تعداد کلاینت‌های همزمان <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="number" 
+                            min="1"
+                            max="100"
+                            id="max_clients" 
+                            name="max_clients" 
+                            value="{{ old('max_clients', $config->meta['max_clients'] ?? 1) }}"
+                            class="w-full px-4 py-3 md:py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-right" 
+                            required>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 text-right">
+                            تعداد کلاینت‌هایی که می‌توانند به طور همزمان متصل شوند
+                        </p>
+                    </div>
+                    @endif
+
                     <div class="flex flex-col sm:flex-row gap-3 pt-4">
                         <button type="submit" class="w-full sm:w-auto px-6 py-3 md:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                             ذخیره تغییرات

@@ -150,6 +150,7 @@ class ConfigController extends Controller
             'service_ids.*' => 'integer',
             'node_ids' => 'nullable|array',
             'node_ids.*' => 'integer',
+            'max_clients' => 'nullable|integer|min:1|max:100', // Max 100 as reasonable safety limit to prevent abuse
         ]);
 
         if ($validator->fails()) {
@@ -234,6 +235,18 @@ class ConfigController extends Controller
                 $customName = $request->input('custom_name');
             }
 
+            // Get max_clients value, default to 1 if not provided
+            $maxClients = (int) ($request->input('max_clients', 1));
+            
+            // Log max_clients for debugging (only if app.debug is true)
+            if (config('app.debug') && $panel->panel_type === 'eylandoo') {
+                Log::debug('Config creation with max_clients', [
+                    'reseller_id' => $reseller->id,
+                    'panel_id' => $panel->id,
+                    'max_clients' => $maxClients,
+                ]);
+            }
+
             // Create config record first
             $config = ResellerConfig::create([
                 'reseller_id' => $reseller->id,
@@ -251,6 +264,7 @@ class ConfigController extends Controller
                 'created_by' => $request->user()->id,
                 'meta' => [
                     'node_ids' => $nodeIds, // Already normalized to integers
+                    'max_clients' => $maxClients, // Store max_clients in meta for traceability
                 ],
             ]);
 
@@ -268,7 +282,7 @@ class ConfigController extends Controller
                 'expires_at' => $expiresAt,
                 'service_ids' => $plan->marzneshin_service_ids,
                 'connections' => $request->input('connections', 1),
-                'max_clients' => $request->input('connections', 1),
+                'max_clients' => $maxClients, // Pass max_clients to provisioner
                 'nodes' => $nodeIds, // Already normalized to integers
             ]);
 
@@ -543,6 +557,7 @@ class ConfigController extends Controller
         $validator = Validator::make($request->all(), [
             'traffic_limit_gb' => 'required|numeric|min:0.1',
             'expires_at' => 'required|date|after_or_equal:today',
+            'max_clients' => 'nullable|integer|min:1|max:100', // Max 100 as reasonable safety limit to prevent abuse
         ]);
 
         if ($validator->fails()) {
@@ -551,6 +566,9 @@ class ConfigController extends Controller
 
         $trafficLimitBytes = (float) $request->input('traffic_limit_gb') * 1024 * 1024 * 1024;
         $expiresAt = \Carbon\Carbon::parse($request->input('expires_at'))->startOfDay();
+        
+        // Get max_clients value, default to existing value or 1
+        $maxClients = (int) ($request->input('max_clients', $config->meta['max_clients'] ?? 1));
 
         // Validation: traffic limit cannot be below current usage
         if ($trafficLimitBytes < $config->usage_bytes) {
@@ -563,11 +581,16 @@ class ConfigController extends Controller
 
         $remoteResultFinal = null;
 
-        DB::transaction(function () use ($config, $trafficLimitBytes, $expiresAt, $oldTrafficLimit, $oldExpiresAt, $request, &$remoteResultFinal) {
-            // Update local config
+        DB::transaction(function () use ($config, $trafficLimitBytes, $expiresAt, $oldTrafficLimit, $oldExpiresAt, $request, $maxClients, &$remoteResultFinal) {
+            // Update local config - also update meta with max_clients
+            $meta = $config->meta ?? [];
+            $oldMaxClients = $meta['max_clients'] ?? 1;
+            $meta['max_clients'] = $maxClients;
+            
             $config->update([
                 'traffic_limit_bytes' => $trafficLimitBytes,
                 'expires_at' => $expiresAt,
+                'meta' => $meta,
             ]);
 
             // Try to update on remote panel
@@ -578,13 +601,36 @@ class ConfigController extends Controller
                     $panel = Panel::findOrFail($config->panel_id);
                     $provisioner = new ResellerProvisioner;
 
-                    $remoteResult = $provisioner->updateUserLimits(
-                        $panel->panel_type,
-                        $panel->getCredentials(),
-                        $config->panel_user_id,
-                        $trafficLimitBytes,
-                        $expiresAt
-                    );
+                    // For Eylandoo panels, use updateUser to support max_clients updates
+                    if ($panel->panel_type === 'eylandoo') {
+                        $remoteResult = $provisioner->updateUser(
+                            $panel->panel_type,
+                            $panel->getCredentials(),
+                            $config->panel_user_id,
+                            [
+                                'data_limit' => $trafficLimitBytes,
+                                'expire' => $expiresAt->timestamp,
+                                'max_clients' => $maxClients,
+                            ]
+                        );
+                        
+                        if ($maxClients !== $oldMaxClients) {
+                            Log::info('Updated Eylandoo user with max_clients', [
+                                'config_id' => $config->id,
+                                'old_max_clients' => $oldMaxClients,
+                                'new_max_clients' => $maxClients,
+                            ]);
+                        }
+                    } else {
+                        // For other panels, use standard updateUserLimits
+                        $remoteResult = $provisioner->updateUserLimits(
+                            $panel->panel_type,
+                            $panel->getCredentials(),
+                            $config->panel_user_id,
+                            $trafficLimitBytes,
+                            $expiresAt
+                        );
+                    }
 
                     if (! $remoteResult['success']) {
                         Log::warning("Failed to update config {$config->id} on remote panel {$panel->id} after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}");
@@ -606,6 +652,8 @@ class ConfigController extends Controller
                     'new_traffic_limit_bytes' => $trafficLimitBytes,
                     'old_expires_at' => $oldExpiresAt?->toDateTimeString(),
                     'new_expires_at' => $expiresAt->toDateTimeString(),
+                    'old_max_clients' => $oldMaxClients,
+                    'new_max_clients' => $maxClients,
                     'remote_success' => $remoteResult['success'],
                     'attempts' => $remoteResult['attempts'],
                     'last_error' => $remoteResult['last_error'],
@@ -623,6 +671,8 @@ class ConfigController extends Controller
                     'new_traffic_limit_gb' => round($trafficLimitBytes / (1024 * 1024 * 1024), 2),
                     'old_expires_at' => $oldExpiresAt?->format('Y-m-d'),
                     'new_expires_at' => $expiresAt->format('Y-m-d'),
+                    'old_max_clients' => $oldMaxClients,
+                    'new_max_clients' => $maxClients,
                     'remote_success' => $remoteResult['success'],
                     'reseller_id' => $config->reseller_id,
                 ]
