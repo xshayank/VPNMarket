@@ -164,7 +164,7 @@
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" id="eylandoo_nodes_helper">
                                 @if ($renderNodesServerSide && count($initialNodes) > 0)
                                     @php
-                                        $isUsingDefaults = collect($initialNodes)->contains('is_default', true);
+                                        $isUsingDefaults = !empty(array_filter($initialNodes, fn($node) => $node['is_default'] ?? false));
                                     @endphp
                                     @if ($isUsingDefaults)
                                         نودهای پیش‌فرض (1 و 2) نمایش داده شده‌اند. در صورت نیاز می‌توانید نودهای دیگر را در پنل تنظیم کنید.
@@ -202,7 +202,9 @@
             const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
             
             // Check if we have multiple panels or if nodes field exists (server-side rendered)
-            const hasMultiplePanels = panelSelect.options.length > 2; // More than just the default "-- انتخاب کنید --" option
+            // Count actual panel options (excluding empty default option)
+            const actualPanelCount = Array.from(panelSelect.options).filter(opt => opt.value !== '').length;
+            const hasMultiplePanels = actualPanelCount > 1;
             const nodesFieldExists = eylandooNodesField !== null;
             
             // Eylandoo nodes data from server - all node IDs are integers
