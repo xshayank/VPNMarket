@@ -25,13 +25,17 @@ Route::prefix('reseller')
 
         // Plan-based resellers
         Route::get('/plans', [PlanPurchaseController::class, 'index'])->name('plans.index');
-        Route::post('/bulk', [PlanPurchaseController::class, 'store'])->name('bulk.store');
+        Route::post('/bulk', [PlanPurchaseController::class, 'store'])
+            ->middleware('throttle:20,1')  // 20 requests per minute
+            ->name('bulk.store');
         Route::get('/orders/{order}', [PlanPurchaseController::class, 'show'])->name('orders.show');
 
         // Traffic-based resellers
         Route::get('/configs', [ConfigController::class, 'index'])->name('configs.index');
         Route::get('/configs/create', [ConfigController::class, 'create'])->name('configs.create');
-        Route::post('/configs', [ConfigController::class, 'store'])->name('configs.store');
+        Route::post('/configs', [ConfigController::class, 'store'])
+            ->middleware('throttle:10,1')  // 10 requests per minute
+            ->name('configs.store');
         Route::get('/configs/{config}/edit', [ConfigController::class, 'edit'])->name('configs.edit');
         Route::put('/configs/{config}', [ConfigController::class, 'update'])->name('configs.update');
         Route::post('/configs/{config}/reset-usage', [ConfigController::class, 'resetUsage'])->name('configs.resetUsage');
