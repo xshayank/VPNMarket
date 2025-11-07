@@ -50,7 +50,7 @@ class ConfigController extends Controller
         }
 
         $marzneshinServices = [];
-        $eylandooNodes = [];
+        $nodesOptions = [];  // Renamed for clarity per requirements
         $showNodesSelector = false;
 
         // If reseller has Marzneshin service whitelist, fetch available services
@@ -82,12 +82,12 @@ class ConfigController extends Controller
                 // Always set nodes array for Eylandoo panels
                 // If no nodes available, provide default nodes [1, 2] as fallback
                 if (!empty($nodes)) {
-                    $eylandooNodes[$panel->id] = array_values($nodes);
+                    $nodesOptions[$panel->id] = array_values($nodes);
                 } else {
                     // No nodes found - use default IDs 1 and 2
                     // These can be customized via config if needed
                     $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
-                    $eylandooNodes[$panel->id] = array_map(function($id) {
+                    $nodesOptions[$panel->id] = array_map(function($id) {
                         return [
                             'id' => (int) $id, // Integer ID for consistency
                             'name' => "Node {$id} (default)",
@@ -103,7 +103,7 @@ class ConfigController extends Controller
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
                         'all_nodes_count' => count($allNodes),
-                        'filtered_nodes_count' => count($eylandooNodes[$panel->id]),
+                        'filtered_nodes_count' => count($nodesOptions[$panel->id]),
                         'has_node_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
                         'allowed_node_ids' => $reseller->eylandoo_allowed_node_ids ?? [],
                         'showNodesSelector' => $showNodesSelector,
@@ -117,7 +117,7 @@ class ConfigController extends Controller
             'reseller' => $reseller,
             'panels' => $panels,
             'marzneshin_services' => $marzneshinServices,
-            'nodesOptions' => $eylandooNodes,  // Renamed for clarity per requirements
+            'nodesOptions' => $nodesOptions,
             'showNodesSelector' => $showNodesSelector,
         ]);
     }
