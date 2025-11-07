@@ -116,10 +116,10 @@
                         </div>
                     @endif
 
-                    <!-- Eylandoo Nodes selection -->
-                    {{-- This field is shown/hidden dynamically via JavaScript based on selected panel type.
-                         Server-side flag: showNodesSelector = {{ $showNodesSelector ? 'true' : 'false' }}
-                         When panel_type === 'eylandoo', the field appears even if no nodes are available. --}}
+                    <!-- Eylandoo Nodes selection - Shown only for Eylandoo panels -->
+                    {{-- This field is shown only when an Eylandoo panel is selected.
+                         For non-Eylandoo panels, the field is hidden.
+                         Node IDs are always treated as integers per API specification. --}}
                     <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
                             نودهای Eylandoo (اختیاری)
@@ -153,21 +153,19 @@
             const eylandooNodesContainer = document.getElementById('eylandoo_nodes_container');
             const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
             
-            // Eylandoo nodes data from server
-            const eylandooNodesData = @json($eylandoo_nodes ?? []);
-            const showNodesSelector = @json($showNodesSelector ?? false);
+            // Eylandoo nodes data from server - all node IDs are integers
+            const nodesOptions = @json($nodesOptions ?? []);
             
             // Debug logging (only in development - can be disabled via APP_DEBUG)
             const debugMode = @json(config('app.debug', false));
             if (debugMode) {
                 console.log('Config create page initialized', {
-                    showNodesSelector: showNodesSelector,
-                    eylandooNodesDataKeys: Object.keys(eylandooNodesData),
-                    eylandooNodesData: eylandooNodesData
+                    nodesOptionsKeys: Object.keys(nodesOptions),
+                    nodesOptions: nodesOptions
                 });
             }
             
-            function toggleConnectionsField() {
+            function updateNodesAndConnections() {
                 const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                 const panelType = selectedOption.getAttribute('data-panel-type');
                 const panelId = selectedOption.value;
@@ -176,24 +174,26 @@
                     console.log('Panel selection changed', {
                         panelId: panelId,
                         panelType: panelType,
-                        hasNodesForPanel: eylandooNodesData[panelId] !== undefined,
-                        nodesCount: eylandooNodesData[panelId] ? eylandooNodesData[panelId].length : 0
+                        hasNodesForPanel: nodesOptions[panelId] !== undefined,
+                        nodesCount: nodesOptions[panelId] ? nodesOptions[panelId].length : 0
                     });
                 }
                 
+                // Handle Eylandoo-specific fields (connections and nodes)
                 if (panelType === 'eylandoo') {
+                    // Show connections field
                     connectionsField.style.display = 'block';
                     connectionsInput.required = true;
                     
-                    // Always show nodes field for Eylandoo panels
+                    // Show nodes field for Eylandoo panels
                     eylandooNodesField.style.display = 'block';
                     
-                    // Populate nodes if available
-                    if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
-                        populateEylandooNodes(eylandooNodesData[panelId]);
+                    // Populate nodes if available for this Eylandoo panel
+                    if (nodesOptions[panelId] && nodesOptions[panelId].length > 0) {
+                        populateEylandooNodes(nodesOptions[panelId]);
                         
                         // Check if using default nodes (has is_default property)
-                        const isUsingDefaults = eylandooNodesData[panelId].some(node => node.is_default === true);
+                        const isUsingDefaults = nodesOptions[panelId].some(node => node.is_default === true);
                         
                         if (isUsingDefaults) {
                             eylandooNodesHelper.textContent = 'نودهای پیش‌فرض (1 و 2) نمایش داده شده‌اند. در صورت نیاز می‌توانید نودهای دیگر را در پنل تنظیم کنید.';
@@ -202,30 +202,35 @@
                         }
                         
                         if (debugMode) {
-                            console.log('Populated Eylandoo nodes', { count: eylandooNodesData[panelId].length });
+                            console.log('Populated Eylandoo nodes', { count: nodesOptions[panelId].length });
                         }
                     } else {
-                        // Create empty state message using DOM methods (XSS-safe)
+                        // Show empty state message for Eylandoo panel with no nodes
                         eylandooNodesContainer.replaceChildren(); // Clear container
                         const emptyMsg = document.createElement('p');
                         emptyMsg.className = 'text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-100 dark:bg-gray-700 rounded';
                         emptyMsg.textContent = 'هیچ نودی برای این پنل یافت نشد. کانفیگ بدون محدودیت نود ایجاد خواهد شد.';
                         eylandooNodesContainer.appendChild(emptyMsg);
                         eylandooNodesHelper.textContent = 'در صورت عدم وجود نود، کانفیگ با تمام نودهای موجود در پنل کار خواهد کرد.';
+                        
                         if (debugMode) {
                             console.log('Showing empty state for Eylandoo nodes');
                         }
                     }
                 } else {
+                    // Non-Eylandoo panel: hide both connections and nodes fields
                     connectionsField.style.display = 'none';
                     connectionsInput.required = false;
                     connectionsInput.value = '1'; // Reset to default
                     
+                    // Hide nodes field for non-Eylandoo panels
                     eylandooNodesField.style.display = 'none';
                     eylandooNodesContainer.replaceChildren(); // Clear container
+                    
                     if (debugMode) {
-                        console.log('Hidden Eylandoo nodes field (non-Eylandoo panel)');
+                        console.log('Hidden Eylandoo fields for non-Eylandoo panel');
                     }
+                }
             }
             
             function populateEylandooNodes(nodes) {
@@ -238,9 +243,9 @@
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.name = 'node_ids[]';
+                    // Ensure node.id is treated as integer - already guaranteed by backend parsing
                     checkbox.value = node.id;
                     checkbox.className = 'w-5 h-5 md:w-4 md:h-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 ml-2';
-                    // Nodes are now optional - do not check by default
                     
                     const span = document.createElement('span');
                     // Use node name if available, otherwise fallback to ID (matches backend behavior)
@@ -253,10 +258,10 @@
                 });
             }
             
-            panelSelect.addEventListener('change', toggleConnectionsField);
+            panelSelect.addEventListener('change', updateNodesAndConnections);
             
             // Initial check on page load
-            toggleConnectionsField();
+            updateNodesAndConnections();
         });
     </script>
     @endpush
