@@ -285,8 +285,11 @@ class ResellerProvisioner
         // Accept both 'max_clients' and 'connections' parameters
         $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
 
-        // Accept both 'nodes' and 'node_ids' parameters and normalize to array
+        // Accept both 'nodes' and 'node_ids' parameters and normalize to array of integers
         $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
+        if (!empty($nodes) && is_array($nodes)) {
+            $nodes = array_map('intval', $nodes);
+        }
 
         // Only include nodes if array is non-empty
         $userData = [
@@ -299,6 +302,11 @@ class ResellerProvisioner
         // Only add nodes if the array is non-empty
         if (! empty($nodes) && is_array($nodes)) {
             $userData['nodes'] = $nodes;
+            Log::debug('Eylandoo provision: Including nodes in user data', [
+                'username' => $username,
+                'nodes' => $nodes,
+                'nodes_count' => count($nodes),
+            ]);
         }
 
         $result = $service->createUser($userData);

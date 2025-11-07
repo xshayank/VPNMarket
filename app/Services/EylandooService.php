@@ -774,7 +774,7 @@ class EylandooService
             }
 
             $nodes[] = [
-                'id' => (string) $id, // Ensure ID is string for consistency
+                'id' => (int) $id, // Ensure ID is integer for consistency
                 'name' => (string) $name, // Ensure name is string
             ];
         }

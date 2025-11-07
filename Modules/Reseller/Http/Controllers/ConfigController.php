@@ -69,11 +69,11 @@ class ConfigController extends Controller
                 
                 // If reseller has node whitelist, filter nodes
                 if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
-                    $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+                    // Normalize allowed node IDs to integers
+                    $allowedNodeIds = array_map('intval', $reseller->eylandoo_allowed_node_ids);
                     $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
-                        // Note: PHP's in_array() with loose comparison handles string/int matching
-                        // so '1' == 1 automatically
-                        return in_array($node['id'], $allowedNodeIds);
+                        // Strict comparison - both IDs are now integers
+                        return in_array($node['id'], $allowedNodeIds, true);
                     });
                 } else {
                     $nodes = $allNodes;
@@ -89,7 +89,7 @@ class ConfigController extends Controller
                     $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
                     $eylandooNodes[$panel->id] = array_map(function($id) {
                         return [
-                            'id' => (string) $id,
+                            'id' => (int) $id, // Integer ID for consistency
                             'name' => "Node {$id} (default)",
                             'is_default' => true,
                         ];
@@ -180,16 +180,16 @@ class ConfigController extends Controller
         }
 
         // Validate Eylandoo node whitelist
-        $nodeIds = $request->node_ids ?? [];
+        $nodeIds = array_map('intval', $request->node_ids ?? []);
         $filteredOutCount = 0;
         
         if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
-            $allowedNodeIds = $reseller->eylandoo_allowed_node_ids;
+            // Normalize allowed node IDs to integers
+            $allowedNodeIds = array_map('intval', $reseller->eylandoo_allowed_node_ids);
 
             foreach ($nodeIds as $nodeId) {
-                // Note: PHP's in_array() with loose comparison handles string/int matching
-                // so '1' == 1 automatically
-                if (! in_array($nodeId, $allowedNodeIds)) {
+                // Strict comparison - both IDs are now integers
+                if (! in_array($nodeId, $allowedNodeIds, true)) {
                     $filteredOutCount++;
                     Log::warning('Node selection rejected - not in whitelist', [
                         'reseller_id' => $reseller->id,
@@ -217,7 +217,7 @@ class ConfigController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
+        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays, $nodeIds) {
             $provisioner = new ResellerProvisioner;
 
             // Get prefix and custom_name from request (with permission checks)
@@ -250,7 +250,7 @@ class ConfigController extends Controller
                 'panel_id' => $panel->id,
                 'created_by' => $request->user()->id,
                 'meta' => [
-                    'node_ids' => $request->input('node_ids', []),
+                    'node_ids' => $nodeIds, // Already normalized to integers
                 ],
             ]);
 
@@ -269,7 +269,7 @@ class ConfigController extends Controller
                 'service_ids' => $plan->marzneshin_service_ids,
                 'connections' => $request->input('connections', 1),
                 'max_clients' => $request->input('connections', 1),
-                'nodes' => $request->input('node_ids', []),
+                'nodes' => $nodeIds, // Already normalized to integers
             ]);
 
             if ($result) {

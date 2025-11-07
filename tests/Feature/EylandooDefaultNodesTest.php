@@ -120,10 +120,10 @@ test('eylandoo panel with actual nodes does not use defaults in controller logic
     
     // Assert: Check that actual nodes are used, not defaults
     expect($eylandooNodes[$eylandooPanel->id])->toHaveCount(2)
-        ->and($eylandooNodes[$eylandooPanel->id][0]['id'])->toBe('10')
+        ->and($eylandooNodes[$eylandooPanel->id][0]['id'])->toBe(10) // Integer ID
         ->and($eylandooNodes[$eylandooPanel->id][0]['name'])->toBe('Real Node 10')
         ->and($eylandooNodes[$eylandooPanel->id][0]['name'])->not->toContain('default')
-        ->and($eylandooNodes[$eylandooPanel->id][1]['id'])->toBe('20')
+        ->and($eylandooNodes[$eylandooPanel->id][1]['id'])->toBe(20) // Integer ID
         ->and($eylandooNodes[$eylandooPanel->id][1]['name'])->toBe('Real Node 20')
         ->and($eylandooNodes[$eylandooPanel->id][0])->not->toHaveKey('is_default')
         ->and($eylandooNodes[$eylandooPanel->id][1])->not->toHaveKey('is_default');
