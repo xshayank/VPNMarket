@@ -302,8 +302,8 @@ test('eylandoo service handles nodes without name field - uses id as label', fun
         'eylandoo.example.com/api/v1/nodes' => Http::response([
             'data' => [
                 'nodes' => [
-                    ['id' => 'n1'], // No name field
-                    ['id' => 'n2'], // No name field
+                    ['id' => 'n1'], // Non-numeric ID (edge case - API normally returns numeric IDs)
+                    ['id' => 'n2'], // Non-numeric ID (edge case - API normally returns numeric IDs)
                 ],
             ],
         ], 200),
@@ -317,6 +317,8 @@ test('eylandoo service handles nodes without name field - uses id as label', fun
 
     $nodes = $service->listNodes();
 
+    // Edge case: Non-numeric IDs convert to 0
+    // In production, Eylandoo API always returns numeric IDs
     expect($nodes)->toHaveCount(2)
         ->and($nodes[0]['id'])->toBe(0) // 'n1' converts to 0 as integer
         ->and($nodes[0]['name'])->toBe('n1') // Original ID value used as name before conversion
