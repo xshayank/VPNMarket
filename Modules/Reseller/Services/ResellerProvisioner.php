@@ -302,11 +302,10 @@ class ResellerProvisioner
         // Only add nodes if the array is non-empty
         if (! empty($nodes) && is_array($nodes)) {
             $userData['nodes'] = $nodes;
-            Log::info('Eylandoo provision: Including nodes in user data', [
+            Log::debug('Eylandoo provision: Including nodes in user data', [
                 'username' => $username,
                 'nodes' => $nodes,
                 'nodes_count' => count($nodes),
-                'nodes_types' => array_map('gettype', $nodes),
             ]);
         }
 

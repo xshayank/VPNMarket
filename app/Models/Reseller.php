@@ -42,12 +42,36 @@ class Reseller extends Model
     ];
 
     /**
+     * Normalize an ID array field to integers
+     * 
+     * @param mixed $value The value to normalize
+     * @return array|null Array of integers or null
+     */
+    private function normalizeIdArray($value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+        
+        if (is_string($value)) {
+            $decoded = json_decode($value, true) ?? [];
+            return array_map('intval', $decoded);
+        }
+        
+        if (is_array($value)) {
+            return array_map('intval', $value);
+        }
+        
+        return [];
+    }
+
+    /**
      * Normalize eylandoo_allowed_node_ids to array of integers
      */
     protected function eylandooAllowedNodeIds(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value) => $value === null ? null : (is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : [])),
+            get: fn ($value) => $this->normalizeIdArray($value),
             set: fn ($value) => $value === null ? null : (is_array($value) ? json_encode(array_map('intval', $value)) : $value),
         );
     }
@@ -58,7 +82,7 @@ class Reseller extends Model
     protected function marzneshinAllowedServiceIds(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value) => $value === null ? null : (is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : [])),
+            get: fn ($value) => $this->normalizeIdArray($value),
             set: fn ($value) => $value === null ? null : (is_array($value) ? json_encode(array_map('intval', $value)) : $value),
         );
     }
