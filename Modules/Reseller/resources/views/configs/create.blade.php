@@ -188,10 +188,21 @@
                     // Always show nodes field for Eylandoo panels
                     eylandooNodesField.style.display = 'block';
                     
-                    // Populate nodes if available, otherwise show empty state message
+                    // Populate nodes if available
                     if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
                         populateEylandooNodes(eylandooNodesData[panelId]);
-                        eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
+                        
+                        // Check if using default nodes (node names contain "default")
+                        const isUsingDefaults = eylandooNodesData[panelId].some(node => 
+                            node.name && node.name.toLowerCase().includes('default')
+                        );
+                        
+                        if (isUsingDefaults) {
+                            eylandooNodesHelper.textContent = 'نودهای پیش‌فرض (1 و 2) نمایش داده شده‌اند. در صورت نیاز می‌توانید نودهای دیگر را در پنل تنظیم کنید.';
+                        } else {
+                            eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
+                        }
+                        
                         if (debugMode) {
                             console.log('Populated Eylandoo nodes', { count: eylandooNodesData[panelId].length });
                         }

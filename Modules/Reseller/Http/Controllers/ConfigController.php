@@ -79,20 +79,32 @@ class ConfigController extends Controller
                     $nodes = $allNodes;
                 }
                 
-                // Always set nodes array for Eylandoo panels, even if empty
-                $eylandooNodes[$panel->id] = !empty($nodes) ? array_values($nodes) : [];
+                // Always set nodes array for Eylandoo panels
+                // If no nodes available, provide default nodes [1, 2] as fallback
+                if (!empty($nodes)) {
+                    $eylandooNodes[$panel->id] = array_values($nodes);
+                } else {
+                    // No nodes found - use default IDs 1 and 2
+                    $eylandooNodes[$panel->id] = [
+                        ['id' => '1', 'name' => 'Node 1 (default)'],
+                        ['id' => '2', 'name' => 'Node 2 (default)'],
+                    ];
+                }
                 
-                // Log node selection data for debugging (debug level to avoid log spam)
-                Log::debug('Eylandoo nodes loaded for config creation', [
-                    'reseller_id' => $reseller->id,
-                    'panel_id' => $panel->id,
-                    'panel_type' => $panel->panel_type,
-                    'all_nodes_count' => count($allNodes),
-                    'filtered_nodes_count' => count($eylandooNodes[$panel->id]),
-                    'has_node_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
-                    'allowed_node_ids' => $reseller->eylandoo_allowed_node_ids ?? [],
-                    'showNodesSelector' => $showNodesSelector,
-                ]);
+                // Log node selection data for debugging (only if app.debug is true)
+                if (config('app.debug')) {
+                    Log::debug('Eylandoo nodes loaded for config creation', [
+                        'reseller_id' => $reseller->id,
+                        'panel_id' => $panel->id,
+                        'panel_type' => $panel->panel_type,
+                        'all_nodes_count' => count($allNodes),
+                        'filtered_nodes_count' => count($eylandooNodes[$panel->id]),
+                        'has_node_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
+                        'allowed_node_ids' => $reseller->eylandoo_allowed_node_ids ?? [],
+                        'showNodesSelector' => $showNodesSelector,
+                        'using_defaults' => empty($nodes),
+                    ]);
+                }
             }
         }
 
