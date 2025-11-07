@@ -117,7 +117,7 @@ class ConfigController extends Controller
             'reseller' => $reseller,
             'panels' => $panels,
             'marzneshin_services' => $marzneshinServices,
-            'eylandoo_nodes' => $eylandooNodes,
+            'nodesOptions' => $eylandooNodes,  // Renamed for clarity per requirements
             'showNodesSelector' => $showNodesSelector,
         ]);
     }
