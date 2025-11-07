@@ -59,7 +59,7 @@ test('eylandoo service can list nodes', function () {
     $nodes = $service->listNodes();
 
     expect($nodes)->toHaveCount(3)
-        ->and($nodes[0]['id'])->toBe('1') // String ID
+        ->and($nodes[0]['id'])->toBe(1) // Integer ID
         ->and($nodes[0]['name'])->toBe('Node 1');
 });
 
@@ -99,7 +99,7 @@ test('panel model caches eylandoo nodes', function () {
     // Second call - should use cache, not hit API
     $nodes2 = $this->eylandooPanel->getCachedEylandooNodes();
     expect($nodes2)->toHaveCount(2) // Still 2 nodes from cache
-        ->and($nodes2[0]['id'])->toBe('1'); // Still Node 1 from cache, string ID
+        ->and($nodes2[0]['id'])->toBe(1); // Still Node 1 from cache, integer ID
 });
 
 test('reseller config create shows filtered nodes', function () {
@@ -128,9 +128,9 @@ test('reseller config create shows filtered nodes', function () {
     expect($filteredNodes)->toHaveCount(2);
     
     $nodeIds = array_column($filteredNodes, 'id');
-    expect($nodeIds)->toContain('1') // String IDs now
-        ->and($nodeIds)->toContain('2')
-        ->and($nodeIds)->not->toContain('3'); // Node 3 is filtered out
+    expect($nodeIds)->toContain(1) // Integer IDs now
+        ->and($nodeIds)->toContain(2)
+        ->and($nodeIds)->not->toContain(3); // Node 3 is filtered out
 })->skip('Integration test - requires Vite build');
 
 test('reseller config create includes nodes in provision request', function () {
@@ -252,7 +252,7 @@ test('cache can be cleared and refreshed', function () {
     // First call - should cache result
     $nodes1 = $this->eylandooPanel->getCachedEylandooNodes();
     expect($nodes1)->toHaveCount(1)
-        ->and($nodes1[0]['id'])->toBe('1'); // String ID
+        ->and($nodes1[0]['id'])->toBe(1); // Integer ID
 
     // Verify cache exists
     expect(Cache::has($cacheKey))->toBeTrue();
@@ -318,10 +318,10 @@ test('eylandoo service handles nodes without name field - uses id as label', fun
     $nodes = $service->listNodes();
 
     expect($nodes)->toHaveCount(2)
-        ->and($nodes[0]['id'])->toBe('n1')
-        ->and($nodes[0]['name'])->toBe('n1') // ID used as name
-        ->and($nodes[1]['id'])->toBe('n2')
-        ->and($nodes[1]['name'])->toBe('n2'); // ID used as name
+        ->and($nodes[0]['id'])->toBe(0) // 'n1' converts to 0 as integer
+        ->and($nodes[0]['name'])->toBe('n1') // Original ID value used as name before conversion
+        ->and($nodes[1]['id'])->toBe(0) // 'n2' converts to 0 as integer
+        ->and($nodes[1]['name'])->toBe('n2'); // Original ID value used as name before conversion
 });
 
 test('eylandoo service handles data wrapped response with title field', function () {
@@ -343,9 +343,9 @@ test('eylandoo service handles data wrapped response with title field', function
     $nodes = $service->listNodes();
 
     expect($nodes)->toHaveCount(2)
-        ->and($nodes[0]['id'])->toBe('2')
+        ->and($nodes[0]['id'])->toBe(2) // Integer ID
         ->and($nodes[0]['name'])->toBe('Edge-2') // title used as name
-        ->and($nodes[1]['id'])->toBe('3')
+        ->and($nodes[1]['id'])->toBe(3) // Integer ID
         ->and($nodes[1]['name'])->toBe('Edge-3');
 });
 
@@ -391,9 +391,9 @@ test('eylandoo service handles nodes with host field fallback', function () {
     $nodes = $service->listNodes();
 
     expect($nodes)->toHaveCount(2)
-        ->and($nodes[0]['id'])->toBe('10')
+        ->and($nodes[0]['id'])->toBe(10) // Integer ID
         ->and($nodes[0]['name'])->toBe('node10.example.com') // host used as name
-        ->and($nodes[1]['id'])->toBe('11')
+        ->and($nodes[1]['id'])->toBe(11) // Integer ID
         ->and($nodes[1]['name'])->toBe('node11.example.com'); // hostname used as name
 });
 

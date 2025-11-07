@@ -47,8 +47,8 @@ class Reseller extends Model
     protected function eylandooAllowedNodeIds(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value) => is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : []),
-            set: fn ($value) => is_array($value) ? json_encode(array_map('intval', $value)) : $value,
+            get: fn ($value) => $value === null ? null : (is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : [])),
+            set: fn ($value) => $value === null ? null : (is_array($value) ? json_encode(array_map('intval', $value)) : $value),
         );
     }
 
@@ -58,8 +58,8 @@ class Reseller extends Model
     protected function marzneshinAllowedServiceIds(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn ($value) => is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : []),
-            set: fn ($value) => is_array($value) ? json_encode(array_map('intval', $value)) : $value,
+            get: fn ($value) => $value === null ? null : (is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : [])),
+            set: fn ($value) => $value === null ? null : (is_array($value) ? json_encode(array_map('intval', $value)) : $value),
         );
     }
 

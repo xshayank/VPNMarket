@@ -219,7 +219,7 @@ class ConfigController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays) {
+        DB::transaction(function () use ($request, $reseller, $panel, $trafficLimitBytes, $expiresAt, $expiresDays, $nodeIds) {
             $provisioner = new ResellerProvisioner;
 
             // Get prefix and custom_name from request (with permission checks)
