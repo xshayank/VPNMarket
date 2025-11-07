@@ -82,8 +82,8 @@ class ConfigController extends Controller
                 // Always set nodes array for Eylandoo panels, even if empty
                 $eylandooNodes[$panel->id] = !empty($nodes) ? array_values($nodes) : [];
                 
-                // Log node selection data for debugging
-                Log::info('Eylandoo nodes loaded for config creation', [
+                // Log node selection data for debugging (debug level to avoid log spam)
+                Log::debug('Eylandoo nodes loaded for config creation', [
                     'reseller_id' => $reseller->id,
                     'panel_id' => $panel->id,
                     'panel_type' => $panel->panel_type,

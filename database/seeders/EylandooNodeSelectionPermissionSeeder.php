@@ -29,16 +29,16 @@ class EylandooNodeSelectionPermissionSeeder extends Seeder
     public function run(): void
     {
         // Check if Spatie Permission package is installed
-        if (! class_exists(\Spatie\Permission\Models\Permission::class)) {
+        $permissionClass = \Spatie\Permission\Models\Permission::class;
+        $roleClass = \Spatie\Permission\Models\Role::class;
+        
+        if (! class_exists($permissionClass)) {
             $this->command->info('Spatie Permission package not installed. Skipping permission creation.');
 
             return;
         }
 
         try {
-            $permissionClass = \Spatie\Permission\Models\Permission::class;
-            $roleClass = \Spatie\Permission\Models\Role::class;
-
             // Create or update the permission
             $selectNodesPermission = $permissionClass::firstOrCreate(
                 ['name' => 'configs.select_panel_nodes'],
@@ -49,6 +49,7 @@ class EylandooNodeSelectionPermissionSeeder extends Seeder
             $this->command->warn('NOTE: This permission is informational only. Eylandoo node selector visibility is based on panel_type, not permissions.');
 
             // Assign to admin and reseller roles
+            // Note: These role names are standard in Laravel/Spatie Permission setups
             $rolesToAssign = ['super-admin', 'admin', 'reseller'];
             $assignedRoles = [];
 
