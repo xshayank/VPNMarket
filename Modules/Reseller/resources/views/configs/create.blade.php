@@ -116,11 +116,11 @@
                         </div>
                     @endif
 
-                    <!-- Eylandoo Nodes selection - ALWAYS VISIBLE -->
-                    {{-- This field is always visible. It populates with nodes based on selected Eylandoo panel.
-                         For non-Eylandoo panels, the container is cleared.
+                    <!-- Eylandoo Nodes selection - Shown only for Eylandoo panels -->
+                    {{-- This field is shown only when an Eylandoo panel is selected.
+                         For non-Eylandoo panels, the field is hidden.
                          Node IDs are always treated as integers per API specification. --}}
-                    <div id="eylandoo_nodes_field" class="mb-4 md:mb-6">
+                    <div id="eylandoo_nodes_field" class="mb-4 md:mb-6" style="display: none;">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
                             نودهای Eylandoo (اختیاری)
                         </label>
@@ -149,6 +149,7 @@
             const panelSelect = document.getElementById('panel_id');
             const connectionsField = document.getElementById('connections_field');
             const connectionsInput = document.getElementById('connections_input');
+            const eylandooNodesField = document.getElementById('eylandoo_nodes_field');
             const eylandooNodesContainer = document.getElementById('eylandoo_nodes_container');
             const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
             
@@ -178,10 +179,14 @@
                     });
                 }
                 
-                // Handle Eylandoo-specific fields (connections)
+                // Handle Eylandoo-specific fields (connections and nodes)
                 if (panelType === 'eylandoo') {
+                    // Show connections field
                     connectionsField.style.display = 'block';
                     connectionsInput.required = true;
+                    
+                    // Show nodes field for Eylandoo panels
+                    eylandooNodesField.style.display = 'block';
                     
                     // Populate nodes if available for this Eylandoo panel
                     if (nodesOptions[panelId] && nodesOptions[panelId].length > 0) {
@@ -213,17 +218,17 @@
                         }
                     }
                 } else {
-                    // Non-Eylandoo panel: hide connections field and clear nodes container
+                    // Non-Eylandoo panel: hide both connections and nodes fields
                     connectionsField.style.display = 'none';
                     connectionsInput.required = false;
                     connectionsInput.value = '1'; // Reset to default
                     
-                    // Clear nodes container for non-Eylandoo panels
-                    eylandooNodesContainer.replaceChildren();
-                    eylandooNodesHelper.textContent = 'انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، کانفیگ بدون محدودیت نود ایجاد می‌شود.';
+                    // Hide nodes field for non-Eylandoo panels
+                    eylandooNodesField.style.display = 'none';
+                    eylandooNodesContainer.replaceChildren(); // Clear container
                     
                     if (debugMode) {
-                        console.log('Cleared nodes container for non-Eylandoo panel');
+                        console.log('Hidden Eylandoo fields for non-Eylandoo panel');
                     }
                 }
             }
