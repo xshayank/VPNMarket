@@ -59,16 +59,16 @@
                         </div>
                     </div>
 
-                    <!-- Connections field for Eylandoo -->
-                    <div id="connections_field" class="mb-4 md:mb-6" style="display: none;">
+                    <!-- Max clients field for Eylandoo -->
+                    <div id="max_clients_field" class="mb-4 md:mb-6" style="display: none;">
                         <label class="block text-xs md:text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
-                            تعداد اتصالات همزمان
+                            حداکثر تعداد کلاینت‌های همزمان
                             <span class="text-red-500">*</span>
                         </label>
-                        <input type="number" name="connections" id="connections_input" min="1" max="10" value="1"
+                        <input type="number" name="max_clients" id="max_clients_input" min="1" value="{{ old('max_clients', 1) }}"
                             class="w-full h-12 md:h-10 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 text-sm md:text-base"
                             placeholder="مثال: 2">
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">تعداد دستگاه‌هایی که می‌توانند به طور همزمان متصل شوند (فقط برای پنل Eylandoo)</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">تعداد کلاینت‌هایی که می‌توانند به طور همزمان متصل شوند (فقط برای پنل Eylandoo)</p>
                     </div>
 
                     <div class="mb-4 md:mb-6">
@@ -195,8 +195,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const panelSelect = document.getElementById('panel_id');
-            const connectionsField = document.getElementById('connections_field');
-            const connectionsInput = document.getElementById('connections_input');
+            const maxClientsField = document.getElementById('max_clients_field');
+            const maxClientsInput = document.getElementById('max_clients_input');
             const eylandooNodesField = document.getElementById('eylandoo_nodes_field');
             const eylandooNodesContainer = document.getElementById('eylandoo_nodes_container');
             const eylandooNodesHelper = document.getElementById('eylandoo_nodes_helper');
@@ -224,7 +224,7 @@
             // Only attach dynamic behavior if we have multiple panels
             // For single-panel resellers, the field is already server-side rendered
             if (hasMultiplePanels && nodesFieldExists) {
-                function updateNodesAndConnections() {
+                function updateNodesAndMaxClients() {
                     const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                     const panelType = selectedOption.getAttribute('data-panel-type');
                     const panelId = selectedOption.value;
@@ -238,12 +238,12 @@
                         });
                     }
                     
-                    // Handle Eylandoo-specific fields (connections and nodes)
+                    // Handle Eylandoo-specific fields (max_clients and nodes)
                     if (panelType === 'eylandoo') {
-                        // Show connections field
-                        if (connectionsField) {
-                            connectionsField.style.display = 'block';
-                            connectionsInput.required = true;
+                        // Show max_clients field
+                        if (maxClientsField) {
+                            maxClientsField.style.display = 'block';
+                            maxClientsInput.required = true;
                         }
                         
                         // Show nodes field for Eylandoo panels
@@ -279,11 +279,11 @@
                             }
                         }
                     } else {
-                        // Non-Eylandoo panel: hide both connections and nodes fields
-                        if (connectionsField) {
-                            connectionsField.style.display = 'none';
-                            connectionsInput.required = false;
-                            connectionsInput.value = '1'; // Reset to default
+                        // Non-Eylandoo panel: hide both max_clients and nodes fields
+                        if (maxClientsField) {
+                            maxClientsField.style.display = 'none';
+                            maxClientsInput.required = false;
+                            maxClientsInput.value = '1'; // Reset to default
                         }
                         
                         // Hide nodes field for non-Eylandoo panels
@@ -321,33 +321,33 @@
                     });
                 }
                 
-                panelSelect.addEventListener('change', updateNodesAndConnections);
+                panelSelect.addEventListener('change', updateNodesAndMaxClients);
                 
                 // Initial check on page load for multi-panel resellers
-                updateNodesAndConnections();
+                updateNodesAndMaxClients();
             } else {
-                // For single-panel resellers, handle connections field visibility
-                if (connectionsField) {
+                // For single-panel resellers, handle max_clients field visibility
+                if (maxClientsField) {
                     const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                     const panelType = selectedOption ? selectedOption.getAttribute('data-panel-type') : null;
                     
                     if (panelType === 'eylandoo') {
-                        connectionsField.style.display = 'block';
-                        connectionsInput.required = true;
+                        maxClientsField.style.display = 'block';
+                        maxClientsInput.required = true;
                     }
                     
-                    // Update connections field when panel changes
+                    // Update max_clients field when panel changes
                     panelSelect.addEventListener('change', function() {
                         const selectedOption = panelSelect.options[panelSelect.selectedIndex];
                         const panelType = selectedOption.getAttribute('data-panel-type');
                         
                         if (panelType === 'eylandoo') {
-                            connectionsField.style.display = 'block';
-                            connectionsInput.required = true;
+                            maxClientsField.style.display = 'block';
+                            maxClientsInput.required = true;
                         } else {
-                            connectionsField.style.display = 'none';
-                            connectionsInput.required = false;
-                            connectionsInput.value = '1';
+                            maxClientsField.style.display = 'none';
+                            maxClientsInput.required = false;
+                            maxClientsInput.value = '1';
                         }
                     });
                 }

@@ -681,6 +681,110 @@ class ResellerProvisioner
     }
 
     /**
+     * Update user with additional properties (including max_clients for Eylandoo)
+     * This method provides more flexibility than updateUserLimits
+     *
+     * @param  string  $panelType  Panel type
+     * @param  array  $credentials  Panel credentials
+     * @param  string  $panelUserId  Panel user ID
+     * @param  array  $payload  Update payload (data_limit, expire, max_clients, nodes, etc.)
+     * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
+     */
+    public function updateUser(string $panelType, array $credentials, string $panelUserId, array $payload): array
+    {
+        return $this->retryOperation(function () use ($panelType, $credentials, $panelUserId, $payload) {
+            switch ($panelType) {
+                case 'marzban':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzbanService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        $updateData = [];
+                        if (isset($payload['data_limit'])) {
+                            $updateData['data_limit'] = $payload['data_limit'];
+                        }
+                        if (isset($payload['expire'])) {
+                            $updateData['expire'] = $payload['expire'];
+                        }
+                        return $service->updateUser($panelUserId, $updateData);
+                    }
+                    break;
+
+                case 'marzneshin':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new MarzneshinService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password'],
+                        $nodeHostname
+                    );
+                    if ($service->login()) {
+                        $updateData = [];
+                        if (isset($payload['data_limit'])) {
+                            $updateData['data_limit'] = $payload['data_limit'];
+                        }
+                        if (isset($payload['expire'])) {
+                            $updateData['expire'] = is_int($payload['expire']) ? $payload['expire'] : $payload['expire']->getTimestamp();
+                        }
+                        return $service->updateUser($panelUserId, $updateData);
+                    }
+                    break;
+
+                case 'xui':
+                    $service = new XUIService(
+                        $credentials['url'],
+                        $credentials['username'],
+                        $credentials['password']
+                    );
+                    if ($service->login()) {
+                        $updateData = [];
+                        if (isset($payload['data_limit'])) {
+                            $updateData['total'] = $payload['data_limit'];
+                        }
+                        if (isset($payload['expire'])) {
+                            $updateData['expiryTime'] = is_int($payload['expire']) 
+                                ? $payload['expire'] * 1000 
+                                : $payload['expire']->timestamp * 1000;
+                        }
+                        return $service->updateUser($panelUserId, $updateData);
+                    }
+                    break;
+
+                case 'eylandoo':
+                    $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
+                    $service = new EylandooService(
+                        $credentials['url'],
+                        $credentials['api_token'],
+                        $nodeHostname
+                    );
+
+                    // Build update payload for Eylandoo
+                    $updateData = [];
+                    if (isset($payload['data_limit'])) {
+                        $updateData['data_limit'] = $payload['data_limit'];
+                    }
+                    if (isset($payload['expire'])) {
+                        $updateData['expire'] = $payload['expire'];
+                    }
+                    if (isset($payload['max_clients'])) {
+                        $updateData['max_clients'] = (int) $payload['max_clients'];
+                    }
+                    if (isset($payload['nodes'])) {
+                        $updateData['nodes'] = $payload['nodes'];
+                    }
+
+                    return $service->updateUser($panelUserId, $updateData);
+            }
+
+            return false;
+        }, "update user {$panelUserId}");
+    }
+
+    /**
      * Reset user usage on a panel with retry logic
      *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
