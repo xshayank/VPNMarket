@@ -9,15 +9,22 @@ class IdNormalization
      * Filters out non-numeric values to prevent ID collisions
      * 
      * @param array $ids Array of IDs to normalize
+     * @param bool $positiveOnly Only include positive integers (> 0)
      * @return array Array of integer IDs
      */
-    public static function normalizeIds(array $ids): array
+    public static function normalizeIds(array $ids, bool $positiveOnly = false): array
     {
-        return array_map('intval', array_filter($ids, function ($id) {
-            // Only include numeric values (integers or numeric strings)
-            // This prevents non-numeric strings from becoming 0
-            return $id !== null && $id !== '' && is_numeric($id);
-        }));
+        $result = [];
+        foreach ($ids as $id) {
+            // Only include numeric values to prevent non-numeric strings from becoming 0
+            if ($id !== null && $id !== '' && is_numeric($id)) {
+                $intId = (int) $id;
+                if (!$positiveOnly || $intId > 0) {
+                    $result[] = $intId;
+                }
+            }
+        }
+        return $result;
     }
 
     /**
@@ -41,15 +48,6 @@ class IdNormalization
      */
     public static function normalizeNodeIds(array $nodeIds): array
     {
-        $result = [];
-        foreach ($nodeIds as $id) {
-            if (is_numeric($id)) {
-                $intId = (int) $id;
-                if ($intId > 0) {
-                    $result[] = $intId;
-                }
-            }
-        }
-        return $result;
+        return self::normalizeIds($nodeIds, true);
     }
 }

@@ -89,7 +89,7 @@ class ConfigController extends Controller
                     $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
                     $eylandooNodes[$panel->id] = array_map(function($id) {
                         return [
-                            'id' => (string) $id,
+                            'id' => (int) $id, // Integer ID for consistency
                             'name' => "Node {$id} (default)",
                             'is_default' => true,
                         ];
