@@ -56,19 +56,19 @@ test('eylandoo panel with no nodes returns default nodes 1 and 2 in controller l
         $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
         $eylandooNodes[$eylandooPanel->id] = array_map(function($id) {
             return [
-                'id' => (string) $id,
+                'id' => (int) $id, // Integer ID for consistency
                 'name' => "Node {$id} (default)",
                 'is_default' => true,
             ];
         }, $defaultNodeIds);
     }
     
-    // Assert: Should have exactly 2 default nodes
+    // Assert: Should have exactly 2 default nodes with integer IDs
     expect($eylandooNodes[$eylandooPanel->id])->toHaveCount(2)
-        ->and($eylandooNodes[$eylandooPanel->id][0]['id'])->toBe('1')
+        ->and($eylandooNodes[$eylandooPanel->id][0]['id'])->toBe(1) // Integer ID
         ->and($eylandooNodes[$eylandooPanel->id][0]['is_default'])->toBeTrue()
         ->and($eylandooNodes[$eylandooPanel->id][0]['name'])->toContain('default')
-        ->and($eylandooNodes[$eylandooPanel->id][1]['id'])->toBe('2')
+        ->and($eylandooNodes[$eylandooPanel->id][1]['id'])->toBe(2) // Integer ID
         ->and($eylandooNodes[$eylandooPanel->id][1]['is_default'])->toBeTrue()
         ->and($eylandooNodes[$eylandooPanel->id][1]['name'])->toContain('default');
 });
@@ -111,7 +111,7 @@ test('eylandoo panel with actual nodes does not use defaults in controller logic
         $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
         $eylandooNodes[$eylandooPanel->id] = array_map(function($id) {
             return [
-                'id' => (string) $id,
+                'id' => (int) $id, // Integer ID for consistency
                 'name' => "Node {$id} (default)",
                 'is_default' => true,
             ];
