@@ -85,10 +85,15 @@ class ConfigController extends Controller
                     $eylandooNodes[$panel->id] = array_values($nodes);
                 } else {
                     // No nodes found - use default IDs 1 and 2
-                    $eylandooNodes[$panel->id] = [
-                        ['id' => '1', 'name' => 'Node 1 (default)'],
-                        ['id' => '2', 'name' => 'Node 2 (default)'],
-                    ];
+                    // These can be customized via config if needed
+                    $defaultNodeIds = config('panels.eylandoo.default_node_ids', [1, 2]);
+                    $eylandooNodes[$panel->id] = array_map(function($id) {
+                        return [
+                            'id' => (string) $id,
+                            'name' => "Node {$id} (default)",
+                            'is_default' => true,
+                        ];
+                    }, $defaultNodeIds);
                 }
                 
                 // Log node selection data for debugging (only if app.debug is true)

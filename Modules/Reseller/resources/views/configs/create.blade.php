@@ -192,10 +192,8 @@
                     if (eylandooNodesData[panelId] && eylandooNodesData[panelId].length > 0) {
                         populateEylandooNodes(eylandooNodesData[panelId]);
                         
-                        // Check if using default nodes (node names contain "default")
-                        const isUsingDefaults = eylandooNodesData[panelId].some(node => 
-                            node.name && node.name.toLowerCase().includes('default')
-                        );
+                        // Check if using default nodes (has is_default property)
+                        const isUsingDefaults = eylandooNodesData[panelId].some(node => node.is_default === true);
                         
                         if (isUsingDefaults) {
                             eylandooNodesHelper.textContent = 'نودهای پیش‌فرض (1 و 2) نمایش داده شده‌اند. در صورت نیاز می‌توانید نودهای دیگر را در پنل تنظیم کنید.';
