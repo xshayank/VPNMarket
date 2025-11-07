@@ -729,7 +729,11 @@ class ResellerProvisioner
                         }
                         if (isset($payload['expire'])) {
                             $expire = $payload['expire'];
-                            $updateData['expire'] = is_int($expire) ? $expire : ($expire ? $expire->getTimestamp() : null);
+                            if (is_int($expire)) {
+                                $updateData['expire'] = $expire;
+                            } elseif (is_object($expire) && method_exists($expire, 'getTimestamp')) {
+                                $updateData['expire'] = $expire->getTimestamp();
+                            }
                         }
                         return $service->updateUser($panelUserId, $updateData);
                     }
@@ -748,10 +752,10 @@ class ResellerProvisioner
                         }
                         if (isset($payload['expire'])) {
                             $expire = $payload['expire'];
-                            if ($expire) {
-                                $updateData['expiryTime'] = is_int($expire) 
-                                    ? $expire * 1000 
-                                    : $expire->timestamp * 1000;
+                            if (is_int($expire)) {
+                                $updateData['expiryTime'] = $expire * 1000;
+                            } elseif (is_object($expire) && property_exists($expire, 'timestamp')) {
+                                $updateData['expiryTime'] = $expire->timestamp * 1000;
                             }
                         }
                         return $service->updateUser($panelUserId, $updateData);
