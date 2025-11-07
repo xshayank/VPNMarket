@@ -41,6 +41,28 @@ class Reseller extends Model
         'settings' => 'array',
     ];
 
+    /**
+     * Normalize eylandoo_allowed_node_ids to array of integers
+     */
+    protected function eylandooAllowedNodeIds(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($value) => is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : []),
+            set: fn ($value) => is_array($value) ? json_encode(array_map('intval', $value)) : $value,
+        );
+    }
+
+    /**
+     * Normalize marzneshin_allowed_service_ids to array of integers
+     */
+    protected function marzneshinAllowedServiceIds(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($value) => is_string($value) ? array_map('intval', json_decode($value, true) ?? []) : (is_array($value) ? array_map('intval', $value) : []),
+            set: fn ($value) => is_array($value) ? json_encode(array_map('intval', $value)) : $value,
+        );
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
