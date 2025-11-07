@@ -78,4 +78,26 @@ class ResellerConfigObserver
             'route' => $meta['route'] ?? null,
         ]);
     }
+
+    /**
+     * Handle the ResellerConfig "deleting" event.
+     * 
+     * This logs the deletion and captures the final usage snapshot.
+     * CRITICAL: This prevents the accounting bug where deleting a config would erase its historical usage.
+     * The usage is already included in reseller's traffic_used_bytes and will remain there
+     * because we use withTrashed() in aggregation queries.
+     */
+    public function deleting(ResellerConfig $config): void
+    {
+        // Log the deletion with usage snapshot
+        Log::notice("ResellerConfig being deleted - usage preserved in aggregate", [
+            'config_id' => $config->id,
+            'reseller_id' => $config->reseller_id,
+            'usage_bytes' => $config->usage_bytes,
+            'settled_usage_bytes' => (int) data_get($config->meta, 'settled_usage_bytes', 0),
+            'total_usage_bytes' => $config->getTotalUsageBytes(),
+            'usage_gb' => round($config->getTotalUsageBytes() / (1024 * 1024 * 1024), 2),
+            'actor' => auth()->id() ?? 'system',
+        ]);
+    }
 }

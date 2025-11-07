@@ -85,9 +85,12 @@ class SyncResellerConfigUsage extends Command
 
             // Recalculate and persist reseller aggregate immediately
             // Include settled_usage_bytes to prevent abuse
+            // CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
+            // This prevents accounting bug where deleting a config would erase its historical usage
             $reseller = $config->reseller;
             $oldResellerUsage = $reseller->traffic_used_bytes;
             $totalUsageBytesFromDB = $reseller->configs()
+                ->withTrashed()
                 ->get()
                 ->sum(function ($c) {
                     return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);

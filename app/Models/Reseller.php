@@ -146,12 +146,15 @@ class Reseller extends Model
     /**
      * Get current traffic usage (excluding settled usage from resets)
      * This is used for display purposes to show resellers their current cycle usage
+     * CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
+     * This prevents accounting bug where deleting a config would erase its historical usage
      * 
      * @return int Current usage in bytes
      */
     public function getCurrentTrafficUsedBytes(): int
     {
         return $this->configs()
+            ->withTrashed()
             ->get()
             ->sum(function ($config) {
                 return $config->usage_bytes;
