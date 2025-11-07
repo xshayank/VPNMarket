@@ -16,7 +16,7 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 ### How to Report
 
 1. **Do NOT** open a public GitHub issue for security vulnerabilities
-2. Send details to: [security contact - configure your security email]
+2. Send details to: **security@your-domain.com** (Configure this with your actual security contact)
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
@@ -311,7 +311,7 @@ protected $fillable = [
 
 ## Contact
 
-For security concerns, contact: [Configure your security contact email]
+For security concerns, contact: **security@your-domain.com** (Configure this with your actual security contact)
 
 ---
 

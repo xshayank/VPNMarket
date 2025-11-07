@@ -89,9 +89,10 @@ class SecurityLog
             $data
         );
 
-        // Redact API keys (long alphanumeric strings)
+        // Redact API keys with common prefixes (more specific pattern)
+        // Matches: sk_*, pk_*, api_*, token_*, key_* followed by long alphanumeric strings
         $data = preg_replace(
-            '/[a-zA-Z0-9_-]{32,}/',
+            '/\b(sk|pk|api|token|key)_[a-zA-Z0-9_-]{20,}\b/',
             '[REDACTED_KEY]',
             $data
         );
