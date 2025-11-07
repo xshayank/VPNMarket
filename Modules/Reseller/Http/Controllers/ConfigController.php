@@ -195,9 +195,7 @@ class ConfigController extends Controller
                         'reseller_id' => $reseller->id,
                         'panel_id' => $panel->id,
                         'rejected_node_id' => $nodeId,
-                        'rejected_node_type' => gettype($nodeId),
                         'allowed_node_ids' => $allowedNodeIds,
-                        'allowed_node_types' => array_map('gettype', $allowedNodeIds),
                     ]);
                 }
             }

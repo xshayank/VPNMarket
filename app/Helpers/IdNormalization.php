@@ -41,9 +41,15 @@ class IdNormalization
      */
     public static function normalizeNodeIds(array $nodeIds): array
     {
-        return array_values(array_filter(
-            array_map('intval', array_filter($nodeIds, fn($id) => is_numeric($id))),
-            fn($id) => $id > 0
-        ));
+        $result = [];
+        foreach ($nodeIds as $id) {
+            if (is_numeric($id)) {
+                $intId = (int) $id;
+                if ($intId > 0) {
+                    $result[] = $intId;
+                }
+            }
+        }
+        return $result;
     }
 }

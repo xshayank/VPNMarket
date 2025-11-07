@@ -317,12 +317,14 @@ test('eylandoo service handles nodes without name field - uses id as label', fun
 
     $nodes = $service->listNodes();
 
-    // Edge case: Non-numeric IDs convert to 0
-    // In production, Eylandoo API always returns numeric IDs
+    // Edge case: Non-numeric IDs convert to 0, causing ID collision
+    // In production, Eylandoo API always returns numeric IDs, so this scenario shouldn't occur
+    // This test verifies graceful handling of malformed API responses
+    // NOTE: Both nodes have ID 0, which is acceptable for this edge case test
     expect($nodes)->toHaveCount(2)
         ->and($nodes[0]['id'])->toBe(0) // 'n1' converts to 0 as integer
         ->and($nodes[0]['name'])->toBe('n1') // Original ID value used as name before conversion
-        ->and($nodes[1]['id'])->toBe(0) // 'n2' converts to 0 as integer
+        ->and($nodes[1]['id'])->toBe(0) // 'n2' converts to 0 as integer (collision with node 0)
         ->and($nodes[1]['name'])->toBe('n2'); // Original ID value used as name before conversion
 });
 
