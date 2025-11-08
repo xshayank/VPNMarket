@@ -80,8 +80,11 @@ class ConfigController extends Controller
         }
 
         // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
+        // Feature flag allows disabling this in emergencies
+        $eylandooFeaturesEnabled = config('app.eylandoo_features_enabled', env('EYLANDOO_FEATURES_ENABLED', true));
+        
         foreach ($panels as $panel) {
-            if ($this->isEylandooPanel($panel->panel_type)) {
+            if ($eylandooFeaturesEnabled && $this->isEylandooPanel($panel->panel_type)) {
                 $showNodesSelector = true;
                 
                 // Use cached method (5 minute cache) with null safety
