@@ -34,23 +34,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ResellerConfig::class, \App\Policies\ResellerConfigPolicy::class);
         Gate::policy(\App\Models\Panel::class, \App\Policies\PanelPolicy::class);
 
-        // Register observers for audit safety net - wrap in try/catch for safety
-        try {
-            ResellerConfig::observe(ResellerConfigObserver::class);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to register ResellerConfigObserver', [
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        try {
-            Reseller::observe(ResellerObserver::class);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to register ResellerObserver', [
-                'error' => $e->getMessage(),
-            ]);
-        }
-
+        // Register observers for audit safety net
+        ResellerConfig::observe(ResellerConfigObserver::class);
+        Reseller::observe(ResellerObserver::class);
         User::creating(function ($user) {
             do {
 
