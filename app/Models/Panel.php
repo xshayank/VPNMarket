@@ -80,7 +80,7 @@ class Panel extends Model
      */
     public function getCachedEylandooNodes(): array
     {
-        if ($this->panel_type !== 'eylandoo') {
+        if (strtolower(trim($this->panel_type ?? '')) !== 'eylandoo') {
             return [];
         }
 
@@ -101,6 +101,16 @@ class Panel extends Model
                     return [];
                 }
                 
+                // Validate URL format
+                $baseUrl = trim($credentials['url']);
+                if (!filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+                    \Illuminate\Support\Facades\Log::warning("Eylandoo nodes fetch: Invalid URL for panel {$this->id}", [
+                        'panel_id' => $this->id,
+                        'panel_name' => $this->name,
+                    ]);
+                    return [];
+                }
+                
                 $service = new \App\Services\EylandooService(
                     $credentials['url'],
                     $credentials['api_token'],
@@ -108,6 +118,16 @@ class Panel extends Model
                 );
                 
                 $nodes = $service->listNodes();
+                
+                // Ensure we return an array
+                if (!is_array($nodes)) {
+                    \Illuminate\Support\Facades\Log::warning("Eylandoo nodes fetch: API returned non-array for panel {$this->id}", [
+                        'panel_id' => $this->id,
+                        'panel_name' => $this->name,
+                        'response_type' => gettype($nodes),
+                    ]);
+                    return [];
+                }
                 
                 if (empty($nodes)) {
                     \Illuminate\Support\Facades\Log::info("Eylandoo nodes fetch: API returned no nodes for panel {$this->id}", [
@@ -126,7 +146,6 @@ class Panel extends Model
                     'panel_name' => $this->name,
                     'exception' => get_class($e),
                     'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
                 ]);
                 return [];
             }

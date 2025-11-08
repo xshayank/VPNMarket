@@ -86,7 +86,7 @@
                     </div>
 
                     <!-- Max clients field for Eylandoo -->
-                    @if($config->panel_type === 'eylandoo')
+                    @if(isset($config->panel_type) && strtolower(trim($config->panel_type)) === 'eylandoo')
                     <div>
                         <label for="max_clients" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 text-right">
                             حداکثر تعداد کلاینت‌های همزمان <span class="text-red-500">*</span>

@@ -37,7 +37,6 @@ class AppServiceProvider extends ServiceProvider
         // Register observers for audit safety net
         ResellerConfig::observe(ResellerConfigObserver::class);
         Reseller::observe(ResellerObserver::class);
-
         User::creating(function ($user) {
             do {
 

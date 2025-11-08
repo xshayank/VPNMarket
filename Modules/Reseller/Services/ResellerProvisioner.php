@@ -271,92 +271,115 @@ class ResellerProvisioner
      */
     protected function provisionEylandoo(array $credentials, Plan $plan, string $username, array $options): ?array
     {
+        // Validate credentials before attempting API calls
+        if (empty($credentials['url']) || empty($credentials['api_token'])) {
+            Log::warning('Eylandoo provision: Missing credentials', [
+                'has_url' => !empty($credentials['url']),
+                'has_api_token' => !empty($credentials['api_token']),
+                'username' => $username,
+            ]);
+            return null;
+        }
+
         $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
 
-        $service = new EylandooService(
-            $credentials['url'],
-            $credentials['api_token'],
-            $nodeHostname
-        );
+        try {
+            $service = new EylandooService(
+                $credentials['url'],
+                $credentials['api_token'],
+                $nodeHostname
+            );
 
-        $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
-        $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
+            $expiresAt = $options['expires_at'] ?? now()->addDays($plan->duration_days);
+            $trafficLimit = $options['traffic_limit_bytes'] ?? ($plan->volume_gb * 1024 * 1024 * 1024);
 
-        // Accept both 'max_clients' and 'connections' parameters
-        $maxClients = $options['max_clients'] ?? $options['connections'] ?? 1;
+            // Accept both 'max_clients' and 'connections' parameters, default to 1
+            $maxClients = (int) ($options['max_clients'] ?? $options['connections'] ?? 1);
+            if ($maxClients <= 0) {
+                $maxClients = 1;
+            }
 
-        // Accept both 'nodes' and 'node_ids' parameters and normalize to array of integers
-        $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
-        if (!empty($nodes) && is_array($nodes)) {
-            $nodes = array_map('intval', $nodes);
-        }
+            // Accept both 'nodes' and 'node_ids' parameters and normalize to array of integers
+            $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
+            if (!empty($nodes) && is_array($nodes)) {
+                $nodes = array_map('intval', $nodes);
+            } elseif (!is_array($nodes)) {
+                $nodes = [];
+            }
 
-        // Only include nodes if array is non-empty
-        $userData = [
-            'username' => $username,
-            'expire' => $expiresAt->timestamp,
-            'data_limit' => $trafficLimit,
-            'max_clients' => $maxClients,
-        ];
-
-        // Only add nodes if the array is non-empty
-        if (! empty($nodes) && is_array($nodes)) {
-            $userData['nodes'] = $nodes;
-            Log::debug('Eylandoo provision: Including nodes in user data', [
+            // Only include nodes if array is non-empty
+            $userData = [
                 'username' => $username,
-                'nodes' => $nodes,
-                'nodes_count' => count($nodes),
-            ]);
-        }
+                'expire' => $expiresAt->timestamp,
+                'data_limit' => $trafficLimit,
+                'max_clients' => $maxClients,
+            ];
 
-        $result = $service->createUser($userData);
-
-        Log::info('Eylandoo provision result:', ['result' => $result, 'username' => $username]);
-
-        // Detect success: either result.success === true or created_users contains username
-        $success = false;
-        if ($result) {
-            // Check for success flag
-            if (isset($result['success']) && $result['success'] === true) {
-                $success = true;
-            }
-            // Or check if created_users array contains this username
-            elseif (isset($result['created_users']) && is_array($result['created_users']) && in_array($username, $result['created_users'])) {
-                $success = true;
-            }
-        }
-
-        if ($success) {
-            $subscriptionUrl = null;
-
-            // First, try to extract subscription URL from create response
-            if ($service->extractSubscriptionUrl($result)) {
-                $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
+            // Only add nodes if the array is non-empty
+            if (! empty($nodes) && is_array($nodes)) {
+                $userData['nodes'] = $nodes;
+                Log::debug('Eylandoo provision: Including nodes in user data', [
+                    'username' => $username,
+                    'nodes' => $nodes,
+                    'nodes_count' => count($nodes),
+                ]);
             }
 
-            // If no subscription URL in create response, fetch from dedicated subscription endpoint
-            if (empty($subscriptionUrl)) {
-                Log::info("No subscription URL in create response for {$username}, fetching from /sub endpoint");
+            $result = $service->createUser($userData);
 
-                $subResponse = $service->getUserSubscription($username);
-                if ($subResponse) {
-                    Log::info('Eylandoo subscription endpoint response:', ['subResponse' => $subResponse]);
+            Log::info('Eylandoo provision result:', ['result' => $result, 'username' => $username]);
 
-                    // Extract subscription URL from /sub response
-                    $subscriptionUrl = $service->extractSubscriptionUrlFromSub($subResponse);
-                    Log::info('Extracted subscription URL:', ['username' => $username, 'subscription_url' => $subscriptionUrl]);
+            // Detect success: either result.success === true or created_users contains username
+            $success = false;
+            if ($result && is_array($result)) {
+                // Check for success flag
+                if (isset($result['success']) && $result['success'] === true) {
+                    $success = true;
+                }
+                // Or check if created_users array contains this username
+                elseif (isset($result['created_users']) && is_array($result['created_users']) && in_array($username, $result['created_users'])) {
+                    $success = true;
                 }
             }
 
-            return [
-                'username' => $username,
-                'subscription_url' => $subscriptionUrl,
-                'panel_type' => 'eylandoo',
-                'panel_user_id' => $username,
-            ];
-        }
+            if ($success) {
+                $subscriptionUrl = null;
 
-        return null;
+                // First, try to extract subscription URL from create response
+                if ($service->extractSubscriptionUrl($result)) {
+                    $subscriptionUrl = $service->buildAbsoluteSubscriptionUrl($result);
+                }
+
+                // If no subscription URL in create response, fetch from dedicated subscription endpoint
+                if (empty($subscriptionUrl)) {
+                    Log::info("No subscription URL in create response for {$username}, fetching from /sub endpoint");
+
+                    $subResponse = $service->getUserSubscription($username);
+                    if ($subResponse) {
+                        Log::info('Eylandoo subscription endpoint response:', ['subResponse' => $subResponse]);
+
+                        // Extract subscription URL from /sub response
+                        $subscriptionUrl = $service->extractSubscriptionUrlFromSub($subResponse);
+                        Log::info('Extracted subscription URL:', ['username' => $username, 'subscription_url' => $subscriptionUrl]);
+                    }
+                }
+
+                return [
+                    'username' => $username,
+                    'subscription_url' => $subscriptionUrl,
+                    'panel_type' => 'eylandoo',
+                    'panel_user_id' => $username,
+                ];
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Eylandoo provision exception', [
+                'username' => $username,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**
@@ -407,6 +430,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('disableUser Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -469,6 +500,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('enableUser Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -590,6 +629,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('deleteUser Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -663,6 +710,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('updateUserLimits Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -763,6 +818,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('updateUser Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -841,6 +904,14 @@ class ResellerProvisioner
                     break;
 
                 case 'eylandoo':
+                    // Validate credentials
+                    if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                        Log::warning('resetUserUsage Eylandoo: Missing credentials', [
+                            'panel_user_id' => $panelUserId,
+                        ]);
+                        return false;
+                    }
+
                     $nodeHostname = $credentials['extra']['node_hostname'] ?? $credentials['node_hostname'] ?? '';
                     $service = new EylandooService(
                         $credentials['url'],
@@ -864,20 +935,32 @@ class ResellerProvisioner
      */
     public function fetchEylandooNodes(Panel $panel): array
     {
-        if ($panel->panel_type !== 'eylandoo') {
+        if (!$panel || strtolower(trim($panel->panel_type ?? '')) !== 'eylandoo') {
             return [];
         }
 
         try {
             $credentials = $panel->getCredentials();
 
-            // Validate credentials
+            // Validate credentials before attempting API calls
             if (empty($credentials['url']) || empty($credentials['api_token'])) {
                 Log::warning('fetchEylandooNodes: Missing credentials', [
                     'panel_id' => $panel->id,
                     'panel_name' => $panel->name,
+                    'has_url' => !empty($credentials['url']),
+                    'has_api_token' => !empty($credentials['api_token']),
                 ]);
 
+                return [];
+            }
+
+            // Short circuit for invalid base URL
+            $baseUrl = trim($credentials['url']);
+            if (empty($baseUrl) || !filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+                Log::warning('fetchEylandooNodes: Invalid base URL', [
+                    'panel_id' => $panel->id,
+                    'panel_name' => $panel->name,
+                ]);
                 return [];
             }
 
@@ -891,6 +974,16 @@ class ResellerProvisioner
 
             $nodes = $service->listNodes();
 
+            // Ensure we return an array
+            if (!is_array($nodes)) {
+                Log::warning('fetchEylandooNodes: API returned non-array', [
+                    'panel_id' => $panel->id,
+                    'panel_name' => $panel->name,
+                    'response_type' => gettype($nodes),
+                ]);
+                return [];
+            }
+
             if (empty($nodes)) {
                 Log::info('fetchEylandooNodes: No nodes returned from API', [
                     'panel_id' => $panel->id,
@@ -898,7 +991,18 @@ class ResellerProvisioner
                 ]);
             }
 
-            return $nodes;
+            // Validate and normalize node structure
+            $normalizedNodes = [];
+            foreach ($nodes as $node) {
+                if (is_array($node) && isset($node['id'])) {
+                    $normalizedNodes[] = [
+                        'id' => (int) $node['id'],
+                        'name' => $node['name'] ?? "Node {$node['id']}",
+                    ];
+                }
+            }
+
+            return $normalizedNodes;
         } catch (\Exception $e) {
             Log::error('fetchEylandooNodes: Exception occurred', [
                 'panel_id' => $panel->id,

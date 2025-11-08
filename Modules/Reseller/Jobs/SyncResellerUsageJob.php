@@ -164,10 +164,7 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
         // Include settled_usage_bytes to prevent abuse (resellers resetting to bypass quota)
         // Subtract admin_forgiven_bytes to honor admin quota forgiveness
         // For display purposes, use getCurrentTrafficUsedBytes() which excludes settled
-        // CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
-        // This prevents accounting bug where deleting a config would erase its historical usage
         $totalUsageBytesFromDB = $reseller->configs()
-            ->withTrashed()
             ->get()
             ->sum(function ($config) {
                 return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);

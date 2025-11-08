@@ -85,30 +85,37 @@ class SyncResellerConfigUsage extends Command
 
             // Recalculate and persist reseller aggregate immediately
             // Include settled_usage_bytes to prevent abuse
-            // CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
-            // This prevents accounting bug where deleting a config would erase its historical usage
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
             $reseller = $config->reseller;
             $oldResellerUsage = $reseller->traffic_used_bytes;
             $totalUsageBytesFromDB = $reseller->configs()
-                ->withTrashed()
                 ->get()
                 ->sum(function ($c) {
                     return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
                 });
-            $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
+            
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
+            $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
+            $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
+            
+            $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
             $this->info('💾 Updated reseller aggregate traffic_used_bytes');
             $this->line("  Reseller ID: {$reseller->id}");
+            $this->line("  Total from configs: {$totalUsageBytesFromDB} bytes ({$this->formatBytes($totalUsageBytesFromDB)})");
+            $this->line("  Admin forgiven: {$adminForgivenBytes} bytes ({$this->formatBytes($adminForgivenBytes)})");
             $this->line("  Previous: {$oldResellerUsage} bytes ({$this->formatBytes($oldResellerUsage)})");
-            $this->line("  Current:  {$totalUsageBytesFromDB} bytes ({$this->formatBytes($totalUsageBytesFromDB)})");
-            $this->line('  Delta:    '.($totalUsageBytesFromDB - $oldResellerUsage).' bytes ('.$this->formatBytes($totalUsageBytesFromDB - $oldResellerUsage).')');
+            $this->line("  Current:  {$effectiveUsageBytes} bytes ({$this->formatBytes($effectiveUsageBytes)})");
+            $this->line('  Delta:    '.($effectiveUsageBytes - $oldResellerUsage).' bytes ('.$this->formatBytes($effectiveUsageBytes - $oldResellerUsage).')');
             $this->newLine();
 
             Log::info('Manual config sync updated reseller aggregate', [
                 'reseller_id' => $reseller->id,
                 'config_id' => $config->id,
                 'old_reseller_usage_bytes' => $oldResellerUsage,
-                'new_reseller_usage_bytes' => $totalUsageBytesFromDB,
+                'total_from_configs' => $totalUsageBytesFromDB,
+                'admin_forgiven_bytes' => $adminForgivenBytes,
+                'new_reseller_usage_bytes' => $effectiveUsageBytes,
             ]);
 
             $this->info('✅ Sync completed successfully');

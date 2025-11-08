@@ -16,9 +16,23 @@ use Modules\Reseller\Services\ResellerProvisioner;
 
 class ConfigController extends Controller
 {
+    /**
+     * Check if panel type is Eylandoo (case-insensitive, typo-safe)
+     */
+    private function isEylandooPanel(?string $panelType): bool
+    {
+        return $panelType && strtolower(trim($panelType)) === 'eylandoo';
+    }
+
     public function index(Request $request)
     {
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return redirect()->route('reseller.dashboard')
+                ->with('error', 'Reseller account not found.');
+        }
 
         if (! $reseller->isTrafficBased()) {
             return redirect()->route('reseller.dashboard')
@@ -36,6 +50,12 @@ class ConfigController extends Controller
     public function create(Request $request)
     {
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return redirect()->route('reseller.dashboard')
+                ->with('error', 'Reseller account not found.');
+        }
 
         if (! $reseller->isTrafficBased()) {
             return redirect()->route('reseller.dashboard')
@@ -60,20 +80,40 @@ class ConfigController extends Controller
         }
 
         // Fetch Eylandoo nodes for each Eylandoo panel, filtered by reseller's allowed nodes
+        // Feature flag allows disabling this in emergencies
+        $eylandooFeaturesEnabled = config('app.eylandoo_features_enabled', env('EYLANDOO_FEATURES_ENABLED', true));
+        
         foreach ($panels as $panel) {
-            if ($panel->panel_type === 'eylandoo') {
+            if ($eylandooFeaturesEnabled && $this->isEylandooPanel($panel->panel_type)) {
                 $showNodesSelector = true;
                 
-                // Use cached method (5 minute cache)
-                $allNodes = $panel->getCachedEylandooNodes();
+                // Use cached method (5 minute cache) with null safety
+                $allNodes = [];
+                try {
+                    $allNodes = $panel->getCachedEylandooNodes() ?? [];
+                } catch (\Exception $e) {
+                    Log::warning('Failed to fetch Eylandoo nodes for panel', [
+                        'panel_id' => $panel->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                
+                // Ensure allNodes is an array
+                if (!is_array($allNodes)) {
+                    $allNodes = [];
+                }
                 
                 // If reseller has node whitelist, filter nodes
                 if ($reseller->eylandoo_allowed_node_ids && !empty($reseller->eylandoo_allowed_node_ids)) {
-                    // Normalize allowed node IDs to integers
-                    $allowedNodeIds = array_map('intval', $reseller->eylandoo_allowed_node_ids);
+                    // Normalize allowed node IDs to integers with null safety
+                    $allowedNodeIds = array_map('intval', (array) $reseller->eylandoo_allowed_node_ids);
                     $nodes = array_filter($allNodes, function($node) use ($allowedNodeIds) {
+                        // Ensure node is array and has id key
+                        if (!is_array($node) || !isset($node['id'])) {
+                            return false;
+                        }
                         // Strict comparison - both IDs are now integers
-                        return in_array($node['id'], $allowedNodeIds, true);
+                        return in_array((int) $node['id'], $allowedNodeIds, true);
                     });
                 } else {
                     $nodes = $allNodes;
@@ -93,7 +133,7 @@ class ConfigController extends Controller
                             'name' => "Node {$id} (default)",
                             'is_default' => true,
                         ];
-                    }, $defaultNodeIds);
+                    }, (array) $defaultNodeIds);
                 }
                 
                 // Log node selection data for debugging (only if app.debug is true)
@@ -103,7 +143,7 @@ class ConfigController extends Controller
                         'panel_id' => $panel->id,
                         'panel_type' => $panel->panel_type,
                         'all_nodes_count' => count($allNodes),
-                        'filtered_nodes_count' => count($nodesOptions[$panel->id]),
+                        'filtered_nodes_count' => count($nodesOptions[$panel->id] ?? []),
                         'has_node_whitelist' => !empty($reseller->eylandoo_allowed_node_ids),
                         'allowed_node_ids' => $reseller->eylandoo_allowed_node_ids ?? [],
                         'showNodesSelector' => $showNodesSelector,
@@ -125,6 +165,11 @@ class ConfigController extends Controller
     public function store(Request $request)
     {
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
 
         if (! $reseller->isTrafficBased()) {
             return back()->with('error', 'This feature is only available for traffic-based resellers.');
@@ -181,12 +226,12 @@ class ConfigController extends Controller
         }
 
         // Validate Eylandoo node whitelist
-        $nodeIds = array_map('intval', $request->node_ids ?? []);
+        $nodeIds = array_map('intval', (array) ($request->node_ids ?? []));
         $filteredOutCount = 0;
         
-        if ($panel->panel_type === 'eylandoo' && $reseller->eylandoo_allowed_node_ids) {
+        if ($this->isEylandooPanel($panel->panel_type) && $reseller->eylandoo_allowed_node_ids) {
             // Normalize allowed node IDs to integers
-            $allowedNodeIds = array_map('intval', $reseller->eylandoo_allowed_node_ids);
+            $allowedNodeIds = array_map('intval', (array) $reseller->eylandoo_allowed_node_ids);
 
             foreach ($nodeIds as $nodeId) {
                 // Strict comparison - both IDs are now integers
@@ -207,7 +252,7 @@ class ConfigController extends Controller
         }
         
         // Log node selection for Eylandoo configs
-        if ($panel->panel_type === 'eylandoo') {
+        if ($this->isEylandooPanel($panel->panel_type)) {
             Log::info('Config creation with Eylandoo nodes', [
                 'reseller_id' => $reseller->id,
                 'panel_id' => $panel->id,
@@ -239,7 +284,7 @@ class ConfigController extends Controller
             $maxClients = (int) ($request->input('max_clients', 1));
             
             // Log max_clients for debugging (only if app.debug is true)
-            if (config('app.debug') && $panel->panel_type === 'eylandoo') {
+            if (config('app.debug') && $this->isEylandooPanel($panel->panel_type)) {
                 Log::debug('Config creation with max_clients', [
                     'reseller_id' => $reseller->id,
                     'panel_id' => $panel->id,
@@ -312,6 +357,11 @@ class ConfigController extends Controller
     public function disable(Request $request, ResellerConfig $config)
     {
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
 
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
@@ -389,6 +439,11 @@ class ConfigController extends Controller
     public function enable(Request $request, ResellerConfig $config)
     {
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
 
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
@@ -472,6 +527,11 @@ class ConfigController extends Controller
     {
         $reseller = $request->user()->reseller;
 
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
+
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
         }
@@ -533,6 +593,12 @@ class ConfigController extends Controller
 
         $reseller = $request->user()->reseller;
 
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return redirect()->route('reseller.dashboard')
+                ->with('error', 'Reseller account not found.');
+        }
+
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
         }
@@ -549,6 +615,11 @@ class ConfigController extends Controller
         $this->authorize('update', $config);
 
         $reseller = $request->user()->reseller;
+
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
 
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
@@ -602,7 +673,7 @@ class ConfigController extends Controller
                     $provisioner = new ResellerProvisioner;
 
                     // For Eylandoo panels, use updateUser to support max_clients updates
-                    if ($panel->panel_type === 'eylandoo') {
+                    if ($this->isEylandooPanel($panel->panel_type)) {
                         $remoteResult = $provisioner->updateUser(
                             $panel->panel_type,
                             $panel->getCredentials(),
@@ -695,6 +766,11 @@ class ConfigController extends Controller
 
         $reseller = $request->user()->reseller;
 
+        // Null safety: check if reseller exists
+        if (!$reseller) {
+            return back()->with('error', 'Reseller account not found.');
+        }
+
         if ($config->reseller_id !== $reseller->id) {
             abort(403);
         }
@@ -714,7 +790,7 @@ class ConfigController extends Controller
             $meta['last_reset_at'] = now()->toDateTimeString();
 
             // For Eylandoo configs, also zero the meta usage fields
-            if ($config->panel_type === 'eylandoo') {
+            if ($this->isEylandooPanel($config->panel_type)) {
                 $meta['used_traffic'] = 0;
                 $meta['data_used'] = 0;
             }
@@ -752,21 +828,26 @@ class ConfigController extends Controller
 
             // Recalculate and persist reseller aggregate after reset
             // Include settled_usage_bytes to prevent abuse
-            // CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
-            // This prevents accounting bug where deleting a config would erase its historical usage
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
             $reseller = $config->reseller;
             $totalUsageBytesFromDB = $reseller->configs()
-                ->withTrashed()
                 ->get()
                 ->sum(function ($c) {
                     return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
                 });
-            $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
+            
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
+            $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
+            $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
+            
+            $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
             Log::info('Config reset updated reseller aggregate', [
                 'reseller_id' => $reseller->id,
                 'config_id' => $config->id,
-                'new_reseller_usage_bytes' => $totalUsageBytesFromDB,
+                'total_from_configs' => $totalUsageBytesFromDB,
+                'admin_forgiven_bytes' => $adminForgivenBytes,
+                'new_reseller_usage_bytes' => $effectiveUsageBytes,
             ]);
 
             ResellerConfigEvent::create([
