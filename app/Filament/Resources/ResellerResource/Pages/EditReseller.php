@@ -95,8 +95,9 @@ class EditReseller extends EditRecord
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
                         
-                        // Calculate the actual usage from configs
+                        // Calculate the actual usage from configs (include soft-deleted configs)
                         $totalUsageFromConfigs = $this->record->configs()
+                            ->withTrashed()
                             ->get()
                             ->sum(function ($config) {
                                 return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
