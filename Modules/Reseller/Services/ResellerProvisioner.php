@@ -295,6 +295,9 @@ class ResellerProvisioner
 
             // Accept both 'max_clients' and 'connections' parameters, default to 1
             $maxClients = (int) ($options['max_clients'] ?? $options['connections'] ?? 1);
+            if ($maxClients <= 0) {
+                $maxClients = 1;
+            }
 
             // Accept both 'nodes' and 'node_ids' parameters and normalize to array of integers
             $nodes = $options['nodes'] ?? $options['node_ids'] ?? [];
