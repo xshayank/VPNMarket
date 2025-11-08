@@ -828,21 +828,26 @@ class ConfigController extends Controller
 
             // Recalculate and persist reseller aggregate after reset
             // Include settled_usage_bytes to prevent abuse
-            // CRITICAL: Use withTrashed() to include soft-deleted configs in usage calculation
-            // This prevents accounting bug where deleting a config would erase its historical usage
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
             $reseller = $config->reseller;
             $totalUsageBytesFromDB = $reseller->configs()
-                ->withTrashed()
                 ->get()
                 ->sum(function ($c) {
                     return $c->usage_bytes + (int) data_get($c->meta, 'settled_usage_bytes', 0);
                 });
-            $reseller->update(['traffic_used_bytes' => $totalUsageBytesFromDB]);
+            
+            // Subtract admin_forgiven_bytes to honor admin quota forgiveness
+            $adminForgivenBytes = $reseller->admin_forgiven_bytes ?? 0;
+            $effectiveUsageBytes = max(0, $totalUsageBytesFromDB - $adminForgivenBytes);
+            
+            $reseller->update(['traffic_used_bytes' => $effectiveUsageBytes]);
 
             Log::info('Config reset updated reseller aggregate', [
                 'reseller_id' => $reseller->id,
                 'config_id' => $config->id,
-                'new_reseller_usage_bytes' => $totalUsageBytesFromDB,
+                'total_from_configs' => $totalUsageBytesFromDB,
+                'admin_forgiven_bytes' => $adminForgivenBytes,
+                'new_reseller_usage_bytes' => $effectiveUsageBytes,
             ]);
 
             ResellerConfigEvent::create([
