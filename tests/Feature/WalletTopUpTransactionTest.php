@@ -4,12 +4,14 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Reseller;
 use App\Models\Order;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
+uses(RefreshDatabase::class);
+
 beforeEach(function () {
-    // Run migrations and seed roles/permissions
-    $this->artisan('migrate:fresh');
+    // Seed roles/permissions
     $this->artisan('db:seed', ['--class' => 'RbacSeeder']);
     $this->artisan('db:seed', ['--class' => 'WalletTopUpPermissionsSeeder']);
 });
@@ -154,6 +156,75 @@ test('suspended wallet reseller is reactivated when balance exceeds threshold', 
     
     expect($reseller->fresh()->status)->toBe('active');
     expect($reseller->fresh()->wallet_balance)->toBe(3000);
+});
+
+test('wallet charge submission creates pending transaction for regular user', function () {
+    $user = User::factory()->create(['balance' => 0]);
+    
+    // Simulate wallet charge submission
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 100000
+        ])
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas('status');
+    
+    // Verify pending transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+    
+    expect($transaction)->not->toBeNull();
+    expect($transaction->amount)->toBe(100000);
+    expect($transaction->status)->toBe(Transaction::STATUS_PENDING);
+    expect($transaction->description)->toContain('شارژ کیف پول');
+    expect($transaction->order_id)->toBeNull();
+});
+
+test('wallet charge submission creates pending transaction for wallet reseller', function () {
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'wallet',
+        'wallet_balance' => 5000,
+    ]);
+    
+    // Simulate wallet charge submission
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 50000
+        ])
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas('status');
+    
+    // Verify pending transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+    
+    expect($transaction)->not->toBeNull();
+    expect($transaction->amount)->toBe(50000);
+    expect($transaction->status)->toBe(Transaction::STATUS_PENDING);
+    expect($transaction->description)->toContain('ریسلر');
+    expect($transaction->order_id)->toBeNull();
+});
+
+test('wallet charge submission validates minimum amount', function () {
+    $user = User::factory()->create();
+    
+    // Try to submit with amount less than minimum
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 5000  // Less than 10000 minimum
+        ])
+        ->assertSessionHasErrors('amount');
+    
+    // Verify no transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+    
+    expect($transaction)->toBeNull();
 });
 
 test('order approval creates pending transaction', function () {

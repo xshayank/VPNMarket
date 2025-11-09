@@ -181,6 +181,14 @@ class WalletTopUpTransactionResource extends Resource
                                 // For wallet-based resellers, charge their reseller wallet
                                 $reseller->increment('wallet_balance', $record->amount);
                                 
+                                Log::info('Wallet charge approved for reseller', [
+                                    'transaction_id' => $record->id,
+                                    'reseller_id' => $reseller->id,
+                                    'user_id' => $user->id,
+                                    'amount' => $record->amount,
+                                    'new_balance' => $reseller->fresh()->wallet_balance,
+                                ]);
+                                
                                 // Check if reseller was suspended and should be reactivated
                                 if (method_exists($reseller, 'isSuspendedWallet') && 
                                     $reseller->isSuspendedWallet() && 
@@ -200,6 +208,13 @@ class WalletTopUpTransactionResource extends Resource
                             } else {
                                 // For regular users, charge their user balance
                                 $user->increment('balance', $record->amount);
+                                
+                                Log::info('Wallet charge approved for user', [
+                                    'transaction_id' => $record->id,
+                                    'user_id' => $user->id,
+                                    'amount' => $record->amount,
+                                    'new_balance' => $user->fresh()->balance,
+                                ]);
                                 
                                 Notification::make()
                                     ->title('کیف پول کاربر با موفقیت شارژ شد.')
@@ -244,6 +259,12 @@ class WalletTopUpTransactionResource extends Resource
                     ->visible(fn (Transaction $record): bool => $record->status === Transaction::STATUS_PENDING)
                     ->action(function (Transaction $record) {
                         $record->update(['status' => Transaction::STATUS_FAILED]);
+                        
+                        Log::info('Wallet charge rejected', [
+                            'transaction_id' => $record->id,
+                            'user_id' => $record->user_id,
+                            'amount' => $record->amount,
+                        ]);
                         
                         Notification::make()
                             ->title('درخواست شارژ رد شد.')
