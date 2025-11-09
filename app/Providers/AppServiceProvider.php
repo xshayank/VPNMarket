@@ -33,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Reseller::class, \App\Policies\ResellerPolicy::class);
         Gate::policy(ResellerConfig::class, \App\Policies\ResellerConfigPolicy::class);
         Gate::policy(\App\Models\Panel::class, \App\Policies\PanelPolicy::class);
+        Gate::policy(\App\Models\Transaction::class, \App\Policies\WalletTopUpTransactionPolicy::class);
 
         // Register observers for audit safety net
         ResellerConfig::observe(ResellerConfigObserver::class);
