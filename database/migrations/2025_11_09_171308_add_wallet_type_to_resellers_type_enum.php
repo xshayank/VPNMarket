@@ -7,7 +7,7 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
+     *
      * This migration is idempotent - it checks the current column type before altering.
      */
     public function up(): void
@@ -19,18 +19,18 @@ return new class extends Migration
 
         // Query information_schema to get current column definition
         $columnInfo = DB::selectOne(
-            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS 
-             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS 
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
             [$database, $tableName, $columnName]
         );
 
         if ($columnInfo) {
             $columnType = $columnInfo->COLUMN_TYPE;
-            
+
             // Check if it's an ENUM type
             if (str_starts_with($columnType, 'enum')) {
                 // Check if 'wallet' is already in the ENUM
-                if (!str_contains($columnType, "'wallet'")) {
+                if (! str_contains($columnType, "'wallet'")) {
                     // Alter the ENUM to include 'wallet'
                     DB::statement("ALTER TABLE `{$tableName}` 
                         MODIFY COLUMN `{$columnName}` 
@@ -46,7 +46,7 @@ return new class extends Migration
 
     /**
      * Reverse the migrations.
-     * 
+     *
      * Note: Removing 'wallet' from the ENUM would fail if any rows have type='wallet'.
      * This down migration will only succeed if no wallet-type resellers exist.
      */
@@ -60,8 +60,8 @@ return new class extends Migration
 
         if ($walletCount > 0) {
             throw new \RuntimeException(
-                "Cannot rollback: {$walletCount} reseller(s) with type='wallet' exist. " .
-                "Remove or update them before rolling back this migration."
+                "Cannot rollback: {$walletCount} reseller(s) with type='wallet' exist. ".
+                'Remove or update them before rolling back this migration.'
             );
         }
 

@@ -14,7 +14,9 @@ class Reseller extends Model
 
     // Reseller type constants
     public const TYPE_PLAN = 'plan';
+
     public const TYPE_TRAFFIC = 'traffic';
+
     public const TYPE_WALLET = 'wallet';
 
     protected $fillable = [
@@ -52,8 +54,8 @@ class Reseller extends Model
 
     /**
      * Normalize an ID array field to integers
-     * 
-     * @param mixed $value The value to normalize
+     *
+     * @param  mixed  $value  The value to normalize
      * @return array|null Array of integers or null
      */
     private function normalizeIdArray($value): ?array
@@ -61,16 +63,17 @@ class Reseller extends Model
         if ($value === null) {
             return null;
         }
-        
+
         if (is_string($value)) {
             $decoded = json_decode($value, true) ?? [];
+
             return array_map('intval', $decoded);
         }
-        
+
         if (is_array($value)) {
             return array_map('intval', $value);
         }
-        
+
         return [];
     }
 
@@ -155,6 +158,7 @@ class Reseller extends Model
 
     /**
      * Alias for backward compatibility during transition
+     *
      * @deprecated Use isWalletBased() instead
      */
     public function isWalletType(): bool
@@ -185,7 +189,7 @@ class Reseller extends Model
     /**
      * Get current traffic usage (excluding settled usage from resets)
      * This is used for display purposes to show resellers their current cycle usage
-     * 
+     *
      * @return int Current usage in bytes
      */
     public function getCurrentTrafficUsedBytes(): int
@@ -246,7 +250,7 @@ class Reseller extends Model
      */
     private function getWindowEndInAppTimezone(): ?\Illuminate\Support\Carbon
     {
-        if (!$this->window_ends_at) {
+        if (! $this->window_ends_at) {
             return null;
         }
 
@@ -259,12 +263,12 @@ class Reseller extends Model
     public function getTimeRemainingSeconds(): int
     {
         $windowEnd = $this->getWindowEndInAppTimezone();
-        if (!$windowEnd) {
+        if (! $windowEnd) {
             return 0;
         }
 
         $now = $this->getAppTimezoneNow();
-        
+
         // If window_ends_at is in the past, return 0
         if ($windowEnd->lte($now)) {
             return 0;
@@ -279,12 +283,12 @@ class Reseller extends Model
     public function getTimeRemainingDays(): int
     {
         $windowEnd = $this->getWindowEndInAppTimezone();
-        if (!$windowEnd) {
+        if (! $windowEnd) {
             return 0;
         }
 
         $now = $this->getAppTimezoneNow();
-        
+
         // If window_ends_at is in the past, return 0
         if ($windowEnd->lte($now)) {
             return 0;

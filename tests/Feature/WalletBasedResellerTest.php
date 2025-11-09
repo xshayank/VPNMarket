@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Panel;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\ResellerUsageSnapshot;
@@ -34,7 +33,7 @@ test('traffic based reseller isWalletBased returns false', function () {
 
 test('wallet based reseller gets default price per gb from config', function () {
     Config::set('billing.wallet.price_per_gb', 780);
-    
+
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
@@ -47,7 +46,7 @@ test('wallet based reseller gets default price per gb from config', function () 
 
 test('wallet based reseller gets custom price per gb when set', function () {
     Config::set('billing.wallet.price_per_gb', 780);
-    
+
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
@@ -191,7 +190,7 @@ test('usage snapshot can be created for reseller', function () {
 
     expect($snapshot->reseller_id)->toBe($reseller->id);
     expect($snapshot->total_bytes)->toBe(5 * 1024 * 1024 * 1024);
-    
+
     $reseller->refresh();
     expect($reseller->usageSnapshots()->count())->toBe(1);
 });
@@ -217,7 +216,7 @@ test('charging command creates snapshot', function () {
 
 test('charging command deducts correct amount from wallet', function () {
     Config::set('billing.wallet.price_per_gb', 1000);
-    
+
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
@@ -235,7 +234,7 @@ test('charging command deducts correct amount from wallet', function () {
     Artisan::call('reseller:charge-wallet-hourly');
 
     $reseller->refresh();
-    
+
     // Should charge 1 GB * 1000 = 1000 تومان
     expect($reseller->wallet_balance)->toBe(9000);
 });
@@ -243,7 +242,7 @@ test('charging command deducts correct amount from wallet', function () {
 test('charging command suspends reseller when balance too low', function () {
     Config::set('billing.wallet.suspension_threshold', -1000);
     Config::set('billing.wallet.price_per_gb', 5000);
-    
+
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
@@ -263,7 +262,7 @@ test('charging command suspends reseller when balance too low', function () {
     Artisan::call('reseller:charge-wallet-hourly');
 
     $reseller->refresh();
-    
+
     expect($reseller->status)->toBe('suspended_wallet');
     expect($reseller->wallet_balance)->toBeLessThanOrEqual(-1000);
 });
@@ -271,7 +270,7 @@ test('charging command suspends reseller when balance too low', function () {
 test('charging command disables configs when suspending reseller', function () {
     Config::set('billing.wallet.suspension_threshold', -1000);
     Config::set('billing.wallet.price_per_gb', 5000);
-    
+
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
@@ -287,7 +286,7 @@ test('charging command disables configs when suspending reseller', function () {
         'usage_bytes' => 1 * 1024 * 1024 * 1024,
         'status' => 'active',
     ]);
-    
+
     $config2 = ResellerConfig::factory()->create([
         'reseller_id' => $reseller->id,
         'usage_bytes' => 0,
@@ -298,7 +297,7 @@ test('charging command disables configs when suspending reseller', function () {
 
     $config1->refresh();
     $config2->refresh();
-    
+
     expect($config1->status)->toBe('disabled');
     expect($config2->status)->toBe('disabled');
 });
@@ -322,7 +321,7 @@ test('charging command only charges wallet-based resellers', function () {
         'reseller_id' => $walletReseller->id,
         'usage_bytes' => 1 * 1024 * 1024 * 1024,
     ]);
-    
+
     ResellerConfig::factory()->create([
         'reseller_id' => $trafficReseller->id,
         'usage_bytes' => 1 * 1024 * 1024 * 1024,
@@ -332,10 +331,10 @@ test('charging command only charges wallet-based resellers', function () {
 
     $walletReseller->refresh();
     $trafficReseller->refresh();
-    
+
     // Wallet reseller should be charged
     expect($walletReseller->wallet_balance)->toBeLessThan(10000);
-    
+
     // Traffic reseller should not be charged
     expect($trafficReseller->wallet_balance)->toBe(10000);
 });
