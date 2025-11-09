@@ -21,6 +21,37 @@ class DashboardController extends Controller
                 'total_accounts' => $reseller->orders()->where('status', 'fulfilled')->sum('quantity'),
                 'recent_orders' => $reseller->orders()->latest()->take(5)->with('plan')->get(),
             ];
+        } elseif ($reseller->isWalletBased()) {
+            // Wallet-based reseller stats
+            $totalConfigs = $reseller->configs()->count();
+            $configLimit = $reseller->config_limit;
+            $isUnlimitedLimit = is_null($configLimit) || $configLimit === 0;
+            $configsRemaining = $isUnlimitedLimit ? null : max($configLimit - $totalConfigs, 0);
+
+            // Calculate total traffic consumed
+            $configs = $reseller->configs()->get();
+            $trafficConsumedBytes = $configs->sum(function ($config) {
+                return $config->usage_bytes + (int) data_get($config->meta, 'settled_usage_bytes', 0);
+            });
+
+            $stats = [
+                'wallet_balance' => $reseller->wallet_balance,
+                'wallet_price_per_gb' => $reseller->getWalletPricePerGb(),
+                'traffic_consumed_bytes' => $trafficConsumedBytes,
+                'traffic_consumed_gb' => round($trafficConsumedBytes / (1024 * 1024 * 1024), 2),
+                'active_configs' => $reseller->configs()->where('status', 'active')->count(),
+                'total_configs' => $totalConfigs,
+                'recent_configs' => $reseller->configs()->latest()->take(10)->get(),
+                'config_limit' => $configLimit,
+                'configs_remaining' => $configsRemaining,
+                'is_unlimited_limit' => $isUnlimitedLimit,
+            ];
+
+            Log::info('Wallet-based reseller dashboard loaded', [
+                'reseller_id' => $reseller->id,
+                'wallet_balance' => $reseller->wallet_balance,
+                'traffic_consumed_gb' => $stats['traffic_consumed_gb'],
+            ]);
         } else {
             $totalConfigs = $reseller->configs()->count();
             $configLimit = $reseller->config_limit;

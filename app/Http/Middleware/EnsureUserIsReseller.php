@@ -25,7 +25,9 @@ class EnsureUserIsReseller
 
         $reseller = auth()->user()->reseller;
         
-        if ($reseller->isSuspended()) {
+        // For wallet-based suspended resellers, allow access (EnsureWalletAccess will redirect as needed)
+        // For traffic-based suspended resellers, block access
+        if ($reseller->isSuspended() && !$reseller->isWalletBased()) {
             abort(403, 'Your reseller account has been suspended. Please contact support.');
         }
 

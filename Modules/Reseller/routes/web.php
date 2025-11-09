@@ -17,7 +17,7 @@ use Modules\Reseller\Http\Controllers\TicketController;
 */
 
 Route::prefix('reseller')
-    ->middleware(['web', 'auth', 'reseller'])
+    ->middleware(['web', 'auth', 'reseller', 'wallet.access'])
     ->name('reseller.')
     ->group(function () {
         // Dashboard
