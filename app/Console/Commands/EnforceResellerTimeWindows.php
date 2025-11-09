@@ -48,12 +48,13 @@ class EnforceResellerTimeWindows extends Command
             Log::info('Starting reseller time window enforcement command');
 
             // Get all active traffic-based resellers and check both window and quota
+            // Wallet-based resellers are excluded - they are managed via wallet balance
             $activeResellers = Reseller::where('type', 'traffic')
                 ->where('status', 'active')
                 ->get();
 
             $this->info("Checking {$activeResellers->count()} active traffic resellers");
-            Log::info("Checking {$activeResellers->count()} active traffic resellers for suspension");
+            Log::info("Checking {$activeResellers->count()} active traffic resellers for suspension (wallet-based resellers excluded)");
 
             $suspendedCount = 0;
             $skippedCount = 0;

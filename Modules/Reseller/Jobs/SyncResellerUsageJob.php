@@ -87,9 +87,10 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
     {
         Log::notice('Starting reseller usage sync');
 
-        // Get all active resellers with traffic-based configs
+        // Get all active resellers with config management support (traffic-based and wallet-based)
+        // Both types need usage tracking - traffic for quota enforcement, wallet for hourly billing
         $resellers = Reseller::where('status', 'active')
-            ->where('type', 'traffic')
+            ->whereIn('type', ['traffic', 'wallet'])
             ->get();
 
         $totalEylandooConfigs = 0;
@@ -185,7 +186,14 @@ class SyncResellerUsageJob implements ShouldBeUnique, ShouldQueue
             'traffic_used_gb' => round($effectiveUsageBytes / (1024 * 1024 * 1024), 2),
         ]);
 
-        // Check reseller-level limits with grace
+        // Skip quota/window enforcement for wallet-based resellers
+        // They are managed via wallet balance in ChargeWalletResellersHourly
+        if ($reseller->isWalletBased()) {
+            Log::info("Skipping quota/window enforcement for wallet-based reseller {$reseller->id}");
+            return $eylandooCount;
+        }
+
+        // Check reseller-level limits with grace (traffic-based resellers only)
         $resellerGrace = $this->getResellerGraceSettings();
         $effectiveResellerLimit = $this->applyGrace(
             $reseller->traffic_total_bytes,
