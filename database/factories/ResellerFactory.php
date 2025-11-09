@@ -15,10 +15,13 @@ class ResellerFactory extends Factory
         return [
             'user_id' => User::factory(),
             'type' => $this->faker->randomElement(['plan', 'traffic']),
+            'billing_type' => 'traffic',
             'status' => 'active',
             'username_prefix' => null,
             'traffic_total_bytes' => null,
             'traffic_used_bytes' => 0,
+            'wallet_balance' => 0,
+            'wallet_price_per_gb' => null,
             'window_starts_at' => null,
             'window_ends_at' => null,
             'marzneshin_allowed_service_ids' => null,
@@ -47,6 +50,25 @@ class ResellerFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => 'suspended',
+        ]);
+    }
+
+    public function walletBased(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'traffic',
+            'billing_type' => 'wallet',
+            'wallet_balance' => 10000,
+            'wallet_price_per_gb' => null,
+        ]);
+    }
+
+    public function suspendedWallet(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_type' => 'wallet',
+            'status' => 'suspended_wallet',
+            'wallet_balance' => -2000,
         ]);
     }
 }
