@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\WalletTopUpTransactionResource\Pages;
 use App\Models\Transaction;
 use App\Models\Reseller;
+use App\Models\Setting;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -13,6 +14,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Telegram\Bot\Laravel\Facades\Telegram;
 
 class WalletTopUpTransactionResource extends Resource
 {
@@ -203,6 +206,28 @@ class WalletTopUpTransactionResource extends Resource
                                     ->body('مبلغ ' . number_format($record->amount) . ' تومان به کیف پول کاربر اضافه شد.')
                                     ->success()
                                     ->send();
+                            }
+                            
+                            // Send Telegram notification
+                            if ($user->telegram_chat_id) {
+                                try {
+                                    $settings = Setting::all()->pluck('value', 'key');
+                                    $balance = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased()) 
+                                        ? $reseller->fresh()->wallet_balance 
+                                        : $user->fresh()->balance;
+                                    
+                                    $telegramMessage = '✅ کیف پول شما به مبلغ *'.number_format($record->amount)." تومان* با موفقیت شارژ شد.\n\n";
+                                    $telegramMessage .= 'موجودی جدید شما: *'.number_format($balance).' تومان*';
+
+                                    Telegram::setAccessToken($settings->get('telegram_bot_token'));
+                                    Telegram::sendMessage([
+                                        'chat_id' => $user->telegram_chat_id,
+                                        'text' => $telegramMessage,
+                                        'parse_mode' => 'Markdown',
+                                    ]);
+                                } catch (\Exception $e) {
+                                    Log::error('Failed to send wallet charge notification via Telegram: '.$e->getMessage());
+                                }
                             }
                         });
                     }),
