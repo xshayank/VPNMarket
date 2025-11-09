@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         $driver = DB::getDriverName();
-        
+
         // SQLite doesn't support ALTER COLUMN for ENUM changes
         // Laravel's SQLite driver uses CHECK constraints instead
         if ($driver === 'sqlite') {
@@ -21,7 +21,7 @@ return new class extends Migration
             // No action needed - it can already store 'wallet'
             return;
         }
-        
+
         // For MySQL/MariaDB
         $tableName = 'resellers';
         $columnName = 'type';
@@ -63,12 +63,12 @@ return new class extends Migration
     public function down(): void
     {
         $driver = DB::getDriverName();
-        
+
         // SQLite doesn't support ALTER COLUMN for ENUM changes
         if ($driver === 'sqlite') {
             return;
         }
-        
+
         $tableName = 'resellers';
         $columnName = 'type';
 

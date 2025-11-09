@@ -70,13 +70,13 @@ class OrderController extends Controller
     {
         $user = Auth::user();
         $reseller = $user->reseller;
-        
+
         // For wallet-based resellers, show their reseller wallet balance
         // For other users, show their user balance
-        $walletBalance = $reseller && $reseller->isWalletBased() 
-            ? $reseller->wallet_balance 
+        $walletBalance = $reseller && $reseller->isWalletBased()
+            ? $reseller->wallet_balance
             : $user->balance;
-        
+
         return view('wallet.charge', [
             'walletBalance' => $walletBalance,
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
@@ -89,17 +89,17 @@ class OrderController extends Controller
     public function createChargeOrder(Request $request)
     {
         $request->validate([
-            'amount' => 'required|integer|min:10000'
+            'amount' => 'required|integer|min:10000',
         ]);
 
         $user = Auth::user();
         $reseller = $user->reseller;
-        
+
         // Determine the description based on user type
         $description = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
             ? 'شارژ کیف پول ریسلر (در انتظار تایید)'
             : 'شارژ کیف پول (در انتظار تایید)';
-        
+
         // Create pending transaction immediately for admin approval
         $transaction = Transaction::create([
             'user_id' => $user->id,
