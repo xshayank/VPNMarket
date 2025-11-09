@@ -161,10 +161,14 @@ test('suspended wallet reseller is reactivated when balance exceeds threshold', 
 test('wallet charge submission creates pending transaction for regular user', function () {
     $user = User::factory()->create(['balance' => 0]);
 
+    // Create a fake uploaded file
+    $file = \Illuminate\Http\UploadedFile::fake()->image('receipt.jpg', 600, 600)->size(1024);
+
     // Simulate wallet charge submission
     $this->actingAs($user)
         ->post(route('wallet.charge.create'), [
             'amount' => 100000,
+            'proof' => $file,
         ])
         ->assertRedirect(route('dashboard'))
         ->assertSessionHas('status');
@@ -179,6 +183,7 @@ test('wallet charge submission creates pending transaction for regular user', fu
     expect($transaction->status)->toBe(Transaction::STATUS_PENDING);
     expect($transaction->description)->toContain('شارژ کیف پول');
     expect($transaction->order_id)->toBeNull();
+    expect($transaction->proof_image_path)->not->toBeNull();
 });
 
 test('wallet charge submission creates pending transaction for wallet reseller', function () {
@@ -189,12 +194,16 @@ test('wallet charge submission creates pending transaction for wallet reseller',
         'wallet_balance' => 5000,
     ]);
 
+    // Create a fake uploaded file
+    $file = \Illuminate\Http\UploadedFile::fake()->image('receipt.jpg', 600, 600)->size(1024);
+
     // Simulate wallet charge submission
     $this->actingAs($user)
         ->post(route('wallet.charge.create'), [
             'amount' => 50000,
+            'proof' => $file,
         ])
-        ->assertRedirect(route('dashboard'))
+        ->assertRedirect('/reseller')
         ->assertSessionHas('status');
 
     // Verify pending transaction was created
@@ -207,6 +216,7 @@ test('wallet charge submission creates pending transaction for wallet reseller',
     expect($transaction->status)->toBe(Transaction::STATUS_PENDING);
     expect($transaction->description)->toContain('ریسلر');
     expect($transaction->order_id)->toBeNull();
+    expect($transaction->proof_image_path)->not->toBeNull();
 });
 
 test('wallet charge submission validates minimum amount', function () {
@@ -257,4 +267,95 @@ test('order approval creates pending transaction', function () {
     expect($transaction)->not->toBeNull();
     expect($transaction->status)->toBe(Transaction::STATUS_PENDING);
     expect($transaction->type)->toBe(Transaction::TYPE_DEPOSIT);
+});
+
+test('wallet charge submission requires proof image', function () {
+    $user = User::factory()->create();
+
+    // Try to submit without proof image
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 100000,
+        ])
+        ->assertSessionHasErrors('proof');
+
+    // Verify no transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+
+    expect($transaction)->toBeNull();
+});
+
+test('wallet charge submission validates proof image type', function () {
+    $user = User::factory()->create();
+
+    // Try to submit with non-image file
+    $file = \Illuminate\Http\UploadedFile::fake()->create('document.pdf', 1024);
+
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 100000,
+            'proof' => $file,
+        ])
+        ->assertSessionHasErrors('proof');
+
+    // Verify no transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+
+    expect($transaction)->toBeNull();
+});
+
+test('wallet charge submission validates proof image size', function () {
+    $user = User::factory()->create();
+
+    // Try to submit with oversized image (> 4MB)
+    $file = \Illuminate\Http\UploadedFile::fake()->image('large.jpg')->size(5120);
+
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 100000,
+            'proof' => $file,
+        ])
+        ->assertSessionHasErrors('proof');
+
+    // Verify no transaction was created
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+
+    expect($transaction)->toBeNull();
+});
+
+test('wallet charge submission stores proof image in correct path', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+    
+    $user = User::factory()->create(['balance' => 0]);
+    $file = \Illuminate\Http\UploadedFile::fake()->image('receipt.jpg', 600, 600)->size(1024);
+
+    // Submit wallet charge
+    $this->actingAs($user)
+        ->post(route('wallet.charge.create'), [
+            'amount' => 100000,
+            'proof' => $file,
+        ])
+        ->assertRedirect(route('dashboard'));
+
+    // Verify transaction was created with proof path
+    $transaction = Transaction::where('user_id', $user->id)
+        ->where('type', Transaction::TYPE_DEPOSIT)
+        ->first();
+
+    expect($transaction)->not->toBeNull();
+    expect($transaction->proof_image_path)->not->toBeNull();
+    
+    // Verify file was stored
+    \Illuminate\Support\Facades\Storage::disk('public')->assertExists($transaction->proof_image_path);
+    
+    // Verify path format (wallet-topups/{year}/{month}/{uuid}.{ext})
+    expect($transaction->proof_image_path)->toContain('wallet-topups/');
+    expect($transaction->proof_image_path)->toContain(now()->format('Y'));
+    expect($transaction->proof_image_path)->toContain(now()->format('m'));
 });
