@@ -91,6 +91,11 @@ class WalletTopUpTransactionResource extends Resource
                             ->label('تاریخ درخواست')
                             ->disabled()
                             ->formatStateUsing(fn ($state) => $state?->format('Y-m-d H:i')),
+
+                        Forms\Components\ViewField::make('proof_image_path')
+                            ->label('رسید پرداخت')
+                            ->view('filament.forms.components.proof-image-preview')
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
@@ -140,6 +145,14 @@ class WalletTopUpTransactionResource extends Resource
                     ->limit(50)
                     ->wrap(),
 
+                Tables\Columns\ImageColumn::make('proof_image_path')
+                    ->label('رسید')
+                    ->disk('public')
+                    ->width(60)
+                    ->height(60)
+                    ->defaultImageUrl(asset('images/no-image.png'))
+                    ->extraImgAttributes(['class' => 'rounded-lg']),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('تاریخ درخواست')
                     ->dateTime('Y-m-d H:i')
@@ -157,6 +170,19 @@ class WalletTopUpTransactionResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+
+                Tables\Actions\Action::make('view_proof')
+                    ->label('مشاهده رسید')
+                    ->icon('heroicon-o-photo')
+                    ->color('info')
+                    ->modalHeading('رسید پرداخت')
+                    ->modalContent(fn (Transaction $record): \Illuminate\Contracts\View\View => view(
+                        'filament.modals.proof-image',
+                        ['record' => $record]
+                    ))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('بستن')
+                    ->visible(fn (Transaction $record): bool => !empty($record->proof_image_path)),
 
                 Tables\Actions\Action::make('approve')
                     ->label('تایید')

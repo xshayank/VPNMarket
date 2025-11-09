@@ -20,6 +20,7 @@ class Transaction extends Model
         'status',
         'description',
         'metadata',
+        'proof_image_path',
     ];
 
     /**

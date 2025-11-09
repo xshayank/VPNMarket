@@ -23,14 +23,16 @@
                     </div>
 
                     {{-- فرم افزایش موجودی --}}
-                    <form method="POST" action="{{ route('wallet.charge.create') }}" class="space-y-6">
+                    <form method="POST" action="{{ route('wallet.charge.create') }}" enctype="multipart/form-data" class="space-y-6">
                         @csrf
                         <div>
                             <h3 class="text-lg font-medium mb-4 text-center">افزایش موجودی</h3>
 
                             @if ($errors->any())
                                 <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                                    <p>{{ $errors->first() }}</p>
+                                    @foreach ($errors->all() as $error)
+                                        <p>{{ $error }}</p>
+                                    @endforeach
                                 </div>
                             @endif
 
@@ -45,6 +47,22 @@
                             <div class="relative">
                                 <label for="amount" class="absolute -top-2 right-4 text-xs bg-white/50 dark:bg-gray-800/50 px-1 text-gray-500">یا مبلغ دلخواه را وارد کنید (تومان)</label>
                                 <input id="amount" name="amount" x-model="amount" type="number" class="block mt-1 w-full p-4 text-lg text-center font-bold bg-transparent dark:bg-gray-700/50 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="حداقل ۱۰,۰۰۰" required>
+                            </div>
+
+                            {{-- فیلد آپلود رسید --}}
+                            <div class="mt-4">
+                                <label for="proof" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    آپلود رسید پرداخت <span class="text-red-500">*</span>
+                                </label>
+                                <input id="proof" name="proof" type="file" accept="image/*" required class="block w-full text-sm text-gray-500 dark:text-gray-400
+                                    file:mr-4 file:py-2 file:px-4
+                                    file:rounded-lg file:border-0
+                                    file:text-sm file:font-semibold
+                                    file:bg-indigo-50 file:text-indigo-700
+                                    hover:file:bg-indigo-100
+                                    dark:file:bg-gray-700 dark:file:text-gray-300
+                                    dark:hover:file:bg-gray-600">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">فرمت‌های مجاز: JPEG, PNG, WEBP, JPG - حداکثر 4 مگابایت</p>
                             </div>
                         </div>
 

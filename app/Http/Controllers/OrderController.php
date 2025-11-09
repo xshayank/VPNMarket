@@ -90,34 +90,68 @@ class OrderController extends Controller
     {
         $request->validate([
             'amount' => 'required|integer|min:10000',
+            'proof' => 'required|image|mimes:jpeg,png,webp,jpg|max:4096',
         ]);
 
         $user = Auth::user();
         $reseller = $user->reseller;
 
-        // Determine the description based on user type
-        $description = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
-            ? 'شارژ کیف پول ریسلر (در انتظار تایید)'
-            : 'شارژ کیف پول (در انتظار تایید)';
+        try {
+            // Store the proof image
+            $proofPath = null;
+            if ($request->hasFile('proof')) {
+                $file = $request->file('proof');
+                $year = now()->format('Y');
+                $month = now()->format('m');
+                $uuid = \Illuminate\Support\Str::uuid();
+                $extension = $file->getClientOriginalExtension();
+                $filename = "{$uuid}.{$extension}";
+                
+                $proofPath = $file->storeAs(
+                    "wallet-topups/{$year}/{$month}",
+                    $filename,
+                    'public'
+                );
+            }
 
-        // Create pending transaction immediately for admin approval
-        $transaction = Transaction::create([
-            'user_id' => $user->id,
-            'order_id' => null,
-            'amount' => $request->amount,
-            'type' => Transaction::TYPE_DEPOSIT,
-            'status' => Transaction::STATUS_PENDING,
-            'description' => $description,
-        ]);
+            // Determine the description based on user type
+            $description = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
+                ? 'شارژ کیف پول ریسلر (در انتظار تایید)'
+                : 'شارژ کیف پول (در انتظار تایید)';
 
-        Log::info('Wallet charge transaction created', [
-            'transaction_id' => $transaction->id,
-            'user_id' => $user->id,
-            'amount' => $request->amount,
-            'is_reseller_wallet' => $reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased(),
-        ]);
+            // Create pending transaction immediately for admin approval
+            $transaction = Transaction::create([
+                'user_id' => $user->id,
+                'order_id' => null,
+                'amount' => $request->amount,
+                'type' => Transaction::TYPE_DEPOSIT,
+                'status' => Transaction::STATUS_PENDING,
+                'description' => $description,
+                'proof_image_path' => $proofPath,
+            ]);
 
-        return redirect()->route('dashboard')->with('status', 'درخواست شارژ کیف پول شما با موفقیت ثبت شد. پس از تایید توسط مدیر، موجودی شما افزایش خواهد یافت.');
+            Log::info('Wallet charge transaction created', [
+                'transaction_id' => $transaction->id,
+                'user_id' => $user->id,
+                'amount' => $request->amount,
+                'is_reseller_wallet' => $reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased(),
+                'proof_path' => $proofPath,
+            ]);
+
+            // Determine redirect based on user type
+            $redirectRoute = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
+                ? '/reseller'
+                : route('dashboard');
+
+            return redirect($redirectRoute)->with('status', 'درخواست شارژ کیف پول شما با موفقیت ثبت شد. پس از تایید توسط مدیر، موجودی شما افزایش خواهد یافت.');
+        } catch (\Exception $e) {
+            Log::error('Failed to create wallet charge transaction', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->withErrors(['error' => 'خطا در ثبت درخواست. لطفاً دوباره تلاش کنید.'])->withInput();
+        }
     }
 
     /**
