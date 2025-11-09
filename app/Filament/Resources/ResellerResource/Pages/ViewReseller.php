@@ -4,9 +4,9 @@ namespace App\Filament\Resources\ResellerResource\Pages;
 
 use App\Filament\Resources\ResellerResource;
 use Filament\Actions;
-use Filament\Resources\Pages\ViewRecord;
-use Filament\Infolists\Infolist;
 use Filament\Infolists\Components;
+use Filament\Infolists\Infolist;
+use Filament\Resources\Pages\ViewRecord;
 
 class ViewReseller extends ViewRecord
 {
