@@ -27,6 +27,9 @@ class Reseller extends Model
         'marzneshin_allowed_service_ids',
         'eylandoo_allowed_node_ids',
         'settings',
+        'billing_type',
+        'wallet_balance',
+        'wallet_price_per_gb',
     ];
 
     protected $casts = [
@@ -39,6 +42,8 @@ class Reseller extends Model
         'marzneshin_allowed_service_ids' => 'array',
         'eylandoo_allowed_node_ids' => 'array',
         'settings' => 'array',
+        'wallet_balance' => 'integer',
+        'wallet_price_per_gb' => 'integer',
     ];
 
     /**
@@ -114,6 +119,11 @@ class Reseller extends Model
         return $this->hasMany(ResellerConfig::class);
     }
 
+    public function usageSnapshots(): HasMany
+    {
+        return $this->hasMany(ResellerUsageSnapshot::class);
+    }
+
     public function isActive(): bool
     {
         return $this->status === 'active';
@@ -132,6 +142,22 @@ class Reseller extends Model
     public function isTrafficBased(): bool
     {
         return $this->type === 'traffic';
+    }
+
+    public function isWalletBased(): bool
+    {
+        return $this->billing_type === 'wallet';
+    }
+
+    public function getWalletPricePerGb(): int
+    {
+        // Use per-reseller override if set, otherwise use global default
+        return $this->wallet_price_per_gb ?? config('billing.wallet.price_per_gb', 780);
+    }
+
+    public function isSuspendedWallet(): bool
+    {
+        return $this->status === 'suspended_wallet';
     }
 
     public function hasTrafficRemaining(): bool

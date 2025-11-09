@@ -59,3 +59,12 @@ if (env('SCHEDULE_ENFORCE_RESELLER_WINDOWS', true)) {
         ->onOneServer()
         ->runInBackground();
 }
+
+// Schedule wallet-based reseller charging
+// Runs every hour to charge resellers for traffic usage
+// Deducts cost from wallet balance and suspends if balance is too low
+Schedule::command('reseller:charge-wallet-hourly')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

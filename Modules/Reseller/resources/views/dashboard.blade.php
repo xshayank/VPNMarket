@@ -32,11 +32,23 @@
                     <div>
                         <span class="text-sm md:text-base text-gray-500 dark:text-gray-400">نوع اکانت:</span>
                         <span class="font-bold text-base md:text-lg text-gray-900 dark:text-gray-100 block sm:inline">
-                            {{ $reseller->type === 'plan' ? 'ریسلر پلن‌محور' : 'ریسلر ترافیک‌محور' }}
+                            @if ($reseller->isPlanBased())
+                                ریسلر پلن‌محور
+                            @elseif ($reseller->isWalletBased())
+                                ریسلر کیف پول‌محور
+                            @else
+                                ریسلر ترافیک‌محور
+                            @endif
                         </span>
                     </div>
-                    <span class="px-4 py-2 bg-green-600 text-white rounded-md text-sm md:text-base">
-                        {{ $reseller->status === 'active' ? 'فعال' : 'معلق' }}
+                    <span class="px-4 py-2 {{ $reseller->status === 'active' ? 'bg-green-600' : ($reseller->isSuspendedWallet() ? 'bg-orange-600' : 'bg-red-600') }} text-white rounded-md text-sm md:text-base">
+                        @if ($reseller->status === 'active')
+                            فعال
+                        @elseif ($reseller->isSuspendedWallet())
+                            معلق (کمبود موجودی)
+                        @else
+                            معلق
+                        @endif
                     </span>
                 </div>
             </div>
@@ -107,6 +119,69 @@
                         </div>
                     </div>
                 @endif
+            @elseif ($reseller->isWalletBased())
+                {{-- Wallet-based reseller stats --}}
+                <div class="p-3 md:p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
+                    <h3 class="text-base md:text-lg font-semibold mb-3 md:mb-4 text-gray-900 dark:text-gray-100">موجودی کیف پول و آمار</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-3 md:mb-4">
+                        <div class="bg-blue-50 dark:bg-blue-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">موجودی کیف پول</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ number_format($stats['wallet_balance']) }} تومان</div>
+                            @if ($stats['wallet_balance'] <= config('billing.wallet.suspension_threshold', -1000))
+                                <div class="text-xs text-red-600 dark:text-red-400 mt-1">موجودی کم - لطفاً شارژ کنید</div>
+                            @endif
+                        </div>
+                        <div class="bg-purple-50 dark:bg-purple-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">قیمت هر گیگابایت</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ number_format($stats['wallet_price_per_gb']) }} تومان</div>
+                        </div>
+                        <div class="bg-red-50 dark:bg-red-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">ترافیک مصرف شده</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['traffic_consumed_gb'] }} GB</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                        <div class="bg-indigo-50 dark:bg-indigo-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">کانفیگ‌های فعال</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['active_configs'] }}</div>
+                        </div>
+                        <div class="bg-pink-50 dark:bg-pink-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">مجموع کانفیگ‌ها</div>
+                            <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['total_configs'] }}</div>
+                        </div>
+                        <div class="bg-teal-50 dark:bg-teal-900 p-3 md:p-4 rounded-lg">
+                            <div class="text-xs md:text-sm text-gray-600 dark:text-gray-300">محدودیت کانفیگ</div>
+                            @if ($stats['is_unlimited_limit'])
+                                <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">نامحدود</div>
+                            @else
+                                <div class="text-lg md:text-2xl font-bold text-gray-900 dark:text-gray-100">{{ $stats['configs_remaining'] }} از {{ $stats['config_limit'] }}</div>
+                                <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400">باقیمانده</div>
+                                @if ($stats['config_limit'] > 0)
+                                    <div class="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                        <div class="bg-teal-600 h-2 rounded-full transition-all" style="width: {{ min(($stats['total_configs'] / $stats['config_limit']) * 100, 100) }}%"></div>
+                                    </div>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+                    <div class="mt-4 md:mt-6 flex flex-col sm:flex-row gap-3 md:gap-4">
+                        <a href="{{ route('wallet.charge.form') }}" class="w-full sm:w-auto px-4 py-3 md:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-center text-sm md:text-base">
+                            شارژ کیف پول
+                        </a>
+                        <a href="{{ route('reseller.configs.create') }}" class="w-full sm:w-auto px-4 py-3 md:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-center text-sm md:text-base">
+                            ایجاد کانفیگ جدید
+                        </a>
+                        <a href="{{ route('reseller.configs.index') }}" class="w-full sm:w-auto px-4 py-3 md:py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-center text-sm md:text-base">
+                            مشاهده همه کانفیگ‌ها
+                        </a>
+                        <form action="{{ route('reseller.sync') }}" method="POST" class="w-full sm:w-auto">
+                            @csrf
+                            <button type="submit" class="w-full px-4 py-3 md:py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-center text-sm md:text-base">
+                                به‌روزرسانی آمار
+                            </button>
+                        </form>
+                    </div>
+                </div>
             @else
                 {{-- Traffic-based reseller stats --}}
                 <div class="p-3 md:p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg text-right">
