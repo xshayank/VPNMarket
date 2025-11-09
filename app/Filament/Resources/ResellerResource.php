@@ -63,6 +63,34 @@ class ResellerResource extends Resource
                     ->live()
                     ->default('plan'),
 
+                Forms\Components\Select::make('billing_type')
+                    ->label('نوع صورتحساب')
+                    ->options([
+                        'traffic' => 'مبتنی بر ترافیک (Traffic-based)',
+                        'wallet' => 'مبتنی بر کیف پول (Wallet-based)',
+                    ])
+                    ->required()
+                    ->live()
+                    ->default('traffic')
+                    ->helperText('نوع صورتحساب ریسلر: ترافیک‌محور یا کیف پول‌محور'),
+
+                Forms\Components\Section::make('تنظیمات کیف پول')
+                    ->visible(fn (Forms\Get $get) => $get('billing_type') === 'wallet')
+                    ->schema([
+                        Forms\Components\TextInput::make('wallet_balance')
+                            ->label('موجودی کیف پول (تومان)')
+                            ->numeric()
+                            ->default(0)
+                            ->helperText('موجودی فعلی کیف پول به تومان'),
+
+                        Forms\Components\TextInput::make('wallet_price_per_gb')
+                            ->label('قیمت هر گیگابایت (تومان) - اختیاری')
+                            ->numeric()
+                            ->minValue(0)
+                            ->nullable()
+                            ->helperText('قیمت سفارشی برای هر گیگابایت. اگر خالی باشد از قیمت پیش‌فرض ('.config('billing.wallet.price_per_gb', 780).' تومان) استفاده می‌شود'),
+                    ]),
+
                 Forms\Components\Select::make('status')
                     ->label('وضعیت')
                     ->options([
@@ -204,12 +232,14 @@ class ResellerResource extends Resource
                                         $panelId = $get('panel_id');
                                         if (! $panelId) {
                                             \Illuminate\Support\Facades\Log::debug('Eylandoo nodes: No panel_id in form state');
+
                                             return [];
                                         }
 
                                         $panel = \App\Models\Panel::find($panelId);
                                         if (! $panel) {
                                             \Illuminate\Support\Facades\Log::debug("Eylandoo nodes: Panel {$panelId} not found");
+
                                             return [];
                                         }
 
@@ -219,11 +249,11 @@ class ResellerResource extends Resource
 
                                         // Use cached method (5 minute cache)
                                         $nodes = $panel->getCachedEylandooNodes();
-                                        
+
                                         if (empty($nodes)) {
                                             \Illuminate\Support\Facades\Log::warning("Eylandoo nodes: No nodes returned for panel {$panelId}. Check panel credentials and API connectivity.");
                                         }
-                                        
+
                                         $options = [];
 
                                         foreach ($nodes as $node) {
@@ -318,6 +348,21 @@ class ResellerResource extends Resource
                         default => $state,
                     }),
 
+                Tables\Columns\TextColumn::make('billing_type')
+                    ->label('نوع صورتحساب')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'traffic' => 'success',
+                        'wallet' => 'warning',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'traffic' => 'ترافیک',
+                        'wallet' => 'کیف پول',
+                        default => $state,
+                    })
+                    ->toggleable(isToggledHiddenByDefault: false),
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('وضعیت')
                     ->badge()
@@ -382,6 +427,13 @@ class ResellerResource extends Resource
                     ->options([
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('billing_type')
+                    ->label('نوع صورتحساب')
+                    ->options([
+                        'traffic' => 'ترافیک',
+                        'wallet' => 'کیف پول',
                     ]),
 
                 Tables\Filters\SelectFilter::make('status')
