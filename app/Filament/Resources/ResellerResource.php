@@ -340,22 +340,6 @@ class ResellerResource extends Resource
                         default => $state,
                     }),
 
-                Tables\Columns\TextColumn::make('billing_type')
-                    ->label('نوع صورتحساب')
-                    ->badge()
-                    ->color(fn (?string $state): string => match ($state) {
-                        'traffic' => 'success',
-                        'wallet' => 'warning',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'traffic' => 'ترافیک',
-                        'wallet' => 'کیف پول',
-                        default => '-',
-                    })
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->placeholder('-'),
-
                 Tables\Columns\TextColumn::make('status')
                     ->label('وضعیت')
                     ->badge()

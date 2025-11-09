@@ -32,7 +32,6 @@ class Reseller extends Model
         'marzneshin_allowed_service_ids',
         'eylandoo_allowed_node_ids',
         'settings',
-        'billing_type',
         'wallet_balance',
         'wallet_price_per_gb',
     ];
