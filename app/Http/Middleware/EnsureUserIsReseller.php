@@ -15,19 +15,19 @@ class EnsureUserIsReseller
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
-        if (!auth()->user()->isReseller()) {
+        if (! auth()->user()->isReseller()) {
             abort(403, 'Access denied. Only resellers can access this area.');
         }
 
         $reseller = auth()->user()->reseller;
-        
+
         // For wallet-based suspended resellers, allow access (EnsureWalletAccess will redirect as needed)
         // For traffic-based suspended resellers, block access
-        if ($reseller->isSuspended() && !$reseller->isWalletBased()) {
+        if ($reseller->isSuspended() && ! $reseller->isWalletBased()) {
             abort(403, 'Your reseller account has been suspended. Please contact support.');
         }
 

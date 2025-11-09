@@ -8,7 +8,6 @@ use App\Models\Reseller;
 use App\Models\ResellerConfigEvent;
 use App\Models\ResellerUsageSnapshot;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ChargeWalletResellersHourly extends Command
@@ -47,18 +46,18 @@ class ChargeWalletResellersHourly extends Command
         foreach ($walletResellers as $reseller) {
             try {
                 $result = $this->chargeReseller($reseller);
-                
+
                 if ($result['charged']) {
                     $charged++;
                     $totalCost += $result['cost'];
                 }
-                
+
                 if ($result['suspended']) {
                     $suspended++;
                 }
             } catch (\Exception $e) {
-                Log::error("Error charging reseller {$reseller->id}: " . $e->getMessage());
-                $this->error("Error charging reseller {$reseller->id}: " . $e->getMessage());
+                Log::error("Error charging reseller {$reseller->id}: ".$e->getMessage());
+                $this->error("Error charging reseller {$reseller->id}: ".$e->getMessage());
             }
         }
 
@@ -105,14 +104,14 @@ class ChargeWalletResellersHourly extends Command
         // Convert bytes to GB and calculate cost
         $deltaGB = $deltaBytes / (1024 * 1024 * 1024);
         $pricePerGB = $reseller->getWalletPricePerGb();
-        
+
         // Calculate cost in تومان (use ceiling to avoid undercharging)
         $cost = (int) ceil($deltaGB * $pricePerGB);
 
         // Deduct from wallet balance
         $oldBalance = $reseller->wallet_balance;
         $newBalance = $oldBalance - $cost;
-        
+
         $reseller->update(['wallet_balance' => $newBalance]);
 
         Log::info("Charged reseller {$reseller->id}", [
@@ -129,10 +128,10 @@ class ChargeWalletResellersHourly extends Command
         $suspensionThreshold = config('billing.wallet.suspension_threshold', -1000);
         $wasSuspended = false;
 
-        if ($newBalance <= $suspensionThreshold && !$reseller->isSuspendedWallet()) {
+        if ($newBalance <= $suspensionThreshold && ! $reseller->isSuspendedWallet()) {
             $this->suspendWalletReseller($reseller);
             $wasSuspended = true;
-            
+
             Log::warning("Reseller {$reseller->id} suspended due to low wallet balance", [
                 'balance' => $newBalance,
                 'threshold' => $suspensionThreshold,
@@ -251,7 +250,7 @@ class ChargeWalletResellersHourly extends Command
 
                 $disabledCount++;
             } catch (\Exception $e) {
-                Log::error("Error disabling config {$config->id}: " . $e->getMessage());
+                Log::error("Error disabling config {$config->id}: ".$e->getMessage());
             }
         }
 

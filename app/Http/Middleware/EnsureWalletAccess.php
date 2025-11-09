@@ -13,21 +13,21 @@ class EnsureWalletAccess
      *
      * For wallet-based resellers who are suspended due to low balance,
      * redirect them to the wallet charge page with a warning message.
-     * 
+     *
      * This middleware should be applied to reseller routes but NOT to wallet routes.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return redirect()->route('login');
         }
 
         $user = auth()->user();
 
         // Only check for resellers
-        if (!$user->isReseller()) {
+        if (! $user->isReseller()) {
             return $next($request);
         }
 
