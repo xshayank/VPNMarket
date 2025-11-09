@@ -31,6 +31,38 @@ class CreateReseller extends CreateRecord
             $data['config_limit'] = null;
         }
 
+        // Validate wallet reseller requirements
+        if ($data['type'] === 'wallet') {
+            if (empty($data['panel_id'])) {
+                throw new \Exception('Panel selection is required for wallet-based resellers.');
+            }
+
+            if (empty($data['config_limit']) || $data['config_limit'] < 1) {
+                throw new \Exception('Config limit must be at least 1 for wallet-based resellers.');
+            }
+
+            // Validate node selections belong to the selected panel
+            if (!empty($data['eylandoo_allowed_node_ids'])) {
+                $panel = \App\Models\Panel::find($data['panel_id']);
+                if ($panel && $panel->panel_type === 'eylandoo') {
+                    // Validate nodes exist in the panel
+                    $validNodeIds = [];
+                    try {
+                        $panelNodes = $panel->getCachedEylandooNodes();
+                        $validNodeIds = array_map(fn($node) => (int)$node['id'], $panelNodes);
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::warning('Failed to validate Eylandoo nodes during reseller creation: ' . $e->getMessage());
+                    }
+
+                    foreach ($data['eylandoo_allowed_node_ids'] as $nodeId) {
+                        if (!in_array((int)$nodeId, $validNodeIds, true)) {
+                            throw new \Exception("Selected node ID {$nodeId} does not belong to the selected panel.");
+                        }
+                    }
+                }
+            }
+        }
+
         return $data;
     }
 }

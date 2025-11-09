@@ -67,6 +67,23 @@ class ResellerResource extends Resource
                 Forms\Components\Section::make('تنظیمات کیف پول')
                     ->visible(fn (Forms\Get $get) => $get('type') === 'wallet')
                     ->schema([
+                        Forms\Components\Select::make('panel_id')
+                            ->label('پنل')
+                            ->relationship('panel', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->reactive()
+                            ->required()
+                            ->helperText('پنل V2Ray که این ریسلر از آن استفاده می‌کند'),
+
+                        Forms\Components\TextInput::make('config_limit')
+                            ->label('محدودیت تعداد کانفیگ')
+                            ->numeric()
+                            ->minValue(1)
+                            ->required()
+                            ->helperText('تعداد کانفیگ‌هایی که می‌توان ایجاد کرد.'),
+
                         Forms\Components\TextInput::make('wallet_balance')
                             ->label('موجودی کیف پول (تومان)')
                             ->numeric()
@@ -79,6 +96,118 @@ class ResellerResource extends Resource
                             ->minValue(0)
                             ->nullable()
                             ->helperText('قیمت سفارشی برای هر گیگابایت. اگر خالی باشد از قیمت پیش‌فرض ('.config('billing.wallet.price_per_gb', 780).' تومان) استفاده می‌شود'),
+
+                        // Marzneshin Service Selection
+                        Forms\Components\Section::make('سرویسهای مرزنشین (Marzneshin)')
+                            ->description('سرویسهای مرزنشین مجاز برای این ریسلر')
+                            ->collapsed()
+                            ->visible(function (Forms\Get $get) {
+                                $panelId = $get('panel_id');
+                                if (! $panelId) {
+                                    return false;
+                                }
+
+                                $panel = \App\Models\Panel::find($panelId);
+
+                                return $panel && $panel->panel_type === 'marzneshin';
+                            })
+                            ->schema([
+                                Forms\Components\CheckboxList::make('marzneshin_allowed_service_ids')
+                                    ->label('انتخاب سرویس‌ها')
+                                    ->options(function (Forms\Get $get) {
+                                        $panelId = $get('panel_id');
+                                        if (! $panelId) {
+                                            return [];
+                                        }
+
+                                        $panel = \App\Models\Panel::find($panelId);
+                                        if (! $panel || $panel->panel_type !== 'marzneshin') {
+                                            return [];
+                                        }
+
+                                        try {
+                                            $credentials = $panel->getCredentials();
+                                            $nodeHostname = $credentials['extra']['node_hostname'] ?? '';
+
+                                            $marzneshinService = new \App\Services\MarzneshinService(
+                                                $credentials['url'],
+                                                $credentials['username'],
+                                                $credentials['password'],
+                                                $nodeHostname
+                                            );
+
+                                            $services = $marzneshinService->listServices();
+                                            $options = [];
+
+                                            foreach ($services as $service) {
+                                                $options[$service['id']] = $service['name'];
+                                            }
+
+                                            return $options;
+                                        } catch (\Exception $e) {
+                                            \Illuminate\Support\Facades\Log::error('Failed to load Marzneshin services: '.$e->getMessage());
+
+                                            return [];
+                                        }
+                                    })
+                                    ->helperText('در صورتی که لیست خالی است، لطفاً اطمینان حاصل کنید که اطلاعات اتصال پنل به درستی وارد شده است.')
+                                    ->columns(2),
+                            ]),
+
+                        // Eylandoo Node Selection
+                        Forms\Components\Section::make('تنظیمات نودهای Eylandoo')
+                            ->description('محدود کردن دسترسی ریسلر به نودهای خاص در پنل Eylandoo')
+                            ->visible(function (Forms\Get $get) {
+                                $panelId = $get('panel_id');
+                                if (! $panelId) {
+                                    return false;
+                                }
+
+                                $panel = \App\Models\Panel::find($panelId);
+
+                                return $panel && $panel->panel_type === 'eylandoo';
+                            })
+                            ->schema([
+                                Forms\Components\CheckboxList::make('eylandoo_allowed_node_ids')
+                                    ->label('انتخاب نودها (اختیاری)')
+                                    ->live()
+                                    ->options(function (Forms\Get $get) {
+                                        $panelId = $get('panel_id');
+                                        if (! $panelId) {
+                                            \Illuminate\Support\Facades\Log::debug('Eylandoo nodes: No panel_id in form state');
+
+                                            return [];
+                                        }
+
+                                        $panel = \App\Models\Panel::find($panelId);
+                                        if (! $panel) {
+                                            \Illuminate\Support\Facades\Log::debug("Eylandoo nodes: Panel {$panelId} not found");
+
+                                            return [];
+                                        }
+
+                                        if ($panel->panel_type !== 'eylandoo') {
+                                            return [];
+                                        }
+
+                                        // Use cached method (5 minute cache)
+                                        $nodes = $panel->getCachedEylandooNodes();
+
+                                        if (empty($nodes)) {
+                                            \Illuminate\Support\Facades\Log::warning("Eylandoo nodes: No nodes returned for panel {$panelId}. Check panel credentials and API connectivity.");
+                                        }
+
+                                        $options = [];
+
+                                        foreach ($nodes as $node) {
+                                            $options[$node['id']] = $node['name'];
+                                        }
+
+                                        return $options;
+                                    })
+                                    ->helperText('انتخاب نود اختیاری است. اگر هیچ نودی انتخاب نشود، ریسلر می‌تواند از تمام نودها استفاده کند.')
+                                    ->columns(2),
+                            ]),
                     ]),
 
                 Forms\Components\Select::make('status')

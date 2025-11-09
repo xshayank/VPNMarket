@@ -62,6 +62,12 @@ class ConfigController extends Controller
                 ->with('error', 'This feature is only available for traffic-based and wallet-based resellers.');
         }
 
+        // Wallet resellers must have a panel assigned
+        if ($reseller->isWalletBased() && !$reseller->panel_id) {
+            return redirect()->route('reseller.dashboard')
+                ->with('error', 'Your account does not have a panel assigned. Please contact support.');
+        }
+
         // If reseller has a specific panel assigned, use only that panel
         if ($reseller->panel_id) {
             $panels = Panel::where('id', $reseller->panel_id)->where('is_active', true)->get();
@@ -205,6 +211,16 @@ class ConfigController extends Controller
         // Validate reseller can use the selected panel
         if ($reseller->panel_id && $request->panel_id != $reseller->panel_id) {
             return back()->with('error', 'You can only use the panel assigned to your account.');
+        }
+
+        // Additional validation for wallet resellers - they must use their assigned panel
+        if ($reseller->isWalletBased()) {
+            if (!$reseller->panel_id) {
+                return back()->with('error', 'Your account does not have a panel assigned. Please contact support.');
+            }
+            if ($request->panel_id != $reseller->panel_id) {
+                return back()->with('error', 'You can only use the panel assigned to your account.');
+            }
         }
 
         $panel = Panel::findOrFail($request->panel_id);
