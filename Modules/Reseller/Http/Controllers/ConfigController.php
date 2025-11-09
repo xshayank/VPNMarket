@@ -34,9 +34,9 @@ class ConfigController extends Controller
                 ->with('error', 'Reseller account not found.');
         }
 
-        if (! $reseller->isTrafficBased()) {
+        if (! $reseller->supportsConfigManagement()) {
             return redirect()->route('reseller.dashboard')
-                ->with('error', 'This feature is only available for traffic-based resellers.');
+                ->with('error', 'This feature is only available for traffic-based and wallet-based resellers.');
         }
 
         $configs = $reseller->configs()->latest()->paginate(20);
@@ -57,9 +57,9 @@ class ConfigController extends Controller
                 ->with('error', 'Reseller account not found.');
         }
 
-        if (! $reseller->isTrafficBased()) {
+        if (! $reseller->supportsConfigManagement()) {
             return redirect()->route('reseller.dashboard')
-                ->with('error', 'This feature is only available for traffic-based resellers.');
+                ->with('error', 'This feature is only available for traffic-based and wallet-based resellers.');
         }
 
         // If reseller has a specific panel assigned, use only that panel
@@ -171,8 +171,8 @@ class ConfigController extends Controller
             return back()->with('error', 'Reseller account not found.');
         }
 
-        if (! $reseller->isTrafficBased()) {
-            return back()->with('error', 'This feature is only available for traffic-based resellers.');
+        if (! $reseller->supportsConfigManagement()) {
+            return back()->with('error', 'This feature is only available for traffic-based and wallet-based resellers.');
         }
 
         // Check config_limit enforcement
@@ -453,9 +453,12 @@ class ConfigController extends Controller
             return back()->with('error', 'Config is not disabled.');
         }
 
-        // Validate reseller can enable configs
-        if (! $reseller->hasTrafficRemaining() || ! $reseller->isWindowValid()) {
-            return back()->with('error', 'Cannot enable config: reseller quota exceeded or window expired.');
+        // Validate reseller can enable configs (only for traffic-based resellers)
+        // Wallet-based resellers are managed via wallet balance, not quota/window
+        if ($reseller->isTrafficBased()) {
+            if (! $reseller->hasTrafficRemaining() || ! $reseller->isWindowValid()) {
+                return back()->with('error', 'Cannot enable config: reseller quota exceeded or window expired.');
+            }
         }
 
         // Try to enable on remote panel first

@@ -166,6 +166,18 @@ class Reseller extends Model
         return $this->isWalletBased();
     }
 
+    /**
+     * Check if reseller supports config management (CRUD operations)
+     * Both traffic-based and wallet-based resellers can manage configs
+     * Only plan-based resellers cannot
+     *
+     * @return bool
+     */
+    public function supportsConfigManagement(): bool
+    {
+        return $this->type === self::TYPE_TRAFFIC || $this->type === self::TYPE_WALLET;
+    }
+
     public function getWalletPricePerGb(): int
     {
         // Use per-reseller override if set, otherwise use global default
