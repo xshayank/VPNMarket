@@ -3,9 +3,9 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\WalletTopUpTransactionResource\Pages;
-use App\Models\Transaction;
 use App\Models\Reseller;
 use App\Models\Setting;
+use App\Models\Transaction;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -53,7 +53,7 @@ class WalletTopUpTransactionResource extends Resource
         $count = Transaction::where('type', Transaction::TYPE_DEPOSIT)
             ->where('status', Transaction::STATUS_PENDING)
             ->count();
-            
+
         return $count > 0 ? 'warning' : 'success';
     }
 
@@ -66,13 +66,13 @@ class WalletTopUpTransactionResource extends Resource
                         Forms\Components\TextInput::make('user.name')
                             ->label('کاربر')
                             ->disabled(),
-                        
+
                         Forms\Components\TextInput::make('amount')
                             ->label('مبلغ (تومان)')
                             ->disabled()
                             ->numeric()
                             ->formatStateUsing(fn ($state) => number_format($state)),
-                        
+
                         Forms\Components\Select::make('status')
                             ->label('وضعیت')
                             ->options([
@@ -81,12 +81,12 @@ class WalletTopUpTransactionResource extends Resource
                                 Transaction::STATUS_FAILED => 'رد شده',
                             ])
                             ->disabled(),
-                        
+
                         Forms\Components\Textarea::make('description')
                             ->label('توضیحات')
                             ->disabled()
                             ->rows(3),
-                        
+
                         Forms\Components\TextInput::make('created_at')
                             ->label('تاریخ درخواست')
                             ->disabled()
@@ -104,20 +104,20 @@ class WalletTopUpTransactionResource extends Resource
                     ->label('شناسه')
                     ->sortable()
                     ->searchable(),
-                
+
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('کاربر')
                     ->searchable()
                     ->sortable()
                     ->description(fn (Transaction $record): string => $record->user->email ?? ''),
-                
+
                 Tables\Columns\TextColumn::make('amount')
                     ->label('مبلغ (تومان)')
                     ->sortable()
                     ->formatStateUsing(fn ($state) => number_format($state))
                     ->color('success')
                     ->weight('bold'),
-                
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('وضعیت')
                     ->badge()
@@ -134,12 +134,12 @@ class WalletTopUpTransactionResource extends Resource
                         Transaction::STATUS_FAILED => 'رد شده',
                         default => $state,
                     }),
-                
+
                 Tables\Columns\TextColumn::make('description')
                     ->label('توضیحات')
                     ->limit(50)
                     ->wrap(),
-                
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('تاریخ درخواست')
                     ->dateTime('Y-m-d H:i')
@@ -157,33 +157,40 @@ class WalletTopUpTransactionResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                
+
                 Tables\Actions\Action::make('approve')
                     ->label('تایید')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('تایید شارژ کیف پول')
-                    ->modalDescription(fn (Transaction $record) => 
-                        'آیا از تایید شارژ کیف پول به مبلغ ' . number_format($record->amount) . ' تومان برای کاربر ' . ($record->user->name ?? $record->user->email) . ' اطمینان دارید؟'
+                    ->modalDescription(fn (Transaction $record) => 'آیا از تایید شارژ کیف پول به مبلغ '.number_format($record->amount).' تومان برای کاربر '.($record->user->name ?? $record->user->email).' اطمینان دارید؟'
                     )
                     ->visible(fn (Transaction $record): bool => $record->status === Transaction::STATUS_PENDING)
                     ->action(function (Transaction $record) {
                         DB::transaction(function () use ($record) {
                             $user = $record->user;
                             $reseller = $user->reseller;
-                            
+
                             // Update transaction status
                             $record->update(['status' => Transaction::STATUS_COMPLETED]);
-                            
+
                             // Credit the appropriate wallet
                             if ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased()) {
                                 // For wallet-based resellers, charge their reseller wallet
                                 $reseller->increment('wallet_balance', $record->amount);
-                                
+
+                                Log::info('Wallet charge approved for reseller', [
+                                    'transaction_id' => $record->id,
+                                    'reseller_id' => $reseller->id,
+                                    'user_id' => $user->id,
+                                    'amount' => $record->amount,
+                                    'new_balance' => $reseller->fresh()->wallet_balance,
+                                ]);
+
                                 // Check if reseller was suspended and should be reactivated
-                                if (method_exists($reseller, 'isSuspendedWallet') && 
-                                    $reseller->isSuspendedWallet() && 
+                                if (method_exists($reseller, 'isSuspendedWallet') &&
+                                    $reseller->isSuspendedWallet() &&
                                     $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
                                     $reseller->update(['status' => 'active']);
                                     Notification::make()
@@ -191,31 +198,38 @@ class WalletTopUpTransactionResource extends Resource
                                         ->success()
                                         ->send();
                                 }
-                                
+
                                 Notification::make()
                                     ->title('کیف پول ریسلر با موفقیت شارژ شد.')
-                                    ->body('مبلغ ' . number_format($record->amount) . ' تومان به کیف پول ریسلر اضافه شد.')
+                                    ->body('مبلغ '.number_format($record->amount).' تومان به کیف پول ریسلر اضافه شد.')
                                     ->success()
                                     ->send();
                             } else {
                                 // For regular users, charge their user balance
                                 $user->increment('balance', $record->amount);
-                                
+
+                                Log::info('Wallet charge approved for user', [
+                                    'transaction_id' => $record->id,
+                                    'user_id' => $user->id,
+                                    'amount' => $record->amount,
+                                    'new_balance' => $user->fresh()->balance,
+                                ]);
+
                                 Notification::make()
                                     ->title('کیف پول کاربر با موفقیت شارژ شد.')
-                                    ->body('مبلغ ' . number_format($record->amount) . ' تومان به کیف پول کاربر اضافه شد.')
+                                    ->body('مبلغ '.number_format($record->amount).' تومان به کیف پول کاربر اضافه شد.')
                                     ->success()
                                     ->send();
                             }
-                            
+
                             // Send Telegram notification
                             if ($user->telegram_chat_id) {
                                 try {
                                     $settings = Setting::all()->pluck('value', 'key');
-                                    $balance = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased()) 
-                                        ? $reseller->fresh()->wallet_balance 
+                                    $balance = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
+                                        ? $reseller->fresh()->wallet_balance
                                         : $user->fresh()->balance;
-                                    
+
                                     $telegramMessage = '✅ کیف پول شما به مبلغ *'.number_format($record->amount)." تومان* با موفقیت شارژ شد.\n\n";
                                     $telegramMessage .= 'موجودی جدید شما: *'.number_format($balance).' تومان*';
 
@@ -231,23 +245,28 @@ class WalletTopUpTransactionResource extends Resource
                             }
                         });
                     }),
-                
+
                 Tables\Actions\Action::make('reject')
                     ->label('رد')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('رد شارژ کیف پول')
-                    ->modalDescription(fn (Transaction $record) => 
-                        'آیا از رد شارژ کیف پول به مبلغ ' . number_format($record->amount) . ' تومان برای کاربر ' . ($record->user->name ?? $record->user->email) . ' اطمینان دارید؟'
+                    ->modalDescription(fn (Transaction $record) => 'آیا از رد شارژ کیف پول به مبلغ '.number_format($record->amount).' تومان برای کاربر '.($record->user->name ?? $record->user->email).' اطمینان دارید؟'
                     )
                     ->visible(fn (Transaction $record): bool => $record->status === Transaction::STATUS_PENDING)
                     ->action(function (Transaction $record) {
                         $record->update(['status' => Transaction::STATUS_FAILED]);
-                        
+
+                        Log::info('Wallet charge rejected', [
+                            'transaction_id' => $record->id,
+                            'user_id' => $record->user_id,
+                            'amount' => $record->amount,
+                        ]);
+
                         Notification::make()
                             ->title('درخواست شارژ رد شد.')
-                            ->body('درخواست شارژ کیف پول به مبلغ ' . number_format($record->amount) . ' تومان رد شد.')
+                            ->body('درخواست شارژ کیف پول به مبلغ '.number_format($record->amount).' تومان رد شد.')
                             ->warning()
                             ->send();
                     }),

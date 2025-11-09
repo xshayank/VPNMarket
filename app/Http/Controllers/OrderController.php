@@ -70,13 +70,13 @@ class OrderController extends Controller
     {
         $user = Auth::user();
         $reseller = $user->reseller;
-        
+
         // For wallet-based resellers, show their reseller wallet balance
         // For other users, show their user balance
-        $walletBalance = $reseller && $reseller->isWalletBased() 
-            ? $reseller->wallet_balance 
+        $walletBalance = $reseller && $reseller->isWalletBased()
+            ? $reseller->wallet_balance
             : $user->balance;
-        
+
         return view('wallet.charge', [
             'walletBalance' => $walletBalance,
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
@@ -84,19 +84,40 @@ class OrderController extends Controller
     }
 
     /**
-     * Create a new pending order for charging the wallet.
+     * Create a new pending transaction for charging the wallet.
      */
     public function createChargeOrder(Request $request)
     {
-        $request->validate(['amount' => 'required|numeric|min:10000']);
-        $order = Auth::user()->orders()->create([
-            'plan_id' => null,
-            'amount' => $request->amount,
-            'status' => 'pending',
-            'source' => 'web',
+        $request->validate([
+            'amount' => 'required|integer|min:10000',
         ]);
 
-        return redirect()->route('order.show', $order->id);
+        $user = Auth::user();
+        $reseller = $user->reseller;
+
+        // Determine the description based on user type
+        $description = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
+            ? 'شارژ کیف پول ریسلر (در انتظار تایید)'
+            : 'شارژ کیف پول (در انتظار تایید)';
+
+        // Create pending transaction immediately for admin approval
+        $transaction = Transaction::create([
+            'user_id' => $user->id,
+            'order_id' => null,
+            'amount' => $request->amount,
+            'type' => Transaction::TYPE_DEPOSIT,
+            'status' => Transaction::STATUS_PENDING,
+            'description' => $description,
+        ]);
+
+        Log::info('Wallet charge transaction created', [
+            'transaction_id' => $transaction->id,
+            'user_id' => $user->id,
+            'amount' => $request->amount,
+            'is_reseller_wallet' => $reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased(),
+        ]);
+
+        return redirect()->route('dashboard')->with('status', 'درخواست شارژ کیف پول شما با موفقیت ثبت شد. پس از تایید توسط مدیر، موجودی شما افزایش خواهد یافت.');
     }
 
     /**
@@ -388,3 +409,4 @@ class OrderController extends Controller
         return redirect()->back()->with('status', 'کد تخفیف حذف شد.');
     }
 }
+
