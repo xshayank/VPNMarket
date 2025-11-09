@@ -137,4 +137,3 @@ test('wallet reseller can have service assignments', function () {
         ->toHaveCount(2)
         ->toContain(1, 2);
 });
-
