@@ -13,13 +13,12 @@ test('wallet based reseller isWalletBased returns true', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'type' => 'traffic',
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'active',
     ]);
 
     expect($reseller->isWalletBased())->toBeTrue();
-    expect($reseller->isTrafficBased())->toBeTrue(); // Type is still traffic
+    expect($reseller->isTrafficBased())->toBeFalse(); // Type is wallet, not traffic
 });
 
 test('traffic based reseller isWalletBased returns false', function () {
@@ -27,7 +26,6 @@ test('traffic based reseller isWalletBased returns false', function () {
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
-        'billing_type' => 'traffic',
         'status' => 'active',
     ]);
 
@@ -40,7 +38,7 @@ test('wallet based reseller gets default price per gb from config', function () 
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_price_per_gb' => null,
     ]);
 
@@ -53,7 +51,7 @@ test('wallet based reseller gets custom price per gb when set', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_price_per_gb' => 1000,
     ]);
 
@@ -64,7 +62,7 @@ test('wallet based reseller isSuspendedWallet returns true when status is suspen
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'suspended_wallet',
     ]);
 
@@ -77,7 +75,7 @@ test('wallet based reseller can access dashboard', function () {
     Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 10000,
     ]);
@@ -95,7 +93,7 @@ test('wallet based reseller dashboard shows wallet balance', function () {
     Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 15000,
         'wallet_price_per_gb' => 800,
@@ -119,7 +117,7 @@ test('wallet based reseller dashboard shows type as wallet based', function () {
     Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 10000,
     ]);
@@ -135,7 +133,7 @@ test('wallet based reseller with suspended_wallet status is redirected to wallet
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'suspended_wallet',
         'wallet_balance' => -2000,
     ]);
@@ -150,7 +148,7 @@ test('wallet based reseller with suspended_wallet can access wallet charge page'
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'status' => 'suspended_wallet',
         'wallet_balance' => -2000,
     ]);
@@ -186,7 +184,7 @@ test('usage snapshot can be created for reseller', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
     ]);
 
     $snapshot = ResellerUsageSnapshot::create([
@@ -206,7 +204,7 @@ test('charging command creates snapshot', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_balance' => 10000,
     ]);
 
@@ -227,7 +225,7 @@ test('charging command deducts correct amount from wallet', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_balance' => 10000,
         'wallet_price_per_gb' => 1000,
     ]);
@@ -253,7 +251,7 @@ test('charging command suspends reseller when balance too low', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_balance' => 1000,
         'wallet_price_per_gb' => 5000,
         'status' => 'active',
@@ -281,7 +279,7 @@ test('charging command disables configs when suspending reseller', function () {
     $user = User::factory()->create();
     $reseller = Reseller::factory()->create([
         'user_id' => $user->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_balance' => 500,
         'wallet_price_per_gb' => 5000,
         'status' => 'active',
@@ -313,7 +311,7 @@ test('charging command only charges wallet-based resellers', function () {
     $user1 = User::factory()->create();
     $walletReseller = Reseller::factory()->create([
         'user_id' => $user1->id,
-        'billing_type' => 'wallet',
+        'type' => 'wallet',
         'wallet_balance' => 10000,
     ]);
 

@@ -14,9 +14,12 @@
                     <div class="text-center">
                         <p class="text-sm text-gray-500 dark:text-gray-400">موجودی فعلی شما</p>
                         <p class="font-bold text-3xl text-green-500 mt-1">
-                            {{ number_format(auth()->user()->balance) }}
+                            {{ number_format($walletBalance ?? 0) }}
                             <span class="text-lg font-normal">تومان</span>
                         </p>
+                        @if(isset($isResellerWallet) && $isResellerWallet)
+                            <p class="text-xs text-gray-400 mt-1">موجودی کیف پول ریسلر</p>
+                        @endif
                     </div>
 
                     {{-- فرم افزایش موجودی --}}

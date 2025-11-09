@@ -34,7 +34,7 @@ class ChargeWalletResellersHourly extends Command
         Log::info('Starting hourly wallet-based reseller charging');
 
         // Find all wallet-based resellers
-        $walletResellers = Reseller::where('billing_type', 'wallet')->get();
+        $walletResellers = Reseller::where('type', 'wallet')->get();
 
         $this->info("Found {$walletResellers->count()} wallet-based resellers");
         Log::info("Found {$walletResellers->count()} wallet-based resellers to charge");
