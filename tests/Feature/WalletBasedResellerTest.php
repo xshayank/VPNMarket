@@ -74,7 +74,6 @@ test('wallet based reseller can access dashboard', function () {
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
-        'type' => 'traffic',
         'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 10000,
@@ -92,7 +91,6 @@ test('wallet based reseller dashboard shows wallet balance', function () {
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
-        'type' => 'traffic',
         'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 15000,
@@ -116,7 +114,6 @@ test('wallet based reseller dashboard shows type as wallet based', function () {
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
-        'type' => 'traffic',
         'type' => 'wallet',
         'status' => 'active',
         'wallet_balance' => 10000,
@@ -159,12 +156,11 @@ test('wallet based reseller with suspended_wallet can access wallet charge page'
 });
 
 // Test traffic-based reseller unchanged
-test('traffic based reseller with billing_type traffic still works normally', function () {
+test('traffic based reseller still works normally', function () {
     $user = User::factory()->create();
     Reseller::factory()->create([
         'user_id' => $user->id,
         'type' => 'traffic',
-        'billing_type' => 'traffic',
         'status' => 'active',
         'traffic_total_bytes' => 100 * 1024 * 1024 * 1024,
         'window_starts_at' => now(),
@@ -318,7 +314,7 @@ test('charging command only charges wallet-based resellers', function () {
     $user2 = User::factory()->create();
     $trafficReseller = Reseller::factory()->create([
         'user_id' => $user2->id,
-        'billing_type' => 'traffic',
+        'type' => 'traffic',
         'wallet_balance' => 10000,
     ]);
 
