@@ -94,7 +94,7 @@ class EditReseller extends EditRecord
                 ->action(function () {
                     try {
                         $oldUsedBytes = $this->record->traffic_used_bytes;
-                        
+
                         // Calculate the actual usage from configs
                         $totalUsageFromConfigs = $this->record->configs()
                             ->get()
@@ -201,20 +201,20 @@ class EditReseller extends EditRecord
             }
 
             // Validate node selections belong to the selected panel
-            if (!empty($data['eylandoo_allowed_node_ids'])) {
+            if (! empty($data['eylandoo_allowed_node_ids'])) {
                 $panel = \App\Models\Panel::find($data['panel_id']);
                 if ($panel && $panel->panel_type === 'eylandoo') {
                     // Validate nodes exist in the panel
                     $validNodeIds = [];
                     try {
                         $panelNodes = $panel->getCachedEylandooNodes();
-                        $validNodeIds = array_map(fn($node) => (int)$node['id'], $panelNodes);
+                        $validNodeIds = array_map(fn ($node) => (int) $node['id'], $panelNodes);
                     } catch (\Exception $e) {
-                        \Illuminate\Support\Facades\Log::warning('Failed to validate Eylandoo nodes during reseller edit: ' . $e->getMessage());
+                        \Illuminate\Support\Facades\Log::warning('Failed to validate Eylandoo nodes during reseller edit: '.$e->getMessage());
                     }
 
                     foreach ($data['eylandoo_allowed_node_ids'] as $nodeId) {
-                        if (!in_array((int)$nodeId, $validNodeIds, true)) {
+                        if (! in_array((int) $nodeId, $validNodeIds, true)) {
                             throw new \Exception("Selected node ID {$nodeId} does not belong to the selected panel.");
                         }
                     }
