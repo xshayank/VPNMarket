@@ -95,14 +95,49 @@ class OrderResource extends Resource
 
                             if (! $plan) {
                                 $order->update(['status' => 'paid']);
-                                $user->increment('balance', $order->amount);
-                                Transaction::create(['user_id' => $user->id, 'order_id' => $order->id, 'amount' => $order->amount, 'type' => 'deposit', 'status' => 'completed', 'description' => 'شارژ کیف پول (تایید دستی فیش)']);
-                                Notification::make()->title('کیف پول کاربر با موفقیت شارژ شد.')->success()->send();
+                                
+                                // Check if user is a wallet-based reseller
+                                $reseller = $user->reseller;
+                                if ($reseller && $reseller->isWalletBased()) {
+                                    // For wallet-based resellers, charge their reseller wallet
+                                    $reseller->increment('wallet_balance', $order->amount);
+                                    Transaction::create([
+                                        'user_id' => $user->id, 
+                                        'order_id' => $order->id, 
+                                        'amount' => $order->amount, 
+                                        'type' => 'deposit', 
+                                        'status' => 'completed', 
+                                        'description' => 'شارژ کیف پول ریسلر (تایید دستی فیش)'
+                                    ]);
+                                    Notification::make()->title('کیف پول ریسلر با موفقیت شارژ شد.')->success()->send();
+                                    
+                                    // Check if reseller was suspended and should be reactivated
+                                    if ($reseller->isSuspendedWallet() && $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
+                                        $reseller->update(['status' => 'active']);
+                                        Notification::make()->title('ریسلر به طور خودکار فعال شد.')->success()->send();
+                                    }
+                                } else {
+                                    // For regular users, charge their user balance
+                                    $user->increment('balance', $order->amount);
+                                    Transaction::create([
+                                        'user_id' => $user->id, 
+                                        'order_id' => $order->id, 
+                                        'amount' => $order->amount, 
+                                        'type' => 'deposit', 
+                                        'status' => 'completed', 
+                                        'description' => 'شارژ کیف پول (تایید دستی فیش)'
+                                    ]);
+                                    Notification::make()->title('کیف پول کاربر با موفقیت شارژ شد.')->success()->send();
+                                }
 
                                 if ($user->telegram_chat_id) {
                                     try {
+                                        $balance = ($reseller && $reseller->isWalletBased()) 
+                                            ? $reseller->fresh()->wallet_balance 
+                                            : $user->fresh()->balance;
+                                        
                                         $telegramMessage = '✅ کیف پول شما به مبلغ *'.number_format($order->amount)." تومان* با موفقیت شارژ شد.\n\n";
-                                        $telegramMessage .= 'موجودی جدید شما: *'.number_format($user->fresh()->balance).' تومان*';
+                                        $telegramMessage .= 'موجودی جدید شما: *'.number_format($balance).' تومان*';
 
                                         Telegram::setAccessToken($settings->get('telegram_bot_token'));
                                         Telegram::sendMessage([

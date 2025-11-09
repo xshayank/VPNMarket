@@ -68,7 +68,19 @@ class OrderController extends Controller
      */
     public function showChargeForm()
     {
-        return view('wallet.charge');
+        $user = Auth::user();
+        $reseller = $user->reseller;
+        
+        // For wallet-based resellers, show their reseller wallet balance
+        // For other users, show their user balance
+        $walletBalance = $reseller && $reseller->isWalletBased() 
+            ? $reseller->wallet_balance 
+            : $user->balance;
+        
+        return view('wallet.charge', [
+            'walletBalance' => $walletBalance,
+            'isResellerWallet' => $reseller && $reseller->isWalletBased(),
+        ]);
     }
 
     /**

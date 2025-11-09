@@ -12,6 +12,11 @@ class Reseller extends Model
 {
     use HasFactory;
 
+    // Reseller type constants
+    public const TYPE_PLAN = 'plan';
+    public const TYPE_TRAFFIC = 'traffic';
+    public const TYPE_WALLET = 'wallet';
+
     protected $fillable = [
         'user_id',
         'type',
@@ -141,12 +146,21 @@ class Reseller extends Model
 
     public function isTrafficBased(): bool
     {
-        return $this->type === 'traffic';
+        return $this->type === self::TYPE_TRAFFIC;
     }
 
     public function isWalletBased(): bool
     {
-        return $this->billing_type === 'wallet';
+        return $this->type === self::TYPE_WALLET;
+    }
+
+    /**
+     * Alias for backward compatibility during transition
+     * @deprecated Use isWalletBased() instead
+     */
+    public function isWalletType(): bool
+    {
+        return $this->isWalletBased();
     }
 
     public function getWalletPricePerGb(): int

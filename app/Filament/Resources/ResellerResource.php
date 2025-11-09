@@ -58,24 +58,14 @@ class ResellerResource extends Resource
                     ->options([
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
+                        'wallet' => 'کیف پول‌محور',
                     ])
                     ->required()
                     ->live()
-                    ->default('plan'),
-
-                Forms\Components\Select::make('billing_type')
-                    ->label('نوع صورتحساب')
-                    ->options([
-                        'traffic' => 'مبتنی بر ترافیک (Traffic-based)',
-                        'wallet' => 'مبتنی بر کیف پول (Wallet-based)',
-                    ])
-                    ->required()
-                    ->live()
-                    ->default('traffic')
-                    ->helperText('نوع صورتحساب ریسلر: ترافیک‌محور یا کیف پول‌محور'),
+                    ->default('traffic'),
 
                 Forms\Components\Section::make('تنظیمات کیف پول')
-                    ->visible(fn (Forms\Get $get) => $get('billing_type') === 'wallet')
+                    ->visible(fn (Forms\Get $get) => $get('type') === 'wallet')
                     ->schema([
                         Forms\Components\TextInput::make('wallet_balance')
                             ->label('موجودی کیف پول (تومان)')
@@ -340,28 +330,31 @@ class ResellerResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'plan' => 'info',
                         'traffic' => 'warning',
+                        'wallet' => 'success',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
+                        'wallet' => 'کیف پول‌محور',
                         default => $state,
                     }),
 
                 Tables\Columns\TextColumn::make('billing_type')
                     ->label('نوع صورتحساب')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn (?string $state): string => match ($state) {
                         'traffic' => 'success',
                         'wallet' => 'warning',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'traffic' => 'ترافیک',
                         'wallet' => 'کیف پول',
-                        default => $state,
+                        default => '-',
                     })
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('-'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('وضعیت')
@@ -427,13 +420,7 @@ class ResellerResource extends Resource
                     ->options([
                         'plan' => 'پلن‌محور',
                         'traffic' => 'ترافیک‌محور',
-                    ]),
-
-                Tables\Filters\SelectFilter::make('billing_type')
-                    ->label('نوع صورتحساب')
-                    ->options([
-                        'traffic' => 'ترافیک',
-                        'wallet' => 'کیف پول',
+                        'wallet' => 'کیف پول‌محور',
                     ]),
 
                 Tables\Filters\SelectFilter::make('status')
