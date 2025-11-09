@@ -13,14 +13,20 @@ return new class extends Migration
     {
         Schema::table('resellers', function (Blueprint $table) {
             // Add billing type: 'traffic' (default, existing behavior) or 'wallet' (new hourly billing)
-            $table->string('billing_type', 20)->default('traffic')->after('type');
+            if (!Schema::hasColumn('resellers', 'billing_type')) {
+                $table->string('billing_type', 20)->default('traffic')->after('type');
+            }
             
             // Wallet balance in تومان (integer to avoid floating point issues)
-            $table->bigInteger('wallet_balance')->default(0)->after('billing_type');
+            if (!Schema::hasColumn('resellers', 'wallet_balance')) {
+                $table->bigInteger('wallet_balance')->default(0)->after('billing_type');
+            }
             
             // Optional per-reseller price override (in تومان per GB)
             // If null, use default from config('billing.wallet.price_per_gb', 780)
-            $table->integer('wallet_price_per_gb')->nullable()->after('wallet_balance');
+            if (!Schema::hasColumn('resellers', 'wallet_price_per_gb')) {
+                $table->integer('wallet_price_per_gb')->nullable()->after('wallet_balance');
+            }
         });
     }
 
