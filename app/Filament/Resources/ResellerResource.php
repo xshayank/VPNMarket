@@ -232,12 +232,14 @@ class ResellerResource extends Resource
                                         $panelId = $get('panel_id');
                                         if (! $panelId) {
                                             \Illuminate\Support\Facades\Log::debug('Eylandoo nodes: No panel_id in form state');
+
                                             return [];
                                         }
 
                                         $panel = \App\Models\Panel::find($panelId);
                                         if (! $panel) {
                                             \Illuminate\Support\Facades\Log::debug("Eylandoo nodes: Panel {$panelId} not found");
+
                                             return [];
                                         }
 
@@ -247,11 +249,11 @@ class ResellerResource extends Resource
 
                                         // Use cached method (5 minute cache)
                                         $nodes = $panel->getCachedEylandooNodes();
-                                        
+
                                         if (empty($nodes)) {
                                             \Illuminate\Support\Facades\Log::warning("Eylandoo nodes: No nodes returned for panel {$panelId}. Check panel credentials and API connectivity.");
                                         }
-                                        
+
                                         $options = [];
 
                                         foreach ($nodes as $node) {

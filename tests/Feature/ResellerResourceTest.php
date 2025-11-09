@@ -129,3 +129,51 @@ test('reseller traffic limits stay within unsigned bigint bounds', function () {
     expect($reseller->traffic_total_bytes)->toBe($maxAllowedBytes);
     expect($reseller->traffic_total_bytes)->toBeLessThan(PHP_INT_MAX);
 });
+
+test('reseller defaults to traffic billing type when not specified', function () {
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'status' => 'active',
+    ]);
+
+    expect($reseller->billing_type)->toBe('traffic');
+});
+
+test('reseller can be created with wallet billing type', function () {
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'billing_type' => 'wallet',
+        'wallet_balance' => 5000,
+        'wallet_price_per_gb' => 800,
+        'status' => 'active',
+    ]);
+
+    expect($reseller->billing_type)->toBe('wallet');
+    expect($reseller->wallet_balance)->toBe(5000);
+    expect($reseller->wallet_price_per_gb)->toBe(800);
+});
+
+test('reseller wallet fields can be updated', function () {
+    $user = User::factory()->create();
+    $reseller = Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'traffic',
+        'billing_type' => 'wallet',
+        'wallet_balance' => 5000,
+        'status' => 'active',
+    ]);
+
+    $reseller->update([
+        'wallet_balance' => 10000,
+        'wallet_price_per_gb' => 900,
+    ]);
+
+    $reseller->refresh();
+
+    expect($reseller->wallet_balance)->toBe(10000);
+    expect($reseller->wallet_price_per_gb)->toBe(900);
+});
