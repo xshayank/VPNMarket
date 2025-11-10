@@ -359,3 +359,126 @@ test('wallet charge submission stores proof image in correct path', function () 
     expect($transaction->proof_image_path)->toContain(now()->format('Y'));
     expect($transaction->proof_image_path)->toContain(now()->format('m'));
 });
+
+test('wallet approval re-enables eylandoo configs only when remote succeeds', function () {
+    \Illuminate\Support\Facades\Http::fake([
+        '*/api/v1/users/*' => \Illuminate\Support\Facades\Http::sequence()
+            ->push(['data' => ['status' => 'disabled', 'username' => 'test_user']], 200)
+            ->push(['data' => ['status' => 'active', 'username' => 'test_user']], 200),
+        '*/api/v1/users/*/toggle' => \Illuminate\Support\Facades\Http::response(['status' => 'active'], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $reseller = \App\Models\Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'wallet',
+        'status' => 'suspended_wallet',
+        'wallet_balance' => -2000,
+    ]);
+
+    $panel = \App\Models\Panel::factory()->eylandoo()->create();
+    $config = \App\Models\ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'panel_id' => $panel->id,
+        'panel_type' => 'eylandoo',
+        'panel_user_id' => 'test_user',
+        'status' => 'disabled',
+        'meta' => [
+            'disabled_by_wallet_suspension' => true,
+        ],
+    ]);
+
+    $transaction = Transaction::create([
+        'user_id' => $user->id,
+        'amount' => 5000,
+        'type' => Transaction::TYPE_DEPOSIT,
+        'status' => Transaction::STATUS_PENDING,
+        'description' => 'شارژ کیف پول ریسلر',
+    ]);
+
+    // Use the actual reenableWalletSuspendedConfigs method
+    DB::transaction(function () use ($transaction, $reseller) {
+        $transaction->update(['status' => Transaction::STATUS_COMPLETED]);
+        $reseller->increment('wallet_balance', $transaction->amount);
+
+        if ($reseller->isSuspendedWallet() &&
+            $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
+            $reseller->update(['status' => 'active']);
+            
+            // Call the reenableWalletSuspendedConfigs method
+            $reflection = new \ReflectionClass(\App\Filament\Resources\WalletTopUpTransactionResource::class);
+            $method = $reflection->getMethod('reenableWalletSuspendedConfigs');
+            $method->setAccessible(true);
+            $method->invoke(null, $reseller);
+        }
+    });
+
+    // Verify config was re-enabled locally
+    $config->refresh();
+    expect($config->status)->toBe('active')
+        ->and($config->meta['disabled_by_wallet_suspension'] ?? null)->toBeNull();
+
+    // Verify the toggle endpoint was called (the proven-good path)
+    \Illuminate\Support\Facades\Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v1/users/')
+            && str_contains($request->url(), '/toggle')
+            && $request->method() === 'POST';
+    });
+});
+
+test('wallet approval keeps eylandoo config disabled when remote fails', function () {
+    \Illuminate\Support\Facades\Http::fake([
+        '*/api/v1/users/test_user' => \Illuminate\Support\Facades\Http::response(['data' => ['status' => 'disabled', 'username' => 'test_user']], 200),
+        '*/api/v1/users/test_user/toggle' => \Illuminate\Support\Facades\Http::response(['error' => 'Panel error'], 500),
+    ]);
+
+    $user = User::factory()->create();
+    $reseller = \App\Models\Reseller::factory()->create([
+        'user_id' => $user->id,
+        'type' => 'wallet',
+        'status' => 'suspended_wallet',
+        'wallet_balance' => -2000,
+    ]);
+
+    $panel = \App\Models\Panel::factory()->eylandoo()->create();
+    $config = \App\Models\ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'panel_id' => $panel->id,
+        'panel_type' => 'eylandoo',
+        'panel_user_id' => 'test_user',
+        'status' => 'disabled',
+        'meta' => [
+            'disabled_by_wallet_suspension' => true,
+        ],
+    ]);
+
+    $transaction = Transaction::create([
+        'user_id' => $user->id,
+        'amount' => 5000,
+        'type' => Transaction::TYPE_DEPOSIT,
+        'status' => Transaction::STATUS_PENDING,
+        'description' => 'شارژ کیف پول ریسلر',
+    ]);
+
+    // Use the actual reenableWalletSuspendedConfigs method
+    DB::transaction(function () use ($transaction, $reseller) {
+        $transaction->update(['status' => Transaction::STATUS_COMPLETED]);
+        $reseller->increment('wallet_balance', $transaction->amount);
+
+        if ($reseller->isSuspendedWallet() &&
+            $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
+            $reseller->update(['status' => 'active']);
+            
+            // Call the reenableWalletSuspendedConfigs method
+            $reflection = new \ReflectionClass(\App\Filament\Resources\WalletTopUpTransactionResource::class);
+            $method = $reflection->getMethod('reenableWalletSuspendedConfigs');
+            $method->setAccessible(true);
+            $method->invoke(null, $reseller);
+        }
+    });
+
+    // Verify config remains disabled because remote call failed
+    $config->refresh();
+    expect($config->status)->toBe('disabled')
+        ->and($config->meta['disabled_by_wallet_suspension'])->toBeTruthy();
+});

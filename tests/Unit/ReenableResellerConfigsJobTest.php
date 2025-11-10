@@ -160,7 +160,7 @@ test('re-enables configs with string "true" marker', function () {
         ->and($config->meta['disabled_by_reseller_suspension'] ?? null)->toBeNull();
 });
 
-test('re-enables configs even when remote enable fails', function () {
+test('keeps config disabled when remote enable fails', function () {
     Http::fake([
         '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
         '*/api/users/*/enable' => Http::response(['error' => 'Panel error'], 500),
@@ -189,11 +189,10 @@ test('re-enables configs even when remote enable fails', function () {
     $job = new ReenableResellerConfigsJob($reseller->id);
     $job->handle(app(\Modules\Reseller\Services\ResellerProvisioner::class));
 
-    // Config should be re-enabled in DB even though remote failed
+    // Config should remain disabled because remote call failed
     $config->refresh();
-    expect($config->status)->toBe('active')
-        ->and($config->meta['disabled_by_reseller_suspension'] ?? null)->toBeNull()
-        ->and($config->meta['disabled_by_reseller_id'] ?? null)->toBeNull();
+    expect($config->status)->toBe('disabled')
+        ->and($config->meta['disabled_by_reseller_suspension'])->toBeTruthy();
 });
 
 test('re-enables configs with time window suspension marker', function () {
@@ -348,6 +347,54 @@ test('re-enables eylandoo configs correctly', function () {
     // Verify that the toggle endpoint was called (the proven-good path)
     Http::assertSent(function ($request) {
         return str_contains($request->url(), '/api/v1/users/') 
+            && str_contains($request->url(), '/toggle')
+            && $request->method() === 'POST';
+    });
+});
+
+test('keeps eylandoo config disabled when remote toggle fails', function () {
+    Http::fake([
+        '*/api/v1/users/test_user' => Http::response([
+            'data' => [
+                'status' => 'disabled',
+                'username' => 'test_user',
+            ],
+        ], 200),
+        '*/api/v1/users/test_user/toggle' => Http::response(['error' => 'Panel error'], 500),
+    ]);
+
+    $panel = Panel::factory()->eylandoo()->create();
+    $reseller = Reseller::factory()->create([
+        'type' => 'traffic',
+        'status' => 'active',
+        'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+        'traffic_used_bytes' => 1 * 1024 * 1024 * 1024,
+        'window_ends_at' => now()->addDays(30),
+    ]);
+
+    $config = ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'panel_id' => $panel->id,
+        'panel_type' => 'eylandoo',
+        'panel_user_id' => 'test_user',
+        'status' => 'disabled',
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_id' => $reseller->id,
+        ],
+    ]);
+
+    $job = new ReenableResellerConfigsJob($reseller->id);
+    $job->handle(app(\Modules\Reseller\Services\ResellerProvisioner::class));
+
+    // Verify the config remains disabled because remote call failed
+    $config->refresh();
+    expect($config->status)->toBe('disabled')
+        ->and($config->meta['disabled_by_reseller_suspension'])->toBeTruthy();
+    
+    // Verify that the toggle endpoint was attempted
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v1/users/')
             && str_contains($request->url(), '/toggle')
             && $request->method() === 'POST';
     });
