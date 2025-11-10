@@ -80,7 +80,7 @@ class EylandooProvisionerTest extends TestCase
         ]);
 
         // Enable the config using the provisioner
-        $provisioner = new EylandooProvisioner();
+        $provisioner = new EylandooProvisioner;
         $result = $provisioner->enableConfig($config);
 
         // Verify success
@@ -120,7 +120,7 @@ class EylandooProvisionerTest extends TestCase
         ]);
 
         // Enable the config (should succeed even though already enabled)
-        $provisioner = new EylandooProvisioner();
+        $provisioner = new EylandooProvisioner;
         $result = $provisioner->enableConfig($config);
 
         // Verify success (idempotent behavior)
@@ -161,7 +161,7 @@ class EylandooProvisionerTest extends TestCase
         ]);
 
         // Enable the config (should retry and eventually succeed)
-        $provisioner = new EylandooProvisioner();
+        $provisioner = new EylandooProvisioner;
         $result = $provisioner->enableConfig($config);
 
         // Verify success after retries
@@ -188,7 +188,7 @@ class EylandooProvisionerTest extends TestCase
         ]);
 
         // Enable the config (should fail gracefully)
-        $provisioner = new EylandooProvisioner();
+        $provisioner = new EylandooProvisioner;
         $result = $provisioner->enableConfig($config);
 
         // Verify failure with clear error message
@@ -222,7 +222,7 @@ class EylandooProvisionerTest extends TestCase
         ]);
 
         // Disable the config
-        $provisioner = new EylandooProvisioner();
+        $provisioner = new EylandooProvisioner;
         $result = $provisioner->disableConfig($config);
 
         // Verify success
@@ -286,7 +286,7 @@ class EylandooProvisionerTest extends TestCase
 
         // Run the re-enable job
         $job = new ReenableResellerConfigsJob($reseller->id);
-        $job->handle(new \Modules\Reseller\Services\ResellerProvisioner());
+        $job->handle(new \Modules\Reseller\Services\ResellerProvisioner);
 
         // Verify config was re-enabled
         $config->refresh();

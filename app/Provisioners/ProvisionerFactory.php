@@ -56,10 +56,10 @@ class ProvisionerFactory
     public static function forPanelType(string $panelType): ProvisionerInterface
     {
         return match (strtolower($panelType)) {
-            'eylandoo' => new EylandooProvisioner(),
-            'marzban' => new MarzbanProvisioner(),
-            'marzneshin' => new MarzneshinProvisioner(),
-            'xui' => new XUIProvisioner(),
+            'eylandoo' => new EylandooProvisioner,
+            'marzban' => new MarzbanProvisioner,
+            'marzneshin' => new MarzneshinProvisioner,
+            'xui' => new XUIProvisioner,
             default => throw new \InvalidArgumentException("Unknown panel type: {$panelType}"),
         };
     }
