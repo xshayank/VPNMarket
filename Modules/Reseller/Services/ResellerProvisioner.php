@@ -6,6 +6,7 @@ use App\Models\Panel;
 use App\Models\Plan;
 use App\Models\Reseller;
 use App\Models\Setting;
+use App\Provisioners\ProvisionerFactory;
 use App\Services\EylandooService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
@@ -523,62 +524,46 @@ class ResellerProvisioner
     }
 
     /**
-     * Enable a config on its panel (convenience wrapper for enableUser)
+     * Enable a config on its panel (uses new modular provisioner architecture)
      *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function enableConfig(\App\Models\ResellerConfig $config): array
     {
-        if (! $config->panel_id || ! $config->panel_user_id) {
-            Log::warning("Cannot enable config {$config->id}: missing panel_id or panel_user_id");
-
-            return ['success' => false, 'attempts' => 0, 'last_error' => 'Missing panel_id or panel_user_id'];
-        }
-
-        $panel = Panel::find($config->panel_id);
-        if (! $panel) {
-            Log::warning("Cannot enable config {$config->id}: panel not found");
-
-            return ['success' => false, 'attempts' => 0, 'last_error' => 'Panel not found'];
-        }
-
         try {
-            $credentials = $panel->getCredentials();
-
-            return $this->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
+            // Use the new provisioner factory for modular, provider-specific implementation
+            $provisioner = ProvisionerFactory::forConfig($config);
+            return $provisioner->enableConfig($config);
         } catch (\Exception $e) {
-            Log::warning("Failed to enable config {$config->id}: ".$e->getMessage());
+            Log::error("Failed to enable config {$config->id} via provisioner factory: ".$e->getMessage(), [
+                'config_id' => $config->id,
+                'reseller_id' => $config->reseller_id,
+                'panel_id' => $config->panel_id,
+                'panel_type' => $config->panel_type,
+            ]);
 
             return ['success' => false, 'attempts' => 0, 'last_error' => $e->getMessage()];
         }
     }
 
     /**
-     * Disable a config on its panel (convenience wrapper for disableUser)
+     * Disable a config on its panel (uses new modular provisioner architecture)
      *
      * @return array ['success' => bool, 'attempts' => int, 'last_error' => ?string]
      */
     public function disableConfig(\App\Models\ResellerConfig $config): array
     {
-        if (! $config->panel_id || ! $config->panel_user_id) {
-            Log::warning("Cannot disable config {$config->id}: missing panel_id or panel_user_id");
-
-            return ['success' => false, 'attempts' => 0, 'last_error' => 'Missing panel_id or panel_user_id'];
-        }
-
-        $panel = Panel::find($config->panel_id);
-        if (! $panel) {
-            Log::warning("Cannot disable config {$config->id}: panel not found");
-
-            return ['success' => false, 'attempts' => 0, 'last_error' => 'Panel not found'];
-        }
-
         try {
-            $credentials = $panel->getCredentials();
-
-            return $this->disableUser($panel->panel_type, $credentials, $config->panel_user_id);
+            // Use the new provisioner factory for modular, provider-specific implementation
+            $provisioner = ProvisionerFactory::forConfig($config);
+            return $provisioner->disableConfig($config);
         } catch (\Exception $e) {
-            Log::warning("Failed to disable config {$config->id}: ".$e->getMessage());
+            Log::error("Failed to disable config {$config->id} via provisioner factory: ".$e->getMessage(), [
+                'config_id' => $config->id,
+                'reseller_id' => $config->reseller_id,
+                'panel_id' => $config->panel_id,
+                'panel_type' => $config->panel_type,
+            ]);
 
             return ['success' => false, 'attempts' => 0, 'last_error' => $e->getMessage()];
         }
