@@ -3,7 +3,11 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\WalletTopUpTransactionResource\Pages;
+use App\Models\AuditLog;
+use App\Models\Panel;
 use App\Models\Reseller;
+use App\Models\ResellerConfig;
+use App\Models\ResellerConfigEvent;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Filament\Forms;
@@ -219,8 +223,15 @@ class WalletTopUpTransactionResource extends Resource
                                     $reseller->isSuspendedWallet() &&
                                     $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
                                     $reseller->update(['status' => 'active']);
+
+                                    // Re-enable configs that were auto-disabled due to wallet suspension
+                                    $reenableStats = self::reenableWalletSuspendedConfigs($reseller);
+
                                     Notification::make()
                                         ->title('ریسلر به طور خودکار فعال شد.')
+                                        ->body($reenableStats['enabled'] > 0 
+                                            ? "{$reenableStats['enabled']} کانفیگ به طور خودکار فعال شد."
+                                            : 'هیچ کانفیگی برای فعال‌سازی مجدد یافت نشد.')
                                         ->success()
                                         ->send();
                                 }
@@ -311,4 +322,108 @@ class WalletTopUpTransactionResource extends Resource
             'view' => Pages\ViewWalletTopUpTransaction::route('/{record}'),
         ];
     }
-}
+
+    /**
+     * Re-enable configs that were auto-disabled due to wallet suspension
+     *
+     * @param  Reseller  $reseller  The reseller whose configs should be re-enabled
+     * @return array Statistics about the re-enable operation
+     */
+    protected static function reenableWalletSuspendedConfigs(Reseller $reseller): array
+    {
+        // Find configs that were auto-disabled by wallet suspension
+        $configs = ResellerConfig::where('reseller_id', $reseller->id)
+            ->where('status', 'disabled')
+            ->where(function ($query) {
+                // Match configs where disabled_by_wallet_suspension is truthy
+                $query->whereRaw("JSON_EXTRACT(meta, '$.disabled_by_wallet_suspension') = TRUE")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_wallet_suspension') = '1'")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_wallet_suspension') = 1")
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.disabled_by_wallet_suspension') = 'true'");
+            })
+            ->get();
+
+        if ($configs->isEmpty()) {
+            Log::info("No wallet-suspended configs to re-enable for reseller {$reseller->id}");
+
+            return ['enabled' => 0, 'failed' => 0];
+        }
+
+        Log::info("Re-enabling {$configs->count()} wallet-suspended configs for reseller {$reseller->id}");
+
+        $provisioner = new \Modules\Reseller\Services\ResellerProvisioner;
+        $enabledCount = 0;
+        $failedCount = 0;
+
+        foreach ($configs as $config) {
+            try {
+                // Apply rate limiting
+                $provisioner->applyRateLimit($enabledCount);
+
+                // Enable on remote panel if possible
+                $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'No panel configured'];
+
+                if ($config->panel_id) {
+                    $panel = Panel::find($config->panel_id);
+                    if ($panel) {
+                        $remoteResult = $provisioner->enableUser(
+                            $panel->panel_type,
+                            $panel->getCredentials(),
+                            $config->panel_user_id
+                        );
+                    }
+                }
+
+                // Update local status and clear wallet suspension markers
+                $meta = $config->meta ?? [];
+                unset($meta['disabled_by_wallet_suspension']);
+                unset($meta['disabled_by_reseller_id']);
+                unset($meta['disabled_at']);
+
+                $config->update([
+                    'status' => 'active',
+                    'disabled_at' => null,
+                    'meta' => $meta,
+                ]);
+
+                // Log event
+                ResellerConfigEvent::create([
+                    'reseller_config_id' => $config->id,
+                    'type' => 'auto_enabled',
+                    'meta' => [
+                        'reason' => 'wallet_recharged',
+                        'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                    ],
+                ]);
+
+                // Create audit log
+                AuditLog::log(
+                    action: 'config_auto_enabled',
+                    targetType: 'config',
+                    targetId: $config->id,
+                    reason: 'wallet_recharged',
+                    meta: [
+                        'reseller_id' => $reseller->id,
+                        'remote_success' => $remoteResult['success'],
+                    ],
+                    actorType: null,
+                    actorId: null
+                );
+
+                $enabledCount++;
+
+                Log::info("Config {$config->id} re-enabled after wallet recharge", [
+                    'remote_success' => $remoteResult['success'],
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Error enabling config {$config->id}: ".$e->getMessage());
+                $failedCount++;
+            }
+        }
+
+        Log::info("Wallet config re-enable completed for reseller {$reseller->id}: {$enabledCount} enabled, {$failedCount} failed");
+
+        return ['enabled' => $enabledCount, 'failed' => $failedCount];
+    }

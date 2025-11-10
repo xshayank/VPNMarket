@@ -143,7 +143,7 @@ class OrderController extends Controller
                 ? '/reseller'
                 : route('dashboard');
 
-            return redirect($redirectRoute)->with('status', 'درخواست شارژ کیف پول شما با موفقیت ثبت شد. پس از تایید توسط مدیر، موجودی شما افزایش خواهد یافت.');
+            return redirect($redirectRoute)->with('status', 'درخواست شارژ با موفقیت ارسال شد و منتظر تایید است.');
         } catch (\Exception $e) {
             Log::error('Failed to create wallet charge transaction', [
                 'user_id' => $user->id,
