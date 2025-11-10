@@ -340,9 +340,17 @@ test('re-enables eylandoo configs correctly', function () {
     $job = new ReenableResellerConfigsJob($reseller->id);
     $job->handle(app(\Modules\Reseller\Services\ResellerProvisioner::class));
 
+    // Verify the config was re-enabled locally
     $config->refresh();
     expect($config->status)->toBe('active')
         ->and($config->meta['disabled_by_reseller_suspension'] ?? null)->toBeNull();
+    
+    // Verify that the toggle endpoint was called (the proven-good path)
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v1/users/') 
+            && str_contains($request->url(), '/toggle')
+            && $request->method() === 'POST';
+    });
 });
 
 test('clears all suspension meta fields on re-enable', function () {
@@ -390,4 +398,47 @@ test('clears all suspension meta fields on re-enable', function () {
         ->and($config->meta['disabled_at'] ?? null)->toBeNull()
         ->and($config->meta['suspended_by_time_window'] ?? null)->toBeNull()
         ->and($config->meta['other_field'])->toBe('should_remain'); // Verify non-suspension fields preserved
+});
+
+test('re-enables marzneshin configs using original path', function () {
+    Http::fake([
+        '*/api/admins/token' => Http::response(['access_token' => 'test-token'], 200),
+        '*/api/users/*/enable' => Http::response(['status' => 'active'], 200),
+    ]);
+
+    $panel = Panel::factory()->marzneshin()->create();
+    $reseller = Reseller::factory()->create([
+        'type' => 'traffic',
+        'status' => 'active',
+        'traffic_total_bytes' => 10 * 1024 * 1024 * 1024,
+        'traffic_used_bytes' => 1 * 1024 * 1024 * 1024,
+        'window_ends_at' => now()->addDays(30),
+    ]);
+
+    $config = ResellerConfig::factory()->create([
+        'reseller_id' => $reseller->id,
+        'panel_id' => $panel->id,
+        'panel_type' => 'marzneshin',
+        'panel_user_id' => 'test_user',
+        'status' => 'disabled',
+        'meta' => [
+            'disabled_by_reseller_suspension' => true,
+            'disabled_by_reseller_id' => $reseller->id,
+        ],
+    ]);
+
+    $job = new ReenableResellerConfigsJob($reseller->id);
+    $job->handle(app(\Modules\Reseller\Services\ResellerProvisioner::class));
+
+    // Verify the config was re-enabled locally
+    $config->refresh();
+    expect($config->status)->toBe('active')
+        ->and($config->meta['disabled_by_reseller_suspension'] ?? null)->toBeNull();
+    
+    // Verify that Marzneshin uses the /api/users/{username}/enable endpoint (not toggle)
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/users/')
+            && str_contains($request->url(), '/enable')
+            && $request->method() === 'POST';
+    });
 });

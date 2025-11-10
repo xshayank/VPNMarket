@@ -231,8 +231,31 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     ],
                 ]);
 
-                // Enable on remote panel using enableConfig method (best-effort)
-                $remoteResult = $provisioner->enableConfig($config);
+                // Enable on remote panel - use the proven path for Eylandoo
+                // For Eylandoo, use the same ResellerProvisioner->enableUser() path as the reseller panel
+                // For other providers, continue using enableConfig()
+                if ($panel && strtolower($panel->panel_type) === 'eylandoo') {
+                    try {
+                        $credentials = $panel->getCredentials();
+                        $remoteResult = $provisioner->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
+                        
+                        Log::info("Eylandoo re-enable via ResellerProvisioner->enableUser()", [
+                            'config_id' => $config->id,
+                            'panel_id' => $panel->id,
+                            'panel_user_id' => $config->panel_user_id,
+                            'remote_success' => $remoteResult['success'],
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error("Failed to get Eylandoo credentials for re-enable: {$e->getMessage()}", [
+                            'config_id' => $config->id,
+                            'panel_id' => $panel->id,
+                        ]);
+                        $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => $e->getMessage()];
+                    }
+                } else {
+                    // For Marzban, Marzneshin, XUI, and other providers - use enableConfig
+                    $remoteResult = $provisioner->enableConfig($config);
+                }
 
                 // Log remote enable result
                 Log::info("Remote enable result for config {$config->id}", [
