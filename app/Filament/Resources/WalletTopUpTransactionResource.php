@@ -427,3 +427,4 @@ class WalletTopUpTransactionResource extends Resource
 
         return ['enabled' => $enabledCount, 'failed' => $failedCount];
     }
+}
