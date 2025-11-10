@@ -366,30 +366,91 @@ class WalletTopUpTransactionResource extends Resource
                 if ($config->panel_id) {
                     $panel = Panel::find($config->panel_id);
                     if ($panel) {
-                        $remoteResult = $provisioner->enableUser(
-                            $panel->panel_type,
-                            $panel->getCredentials(),
-                            $config->panel_user_id
-                        );
+                        $credentials = $panel->getCredentials();
+                        
+                        // For Eylandoo, use ResellerProvisioner->enableUser (proven-good path)
+                        // For other panel types, continue using enableUser as before
+                        if (strtolower($panel->panel_type) === 'eylandoo') {
+                            // Validate credentials before attempting
+                            if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                                Log::warning('Wallet re-enable: Eylandoo missing credentials', [
+                                    'action' => 'eylandoo_enable_failed',
+                                    'config_id' => $config->id,
+                                    'panel_id' => $panel->id,
+                                    'reseller_id' => $reseller->id,
+                                    'panel_user_id' => $config->panel_user_id,
+                                ]);
+                                $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'Missing credentials (url or api_token)'];
+                            } else {
+                                Log::info('Wallet re-enable: calling Eylandoo enableUser', [
+                                    'action' => 'eylandoo_enable_toggle',
+                                    'config_id' => $config->id,
+                                    'panel_id' => $panel->id,
+                                    'reseller_id' => $reseller->id,
+                                    'panel_user_id' => $config->panel_user_id,
+                                    'url' => $credentials['url'],
+                                ]);
+                                
+                                $remoteResult = $provisioner->enableUser(
+                                    $panel->panel_type,
+                                    $credentials,
+                                    $config->panel_user_id
+                                );
+                            }
+                        } else {
+                            // For Marzban, Marzneshin, XUI - use existing path
+                            $remoteResult = $provisioner->enableUser(
+                                $panel->panel_type,
+                                $credentials,
+                                $config->panel_user_id
+                            );
+                        }
                     }
                 }
 
-                // Update local status and clear wallet suspension markers
-                $meta = $config->meta ?? [];
-                unset($meta['disabled_by_wallet_suspension']);
-                unset($meta['disabled_by_reseller_id']);
-                unset($meta['disabled_at']);
+                // Only update local status if remote enable succeeded or user is already active
+                if ($remoteResult['success']) {
+                    // Update local status and clear wallet suspension markers
+                    $meta = $config->meta ?? [];
+                    unset($meta['disabled_by_wallet_suspension']);
+                    unset($meta['disabled_by_reseller_id']);
+                    unset($meta['disabled_at']);
 
-                $config->update([
-                    'status' => 'active',
-                    'disabled_at' => null,
-                    'meta' => $meta,
-                ]);
+                    $config->update([
+                        'status' => 'active',
+                        'disabled_at' => null,
+                        'meta' => $meta,
+                    ]);
 
-                // Log event
+                    $enabledCount++;
+
+                    Log::info('Config re-enabled after wallet recharge', [
+                        'action' => 'wallet_reenable_success',
+                        'config_id' => $config->id,
+                        'reseller_id' => $reseller->id,
+                        'panel_type' => $panel->panel_type ?? 'unknown',
+                        'remote_success' => true,
+                    ]);
+                } else {
+                    // Remote enable failed - keep config disabled
+                    $failedCount++;
+                    
+                    Log::warning('Wallet re-enable failed: remote call unsuccessful, keeping config disabled', [
+                        'action' => 'wallet_reenable_failed',
+                        'config_id' => $config->id,
+                        'reseller_id' => $reseller->id,
+                        'panel_id' => $config->panel_id,
+                        'panel_type' => $panel->panel_type ?? 'unknown',
+                        'panel_user_id' => $config->panel_user_id,
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
+                    ]);
+                }
+
+                // Log event regardless of success
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
-                    'type' => 'auto_enabled',
+                    'type' => $remoteResult['success'] ? 'auto_enabled' : 'auto_enable_failed',
                     'meta' => [
                         'reason' => 'wallet_recharged',
                         'remote_success' => $remoteResult['success'],
@@ -400,25 +461,21 @@ class WalletTopUpTransactionResource extends Resource
 
                 // Create audit log
                 AuditLog::log(
-                    action: 'config_auto_enabled',
+                    action: $remoteResult['success'] ? 'config_auto_enabled' : 'config_auto_enable_failed',
                     targetType: 'config',
                     targetId: $config->id,
                     reason: 'wallet_recharged',
                     meta: [
                         'reseller_id' => $reseller->id,
                         'remote_success' => $remoteResult['success'],
+                        'attempts' => $remoteResult['attempts'],
+                        'last_error' => $remoteResult['last_error'],
                     ],
                     actorType: null,
                     actorId: null
                 );
-
-                $enabledCount++;
-
-                Log::info("Config {$config->id} re-enabled after wallet recharge", [
-                    'remote_success' => $remoteResult['success'],
-                ]);
             } catch (\Exception $e) {
-                Log::error("Error enabling config {$config->id}: ".$e->getMessage());
+                Log::error("Exception enabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
             }
         }

@@ -390,16 +390,15 @@ class EylandooService
             $encodedUsername = rawurlencode($username);
             $getUserUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}";
             
-            Log::info('Eylandoo enableUser: Fetching current status', [
-                'username' => $username,
-                'url' => $getUserUrl,
-            ]);
-            
             $user = $this->getUser($username);
 
             if (! $user) {
-                Log::warning("Cannot enable Eylandoo user {$username}: user not found", [
+                Log::warning('Eylandoo enableUser failed: user not found', [
+                    'action' => 'eylandoo_enable_failed',
+                    'username' => $username,
                     'url' => $getUserUrl,
+                    'base_url' => $this->baseUrl,
+                    'reason' => 'user_not_found',
                 ]);
 
                 return false;
@@ -409,9 +408,13 @@ class EylandooService
 
             // If already enabled, return success
             if ($currentStatus === 'active') {
-                Log::info("Eylandoo user {$username} is already enabled", [
+                Log::info('Eylandoo user already enabled', [
+                    'action' => 'eylandoo_enable_success',
+                    'username' => $username,
                     'url' => $getUserUrl,
                     'current_status' => $currentStatus,
+                    'base_url' => $this->baseUrl,
+                    'reason' => 'already_active',
                 ]);
 
                 return true;
@@ -420,24 +423,41 @@ class EylandooService
             // Toggle to enable
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
             
-            Log::info('Eylandoo enableUser: Calling toggle endpoint', [
+            Log::info('Eylandoo enable: sending toggle request', [
+                'action' => 'eylandoo_enable_toggle',
                 'username' => $username,
                 'url' => $toggleUrl,
                 'current_status' => $currentStatus,
+                'base_url' => $this->baseUrl,
             ]);
             
             $response = $this->client()->post($toggleUrl);
+            $statusCode = $response->status();
+            $responseBody = $response->body();
+            $responsePreview = strlen($responseBody) > 500 ? substr($responseBody, 0, 500) : $responseBody;
 
-            Log::info('Eylandoo Enable User Response:', [
-                'username' => $username,
-                'url' => $toggleUrl,
-                'status_code' => $response->status(),
-                'response' => $response->json() ?? ['raw' => $response->body()],
-            ]);
-
-            return $response->successful();
+            if ($response->successful()) {
+                Log::info('Eylandoo enable toggle succeeded', [
+                    'action' => 'eylandoo_enable_success',
+                    'username' => $username,
+                    'url' => $toggleUrl,
+                    'status_code' => $statusCode,
+                    'response_preview' => $responsePreview,
+                ]);
+                return true;
+            } else {
+                Log::warning('Eylandoo enable toggle failed', [
+                    'action' => 'eylandoo_enable_failed',
+                    'username' => $username,
+                    'url' => $toggleUrl,
+                    'status_code' => $statusCode,
+                    'response_preview' => $responsePreview,
+                ]);
+                return false;
+            }
         } catch (\Exception $e) {
-            Log::error('Eylandoo Enable User Exception:', [
+            Log::error('Eylandoo enable exception', [
+                'action' => 'eylandoo_enable_failed',
                 'username' => $username,
                 'base_url' => $this->baseUrl,
                 'message' => $e->getMessage(),
@@ -460,16 +480,15 @@ class EylandooService
             $encodedUsername = rawurlencode($username);
             $getUserUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}";
             
-            Log::info('Eylandoo disableUser: Fetching current status', [
-                'username' => $username,
-                'url' => $getUserUrl,
-            ]);
-            
             $user = $this->getUser($username);
 
             if (! $user) {
-                Log::warning("Cannot disable Eylandoo user {$username}: user not found", [
+                Log::warning('Eylandoo disableUser failed: user not found', [
+                    'action' => 'eylandoo_disable_failed',
+                    'username' => $username,
                     'url' => $getUserUrl,
+                    'base_url' => $this->baseUrl,
+                    'reason' => 'user_not_found',
                 ]);
 
                 return false;
@@ -479,9 +498,13 @@ class EylandooService
 
             // If already disabled, return success
             if ($currentStatus === 'disabled') {
-                Log::info("Eylandoo user {$username} is already disabled", [
+                Log::info('Eylandoo user already disabled', [
+                    'action' => 'eylandoo_disable_success',
+                    'username' => $username,
                     'url' => $getUserUrl,
                     'current_status' => $currentStatus,
+                    'base_url' => $this->baseUrl,
+                    'reason' => 'already_disabled',
                 ]);
 
                 return true;
@@ -490,24 +513,41 @@ class EylandooService
             // Toggle to disable
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
             
-            Log::info('Eylandoo disableUser: Calling toggle endpoint', [
+            Log::info('Eylandoo disable: sending toggle request', [
+                'action' => 'eylandoo_disable_toggle',
                 'username' => $username,
                 'url' => $toggleUrl,
                 'current_status' => $currentStatus,
+                'base_url' => $this->baseUrl,
             ]);
             
             $response = $this->client()->post($toggleUrl);
+            $statusCode = $response->status();
+            $responseBody = $response->body();
+            $responsePreview = strlen($responseBody) > 500 ? substr($responseBody, 0, 500) : $responseBody;
 
-            Log::info('Eylandoo Disable User Response:', [
-                'username' => $username,
-                'url' => $toggleUrl,
-                'status_code' => $response->status(),
-                'response' => $response->json() ?? ['raw' => $response->body()],
-            ]);
-
-            return $response->successful();
+            if ($response->successful()) {
+                Log::info('Eylandoo disable toggle succeeded', [
+                    'action' => 'eylandoo_disable_success',
+                    'username' => $username,
+                    'url' => $toggleUrl,
+                    'status_code' => $statusCode,
+                    'response_preview' => $responsePreview,
+                ]);
+                return true;
+            } else {
+                Log::warning('Eylandoo disable toggle failed', [
+                    'action' => 'eylandoo_disable_failed',
+                    'username' => $username,
+                    'url' => $toggleUrl,
+                    'status_code' => $statusCode,
+                    'response_preview' => $responsePreview,
+                ]);
+                return false;
+            }
         } catch (\Exception $e) {
-            Log::error('Eylandoo Disable User Exception:', [
+            Log::error('Eylandoo disable exception', [
+                'action' => 'eylandoo_disable_failed',
                 'username' => $username,
                 'base_url' => $this->baseUrl,
                 'message' => $e->getMessage(),

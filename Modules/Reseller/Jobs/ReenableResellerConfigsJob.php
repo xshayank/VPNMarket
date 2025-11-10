@@ -237,14 +237,36 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 if ($panel && strtolower($panel->panel_type) === 'eylandoo') {
                     try {
                         $credentials = $panel->getCredentials();
-                        $remoteResult = $provisioner->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
                         
-                        Log::info("Eylandoo re-enable via ResellerProvisioner->enableUser()", [
-                            'config_id' => $config->id,
-                            'panel_id' => $panel->id,
-                            'panel_user_id' => $config->panel_user_id,
-                            'remote_success' => $remoteResult['success'],
-                        ]);
+                        // Validate credentials before attempting
+                        if (empty($credentials['url']) || empty($credentials['api_token'])) {
+                            Log::warning('ReenableJob: Eylandoo missing credentials', [
+                                'action' => 'eylandoo_enable_failed',
+                                'config_id' => $config->id,
+                                'panel_id' => $panel->id,
+                                'reseller_id' => $reseller->id,
+                            ]);
+                            $remoteResult = ['success' => false, 'attempts' => 0, 'last_error' => 'Missing credentials (url or api_token)'];
+                        } else {
+                            Log::info('ReenableJob: calling Eylandoo enableUser', [
+                                'action' => 'eylandoo_enable_toggle',
+                                'config_id' => $config->id,
+                                'panel_id' => $panel->id,
+                                'reseller_id' => $reseller->id,
+                                'panel_user_id' => $config->panel_user_id,
+                                'url' => $credentials['url'],
+                            ]);
+                            
+                            $remoteResult = $provisioner->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
+                            
+                            Log::info('ReenableJob: Eylandoo enableUser result', [
+                                'config_id' => $config->id,
+                                'panel_id' => $panel->id,
+                                'panel_user_id' => $config->panel_user_id,
+                                'remote_success' => $remoteResult['success'],
+                                'attempts' => $remoteResult['attempts'],
+                            ]);
+                        }
                     } catch (\Exception $e) {
                         Log::error("Failed to get Eylandoo credentials for re-enable: {$e->getMessage()}", [
                             'config_id' => $config->id,
@@ -264,33 +286,43 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     'last_error' => $remoteResult['last_error'],
                 ]);
 
-                if (! $remoteResult['success']) {
-                    Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}. Proceeding with local DB update to avoid stuck state.");
+                // Only update local status if remote succeeded
+                if ($remoteResult['success']) {
+                    // Update local status and clear suspension markers
+                    $meta = $config->meta ?? [];
+                    unset($meta['disabled_by_reseller_suspension']);
+                    unset($meta['disabled_by_reseller_suspension_reason']);
+                    unset($meta['disabled_by_reseller_suspension_at']);
+                    unset($meta['disabled_by_reseller_id']);
+                    unset($meta['disabled_at']);
+                    unset($meta['suspended_by_time_window']);
+
+                    $config->update([
+                        'status' => 'active',
+                        'disabled_at' => null,
+                        'meta' => $meta,
+                    ]);
+
+                    Log::info("Config {$config->id} re-enabled (status set to active, meta flags cleared)", [
+                        'remote_success' => true,
+                    ]);
+
+                    $enabledCount++;
+                } else {
+                    // Remote enable failed - keep config disabled
+                    Log::warning("Failed to enable config {$config->id} on remote panel after {$remoteResult['attempts']} attempts: {$remoteResult['last_error']}. Keeping config disabled.", [
+                        'action' => 'config_reenable_failed',
+                        'config_id' => $config->id,
+                        'reseller_id' => $reseller->id,
+                        'panel_id' => $config->panel_id,
+                        'panel_type' => $panel?->panel_type,
+                    ]);
                     $failedCount++;
                 }
 
-                // Update local status and clear suspension markers (even if remote fails to avoid stuck state)
-                $meta = $config->meta ?? [];
-                unset($meta['disabled_by_reseller_suspension']);
-                unset($meta['disabled_by_reseller_suspension_reason']);
-                unset($meta['disabled_by_reseller_suspension_at']);
-                unset($meta['disabled_by_reseller_id']);
-                unset($meta['disabled_at']);
-                unset($meta['suspended_by_time_window']);
-
-                $config->update([
-                    'status' => 'active',
-                    'disabled_at' => null,
-                    'meta' => $meta,
-                ]);
-
-                Log::info("Config {$config->id} re-enabled in DB (status set to active, meta flags cleared)", [
-                    'remote_success' => $remoteResult['success'],
-                ]);
-
                 ResellerConfigEvent::create([
                     'reseller_config_id' => $config->id,
-                    'type' => 'auto_enabled',
+                    'type' => $remoteResult['success'] ? 'auto_enabled' : 'auto_enable_failed',
                     'meta' => [
                         'reason' => 'reseller_recovered',
                         'remote_success' => $remoteResult['success'],
@@ -303,7 +335,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
 
                 // Create audit log entry
                 AuditLog::log(
-                    action: 'config_auto_enabled',
+                    action: $remoteResult['success'] ? 'config_auto_enabled' : 'config_auto_enable_failed',
                     targetType: 'config',
                     targetId: $config->id,
                     reason: 'reseller_recovered',
@@ -317,8 +349,6 @@ class ReenableResellerConfigsJob implements ShouldQueue
                     actorType: null,
                     actorId: null  // System action
                 );
-
-                $enabledCount++;
             } catch (\Exception $e) {
                 Log::error("Exception enabling config {$config->id}: ".$e->getMessage());
                 $failedCount++;
