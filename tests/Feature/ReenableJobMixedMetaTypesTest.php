@@ -175,11 +175,12 @@ class ReenableJobMixedMetaTypesTest extends TestCase
         $job = new ReenableResellerConfigsJob($reseller->id);
         $job->handle(new \Modules\Reseller\Services\ResellerProvisioner);
 
-        // Verify config status is set to active even though remote failed
+        // Verify config status remains disabled when remote failed (correct behavior)
         $config->refresh();
-        $this->assertEquals('active', $config->status);
-        $this->assertNull($config->disabled_at);
-        $this->assertFalse(isset($config->meta['disabled_by_reseller_suspension']));
+        $this->assertEquals('disabled', $config->status);
+        $this->assertNotNull($config->disabled_at);
+        // Meta flag should remain set since remote enable failed
+        $this->assertTrue(isset($config->meta['disabled_by_reseller_suspension']));
     }
 
     protected function runReenableTestWithMetaValue($metaValue): void

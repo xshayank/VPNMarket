@@ -378,6 +378,45 @@ class EylandooService
     }
 
     /**
+     * Extract user status from Eylandoo API response
+     * Handles multiple response shapes for robustness
+     *
+     * @param  array  $userJson  User data from API
+     * @return string|null 'active', 'disabled', or null if status cannot be determined
+     */
+    private function extractUserStatus(array $userJson): ?string
+    {
+        // Try userJson['data']['status'] (string)
+        if (isset($userJson['data']['status']) && is_string($userJson['data']['status'])) {
+            $status = strtolower(trim($userJson['data']['status']));
+            if (in_array($status, ['active', 'disabled'])) {
+                return $status;
+            }
+        }
+
+        // Try userJson['status'] (string 'active'/'disabled')
+        if (isset($userJson['status']) && is_string($userJson['status'])) {
+            $status = strtolower(trim($userJson['status']));
+            if (in_array($status, ['active', 'disabled'])) {
+                return $status;
+            }
+        }
+
+        // Try userJson['data']['is_active'] (boolean)
+        if (isset($userJson['data']['is_active']) && is_bool($userJson['data']['is_active'])) {
+            return $userJson['data']['is_active'] ? 'active' : 'disabled';
+        }
+
+        // Try userJson['is_active'] (boolean)
+        if (isset($userJson['is_active']) && is_bool($userJson['is_active'])) {
+            return $userJson['is_active'] ? 'active' : 'disabled';
+        }
+
+        // Status not found or unrecognized
+        return null;
+    }
+
+    /**
      * Enable a user
      *
      * @param  string  $username  Username to enable
@@ -404,10 +443,22 @@ class EylandooService
                 return false;
             }
 
-            $currentStatus = $user['data']['status'] ?? 'active';
+            // Use robust status extraction
+            $currentStatus = $this->extractUserStatus($user);
 
-            // If already enabled, return success
-            if ($currentStatus === 'active') {
+            // If status is unknown, log diagnostic info and proceed to toggle (safer)
+            if ($currentStatus === null) {
+                Log::warning('Eylandoo enableUser: unknown status format, proceeding to toggle', [
+                    'action' => 'eylandoo_enable_toggle',
+                    'username' => $username,
+                    'url' => $getUserUrl,
+                    'base_url' => $this->baseUrl,
+                    'available_keys' => array_keys($user),
+                    'data_keys' => isset($user['data']) && is_array($user['data']) ? array_keys($user['data']) : null,
+                ]);
+                // Proceed to toggle to be safe
+            } elseif ($currentStatus === 'active') {
+                // If already enabled, return success
                 Log::info('Eylandoo user already enabled', [
                     'action' => 'eylandoo_enable_success',
                     'username' => $username,
@@ -420,14 +471,14 @@ class EylandooService
                 return true;
             }
 
-            // Toggle to enable
+            // Toggle to enable (when disabled or status unknown)
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
 
             Log::info('Eylandoo enable: sending toggle request', [
                 'action' => 'eylandoo_enable_toggle',
                 'username' => $username,
                 'url' => $toggleUrl,
-                'current_status' => $currentStatus,
+                'current_status' => $currentStatus ?? 'unknown',
                 'base_url' => $this->baseUrl,
             ]);
 
@@ -438,7 +489,7 @@ class EylandooService
 
             if ($response->successful()) {
                 Log::info('Eylandoo enable toggle succeeded', [
-                    'action' => 'eylandoo_enable_success',
+                    'action' => 'eylandoo_enable_response',
                     'username' => $username,
                     'url' => $toggleUrl,
                     'status_code' => $statusCode,
@@ -496,10 +547,22 @@ class EylandooService
                 return false;
             }
 
-            $currentStatus = $user['data']['status'] ?? 'active';
+            // Use robust status extraction
+            $currentStatus = $this->extractUserStatus($user);
 
-            // If already disabled, return success
-            if ($currentStatus === 'disabled') {
+            // If status is unknown, log diagnostic info and proceed to toggle (safer)
+            if ($currentStatus === null) {
+                Log::warning('Eylandoo disableUser: unknown status format, proceeding to toggle', [
+                    'action' => 'eylandoo_disable_toggle',
+                    'username' => $username,
+                    'url' => $getUserUrl,
+                    'base_url' => $this->baseUrl,
+                    'available_keys' => array_keys($user),
+                    'data_keys' => isset($user['data']) && is_array($user['data']) ? array_keys($user['data']) : null,
+                ]);
+                // Proceed to toggle to be safe
+            } elseif ($currentStatus === 'disabled') {
+                // If already disabled, return success
                 Log::info('Eylandoo user already disabled', [
                     'action' => 'eylandoo_disable_success',
                     'username' => $username,
@@ -512,14 +575,14 @@ class EylandooService
                 return true;
             }
 
-            // Toggle to disable
+            // Toggle to disable (when active or status unknown)
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
 
             Log::info('Eylandoo disable: sending toggle request', [
                 'action' => 'eylandoo_disable_toggle',
                 'username' => $username,
                 'url' => $toggleUrl,
-                'current_status' => $currentStatus,
+                'current_status' => $currentStatus ?? 'unknown',
                 'base_url' => $this->baseUrl,
             ]);
 
@@ -530,7 +593,7 @@ class EylandooService
 
             if ($response->successful()) {
                 Log::info('Eylandoo disable toggle succeeded', [
-                    'action' => 'eylandoo_disable_success',
+                    'action' => 'eylandoo_disable_response',
                     'username' => $username,
                     'url' => $toggleUrl,
                     'status_code' => $statusCode,

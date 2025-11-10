@@ -1257,3 +1257,238 @@ test('listConfigsByAdmin handles various usage field formats', function () {
         ->and($result[1]['used_traffic'])->toBe(3221225472) // 1GB + 2GB
         ->and($result[1]['data_used'])->toBe(3221225472);
 });
+
+// Tests for robust status extraction and enable/disable with unknown status shapes
+
+test('enableUser with unknown status shape proceeds to toggle and calls API', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'success' => true,
+            'user' => [
+                'username' => 'testuser',
+                'enabled' => false,  // Different status key
+            ],
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'status' => 'success',
+            'message' => 'User enabled successfully',
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    // Verify toggle endpoint was called
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/toggle')
+            && $request->method() === 'POST';
+    });
+});
+
+test('enableUser with status at root level (not in data) works correctly', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'username' => 'testuser',
+            'status' => 'disabled',  // Status at root level
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'status' => 'success',
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeTrue();
+});
+
+test('enableUser with boolean is_active works correctly', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'is_active' => false,  // Boolean status
+            ],
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'status' => 'success',
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeTrue();
+});
+
+test('enableUser skips toggle when user already active (data.status)', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'active',
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    // Verify toggle endpoint was NOT called
+    Http::assertNotSent(function ($request) {
+        return str_contains($request->url(), '/toggle');
+    });
+});
+
+test('enableUser skips toggle when user already active (is_active=true)', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'is_active' => true,
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    // Verify toggle endpoint was NOT called
+    Http::assertNotSent(function ($request) {
+        return str_contains($request->url(), '/toggle');
+    });
+});
+
+test('enableUser returns false when toggle fails', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'disabled',
+            ],
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'error' => 'Failed to enable user',
+        ], 500),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->enableUser('testuser');
+
+    expect($result)->toBeFalse();
+});
+
+test('disableUser with unknown status shape proceeds to toggle', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'user' => [
+                'username' => 'testuser',
+                'state' => 'on',  // Different status key
+            ],
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'status' => 'success',
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->disableUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    // Verify toggle endpoint was called
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/toggle');
+    });
+});
+
+test('disableUser skips toggle when user already disabled', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'disabled',
+            ],
+        ], 200),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->disableUser('testuser');
+
+    expect($result)->toBeTrue();
+
+    // Verify toggle endpoint was NOT called
+    Http::assertNotSent(function ($request) {
+        return str_contains($request->url(), '/toggle');
+    });
+});
+
+test('disableUser returns false when toggle fails', function () {
+    Http::fake([
+        '*/api/v1/users/testuser' => Http::response([
+            'data' => [
+                'username' => 'testuser',
+                'status' => 'active',
+            ],
+        ], 200),
+        '*/api/v1/users/testuser/toggle' => Http::response([
+            'error' => 'Failed to disable user',
+        ], 500),
+    ]);
+
+    $service = new EylandooService(
+        'https://example.com',
+        'test-api-key-123',
+        ''
+    );
+
+    $result = $service->disableUser('testuser');
+
+    expect($result)->toBeFalse();
+});

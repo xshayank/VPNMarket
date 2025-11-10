@@ -311,14 +311,16 @@ test('job handles remote enable failures gracefully', function () {
     // Run the job
     ReenableResellerConfigsJob::dispatchSync();
 
-    // Assert local config is still set to active despite remote failure
+    // Assert local config remains disabled when remote fails (correct behavior)
     $config->refresh();
-    expect($config->status)->toBe('active');
-    expect($config->disabled_at)->toBeNull();
+    expect($config->status)->toBe('disabled');
+    expect($config->disabled_at)->not->toBeNull();
+    // Meta flag should remain set since remote enable failed
+    expect($config->meta)->toHaveKey('disabled_by_reseller_suspension');
 
-    // Assert event was created with remote_success=false
+    // Assert event was created with type 'auto_enable_failed' (not 'auto_enabled')
     $enableEvent = ResellerConfigEvent::where('reseller_config_id', $config->id)
-        ->where('type', 'auto_enabled')
+        ->where('type', 'auto_enable_failed')
         ->first();
     
     expect($enableEvent)->not->toBeNull();
