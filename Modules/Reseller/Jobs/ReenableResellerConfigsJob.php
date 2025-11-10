@@ -237,7 +237,7 @@ class ReenableResellerConfigsJob implements ShouldQueue
                 if ($panel && strtolower($panel->panel_type) === 'eylandoo') {
                     try {
                         $credentials = $panel->getCredentials();
-                        
+
                         // Validate credentials before attempting
                         if (empty($credentials['url']) || empty($credentials['api_token'])) {
                             Log::warning('ReenableJob: Eylandoo missing credentials', [
@@ -256,9 +256,9 @@ class ReenableResellerConfigsJob implements ShouldQueue
                                 'panel_user_id' => $config->panel_user_id,
                                 'url' => $credentials['url'],
                             ]);
-                            
+
                             $remoteResult = $provisioner->enableUser($panel->panel_type, $credentials, $config->panel_user_id);
-                            
+
                             Log::info('ReenableJob: Eylandoo enableUser result', [
                                 'config_id' => $config->id,
                                 'panel_id' => $panel->id,

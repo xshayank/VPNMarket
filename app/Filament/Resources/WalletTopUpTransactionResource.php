@@ -186,7 +186,7 @@ class WalletTopUpTransactionResource extends Resource
                     ))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('بستن')
-                    ->visible(fn (Transaction $record): bool => !empty($record->proof_image_path)),
+                    ->visible(fn (Transaction $record): bool => ! empty($record->proof_image_path)),
 
                 Tables\Actions\Action::make('approve')
                     ->label('تایید')
@@ -229,7 +229,7 @@ class WalletTopUpTransactionResource extends Resource
 
                                     Notification::make()
                                         ->title('ریسلر به طور خودکار فعال شد.')
-                                        ->body($reenableStats['enabled'] > 0 
+                                        ->body($reenableStats['enabled'] > 0
                                             ? "{$reenableStats['enabled']} کانفیگ به طور خودکار فعال شد."
                                             : 'هیچ کانفیگی برای فعال‌سازی مجدد یافت نشد.')
                                         ->success()
@@ -367,7 +367,7 @@ class WalletTopUpTransactionResource extends Resource
                     $panel = Panel::find($config->panel_id);
                     if ($panel) {
                         $credentials = $panel->getCredentials();
-                        
+
                         // For Eylandoo, use ResellerProvisioner->enableUser (proven-good path)
                         // For other panel types, continue using enableUser as before
                         if (strtolower($panel->panel_type) === 'eylandoo') {
@@ -390,7 +390,7 @@ class WalletTopUpTransactionResource extends Resource
                                     'panel_user_id' => $config->panel_user_id,
                                     'url' => $credentials['url'],
                                 ]);
-                                
+
                                 $remoteResult = $provisioner->enableUser(
                                     $panel->panel_type,
                                     $credentials,
@@ -434,7 +434,7 @@ class WalletTopUpTransactionResource extends Resource
                 } else {
                     // Remote enable failed - keep config disabled
                     $failedCount++;
-                    
+
                     Log::warning('Wallet re-enable failed: remote call unsuccessful, keeping config disabled', [
                         'action' => 'wallet_reenable_failed',
                         'config_id' => $config->id,

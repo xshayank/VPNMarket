@@ -389,7 +389,7 @@ class EylandooService
             // First check current status
             $encodedUsername = rawurlencode($username);
             $getUserUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}";
-            
+
             $user = $this->getUser($username);
 
             if (! $user) {
@@ -422,7 +422,7 @@ class EylandooService
 
             // Toggle to enable
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
-            
+
             Log::info('Eylandoo enable: sending toggle request', [
                 'action' => 'eylandoo_enable_toggle',
                 'username' => $username,
@@ -430,7 +430,7 @@ class EylandooService
                 'current_status' => $currentStatus,
                 'base_url' => $this->baseUrl,
             ]);
-            
+
             $response = $this->client()->post($toggleUrl);
             $statusCode = $response->status();
             $responseBody = $response->body();
@@ -444,6 +444,7 @@ class EylandooService
                     'status_code' => $statusCode,
                     'response_preview' => $responsePreview,
                 ]);
+
                 return true;
             } else {
                 Log::warning('Eylandoo enable toggle failed', [
@@ -453,6 +454,7 @@ class EylandooService
                     'status_code' => $statusCode,
                     'response_preview' => $responsePreview,
                 ]);
+
                 return false;
             }
         } catch (\Exception $e) {
@@ -479,7 +481,7 @@ class EylandooService
             // First check current status
             $encodedUsername = rawurlencode($username);
             $getUserUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}";
-            
+
             $user = $this->getUser($username);
 
             if (! $user) {
@@ -512,7 +514,7 @@ class EylandooService
 
             // Toggle to disable
             $toggleUrl = $this->baseUrl."/api/v1/users/{$encodedUsername}/toggle";
-            
+
             Log::info('Eylandoo disable: sending toggle request', [
                 'action' => 'eylandoo_disable_toggle',
                 'username' => $username,
@@ -520,7 +522,7 @@ class EylandooService
                 'current_status' => $currentStatus,
                 'base_url' => $this->baseUrl,
             ]);
-            
+
             $response = $this->client()->post($toggleUrl);
             $statusCode = $response->status();
             $responseBody = $response->body();
@@ -534,6 +536,7 @@ class EylandooService
                     'status_code' => $statusCode,
                     'response_preview' => $responsePreview,
                 ]);
+
                 return true;
             } else {
                 Log::warning('Eylandoo disable toggle failed', [
@@ -543,6 +546,7 @@ class EylandooService
                     'status_code' => $statusCode,
                     'response_preview' => $responsePreview,
                 ]);
+
                 return false;
             }
         } catch (\Exception $e) {
@@ -855,6 +859,7 @@ class EylandooService
                 Log::warning('Eylandoo parseNodesList: Node missing ID', [
                     'node_keys' => array_keys($node),
                 ]);
+
                 continue;
             }
 
@@ -880,7 +885,7 @@ class EylandooService
         if (empty($nodes)) {
             Log::info('Eylandoo parseNodesList: No valid nodes found in response');
         } else {
-            Log::debug('Eylandoo parseNodesList: Successfully parsed ' . count($nodes) . ' nodes');
+            Log::debug('Eylandoo parseNodesList: Successfully parsed '.count($nodes).' nodes');
         }
 
         return $nodes;
