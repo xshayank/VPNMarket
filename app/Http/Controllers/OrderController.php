@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Transaction;
-use App\Support\StarsefarConfig;
 use App\Services\CouponService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
@@ -78,25 +77,9 @@ class OrderController extends Controller
             ? $reseller->wallet_balance
             : $user->balance;
 
-        $settings = Setting::all()->pluck('value', 'key');
-
-        $cardDetails = [
-            'number' => $settings->get('payment_card_number'),
-            'holder' => $settings->get('payment_card_holder_name'),
-            'instructions' => $settings->get('payment_card_instructions'),
-        ];
-
-        $starsefarSettings = [
-            'enabled' => StarsefarConfig::isEnabled(),
-            'min_amount' => StarsefarConfig::getMinAmountToman(),
-            'default_target_account' => StarsefarConfig::getDefaultTargetAccount(),
-        ];
-
         return view('wallet.charge', [
             'walletBalance' => $walletBalance,
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
-            'cardDetails' => $cardDetails,
-            'starsefarSettings' => $starsefarSettings,
         ]);
     }
 

@@ -11,7 +11,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -44,13 +43,7 @@ class ThemeSettings extends Page implements HasForms
         $settings = Setting::all()->pluck('value', 'key')->toArray();
 
 
-        $defaultData = [
-            'starsefar_enabled' => config('starsefar.enabled', false),
-            'starsefar_api_key' => config('starsefar.api_key'),
-            'starsefar_base_url' => config('starsefar.base_url'),
-            'starsefar_callback_path' => config('starsefar.callback_path'),
-            'starsefar_default_target_account' => config('starsefar.default_target_account'),
-        ];
+        $defaultData = [];
 
 
         $this->data = array_merge($defaultData, $settings);
@@ -212,26 +205,6 @@ class ThemeSettings extends Page implements HasForms
                             TextInput::make('payment_card_holder_name')->label('نام صاحب حساب'),
                             Textarea::make('payment_card_instructions')->label('توضیحات اضافی')->rows(3),
                         ]),
-
-                        Section::make('درگاه استارز تلگرام')->schema([
-                            Toggle::make('starsefar_enabled')
-                                ->label('فعال‌سازی درگاه استارز')
-                                ->helperText('با فعال‌سازی این گزینه، کاربران می‌توانند از طریق استارز تلگرام کیف پول خود را شارژ کنند.'),
-                            TextInput::make('starsefar_api_key')
-                                ->label('API Key استارز')
-                                ->password()
-                                ->revealable(),
-                            TextInput::make('starsefar_base_url')
-                                ->label('آدرس پایه API')
-                                ->default('https://starsefar.xyz'),
-                            TextInput::make('starsefar_callback_path')
-                                ->label('مسیر Callback (نسبی)')
-                                ->default('/webhooks/Stars-Callback')
-                                ->helperText('در صورت نیاز می‌توانید مسیر وب‌هوک را تغییر دهید.'),
-                            TextInput::make('starsefar_default_target_account')
-                                ->label('هدف پیش‌فرض (اختیاری)')
-                                ->helperText('در صورت تمایل، شماره یا نام کاربری پیش‌فرض برای فیلد اختیاری پرداخت را وارد کنید.'),
-                        ])->columns(2),
                     ]),
 
                     Tabs\Tab::make('تنظیمات ربات تلگرام')->icon('heroicon-o-paper-airplane')->schema([
