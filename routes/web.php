@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Payments\StarsefarController;
+use App\Support\StarsefarConfig;
 use App\Http\Controllers\ProfileController;
 use App\Models\Order;
 use App\Models\Plan;
@@ -49,6 +51,8 @@ Route::middleware(['auth'])->group(function () {
     // Wallet
     Route::get('/wallet/charge', [OrderController::class, 'showChargeForm'])->name('wallet.charge.form');
     Route::post('/wallet/charge', [OrderController::class, 'createChargeOrder'])->name('wallet.charge.create');
+    Route::post('/wallet/charge/starsefar/initiate', [StarsefarController::class, 'initiate'])->name('wallet.charge.starsefar.initiate');
+    Route::get('/wallet/charge/starsefar/status/{orderId}', [StarsefarController::class, 'status'])->name('wallet.charge.starsefar.status');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -80,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
 
 Route::post('/webhooks/nowpayments', [NowPaymentsWebhookController::class, 'handle'])->name('webhooks.nowpayments');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('webhooks.telegram');
+Route::post(StarsefarConfig::getCallbackPath(), [StarsefarController::class, 'webhook'])->name('webhooks.starsefar');
 
 
 /* BREEZE AUTHENTICATION */
