@@ -214,7 +214,7 @@
                             },
                             body: JSON.stringify({
                                 amount: this.starAmount,
-                                phone: this.starPhone ? this.starPhone.trim() : null,
+                                phone: this.starPhone || null,
                             }),
                         });
 
