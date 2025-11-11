@@ -55,7 +55,7 @@ class StarsEfarClient
             $payload['callbackUrl'] = $callbackUrl;
         }
 
-        $response = $this->buildRequest()->post('/api/create-gift-link-api', $payload);
+        $response = $this->buildRequest()->post('/api/create-gift-link', $payload);
 
         if ($response->successful()) {
             return $response->json();
