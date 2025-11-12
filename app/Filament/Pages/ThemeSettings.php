@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Inbound;
 use App\Models\Setting;
+use App\Support\PaymentMethodConfig;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Section;
@@ -17,6 +18,8 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Filament\Pages\Page;
 
 class ThemeSettings extends Page implements HasForms
@@ -50,10 +53,15 @@ class ThemeSettings extends Page implements HasForms
             'starsefar_base_url' => config('starsefar.base_url'),
             'starsefar_callback_path' => config('starsefar.callback_path'),
             'starsefar_default_target_account' => config('starsefar.default_target_account'),
+            'payment_card_to_card_enabled' => true,
         ];
 
 
         $this->data = array_merge($defaultData, $settings);
+
+        $this->data['payment_card_to_card_enabled'] = array_key_exists('payment_card_to_card_enabled', $settings)
+            ? filter_var($settings['payment_card_to_card_enabled'], FILTER_VALIDATE_BOOLEAN)
+            : true;
 
 
     }
@@ -202,6 +210,10 @@ class ThemeSettings extends Page implements HasForms
                     Tabs\Tab::make('تنظیمات پرداخت')->icon('heroicon-o-credit-card')->schema([
 
                         Section::make('پرداخت کارت به کارت')->schema([
+                            Toggle::make('payment_card_to_card_enabled')
+                                ->label('کارت به کارت')
+                                ->helperText('نمایش روش پرداخت کارت به کارت به کاربران و ریسلرها')
+                                ->default(true),
                             TextInput::make('payment_card_number')
                                 ->label('شماره کارت')
                                 ->mask('9999-9999-9999-9999')
@@ -272,9 +284,22 @@ class ThemeSettings extends Page implements HasForms
         $this->form->validate();
 
         $formData = $this->form->getState();
+        $cardToggle = (bool) ($formData['payment_card_to_card_enabled'] ?? true);
+
         foreach ($formData as $key => $value) {
+            if (is_bool($value)) {
+                $value = $value ? '1' : '0';
+            }
+
             Setting::updateOrCreate(['key' => $key], ['value' => $value ?? '']);
         }
+
+        PaymentMethodConfig::clearCache();
+
+        Log::info('payment.card_to_card.enabled updated', [
+            'admin_id' => Auth::id(),
+            'enabled' => $cardToggle,
+        ]);
 
         Notification::make()->title('تنظیمات با موفقیت ذخیره شد.')->success()->send();
     }

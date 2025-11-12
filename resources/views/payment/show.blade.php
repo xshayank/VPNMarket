@@ -1,4 +1,7 @@
 <x-app-layout>
+    @php
+        $cardToCardEnabled = $cardToCardEnabled ?? true;
+    @endphp
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
             پرداخت سفارش #{{ $order->id }}
@@ -112,7 +115,11 @@
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 text-right">
                         انتخاب روش پرداخت
                     </h3>
-                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    @php
+                        $hasWalletOption = (bool) $order->plan;
+                        $gridColumns = ($hasWalletOption && $cardToCardEnabled) ? 'md:grid-cols-2' : 'md:grid-cols-1';
+                    @endphp
+                    <div class="mt-4 grid grid-cols-1 {{ $gridColumns }} gap-6">
 
 
                         @if ($order->plan)
@@ -141,18 +148,18 @@
                         </form>
                         @endif
 
-
-
-                        <form method="POST" action="{{ route('payment.card.process', $order->id) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="w-full text-center p-6 border-2 rounded-lg hover:border-blue-500 transition dark:border-gray-600 dark:hover:border-blue-500">
-                                <h4 class="font-bold text-gray-900 dark:text-gray-100">پرداخت با کارت به کارت</h4>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                                    ارسال رسید و انتظار برای تایید
-                                </p>
-                            </button>
-                        </form>
+                        @if($cardToCardEnabled)
+                            <form method="POST" action="{{ route('payment.card.process', $order->id) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full text-center p-6 border-2 rounded-lg hover:border-blue-500 transition dark:border-gray-600 dark:hover:border-blue-500">
+                                    <h4 class="font-bold text-gray-900 dark:text-gray-100">پرداخت با کارت به کارت</h4>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                        ارسال رسید و انتظار برای تایید
+                                    </p>
+                                </button>
+                            </form>
+                        @endif
 
                         {{-- گزینه ارز دیجیتال (غیرفعال) --}}
                         <div class="w-full text-center p-6 border-2 rounded-lg transition dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed opacity-60">
@@ -161,6 +168,12 @@
                                 (به زودی)
                             </p>
                         </div>
+
+                        @if (! $cardToCardEnabled)
+                            <div class="w-full text-center p-6 border-2 rounded-lg border-amber-400 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-600 text-amber-700 dark:text-amber-200">
+                                روش پرداخت کارت به کارت در حال حاضر غیرفعال است.
+                            </div>
+                        @endif
 
                     </div>
                 </div>

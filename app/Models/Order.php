@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Support\PaymentMethodConfig;
 
 class Order extends Model
 {
@@ -46,6 +47,9 @@ class Order extends Model
     public function store(Plan $plan)
     {
 
-        return view('payment.choose', ['plan' => $plan]);
+        return view('payment.choose', [
+            'plan' => $plan,
+            'cardToCardEnabled' => PaymentMethodConfig::cardToCardEnabled(),
+        ]);
     }
 }

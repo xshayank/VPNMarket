@@ -5,6 +5,10 @@
         </h2>
     </x-slot>
 
+    @php
+        $cardToCardEnabled = $cardToCardEnabled ?? true;
+    @endphp
+
     <div class="py-12">
         <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl overflow-hidden shadow-2xl sm:rounded-2xl">
@@ -12,8 +16,10 @@
                     class="p-6 md:p-8 text-gray-900 dark:text-gray-100 text-right space-y-8"
                     x-data="walletChargePage({
                         minAmount: {{ (int) ($starsefarSettings['min_amount'] ?? 25000) }},
-                        enabled: {{ $starsefarSettings['enabled'] ? 'true' : 'false' }},
-                        csrfToken: '{{ csrf_token() }}'
+                        starsefarEnabled: {{ $starsefarSettings['enabled'] ? 'true' : 'false' }},
+                        cardEnabled: {{ $cardToCardEnabled ? 'true' : 'false' }},
+                        csrfToken: '{{ csrf_token() }}',
+                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : '') }}'
                     })"
                     x-init="init()"
                 >
@@ -32,38 +38,47 @@
                     {{-- انتخاب روش پرداخت --}}
                     <div class="space-y-3">
                         <h3 class="text-lg font-medium text-center">انتخاب روش پرداخت</h3>
-                        <div class="grid gap-3 {{ $starsefarSettings['enabled'] ? 'grid-cols-2' : 'grid-cols-1' }}">
-                            <button
-                                type="button"
-                                @click="selectMethod('card')"
-                                :class="method === 'card' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-                                class="p-4 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <div class="flex flex-col items-center space-y-1">
-                                    <x-heroicon-o-credit-card class="w-6 h-6" />
-                                    <span class="font-semibold">کارت به کارت</span>
-                                </div>
-                            </button>
+                        @if (! $cardToCardEnabled && ! $starsefarSettings['enabled'])
+                            <div class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4 text-center">
+                                در حال حاضر هیچ روش پرداختی فعال نیست. لطفاً بعداً دوباره تلاش کنید.
+                            </div>
+                        @else
+                            <div class="grid gap-3 {{ ($cardToCardEnabled && $starsefarSettings['enabled']) ? 'grid-cols-2' : 'grid-cols-1' }}">
+                                @if($cardToCardEnabled)
+                                    <button
+                                        type="button"
+                                        @click="selectMethod('card')"
+                                        :class="method === 'card' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                                        class="p-4 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <div class="flex flex-col items-center space-y-1">
+                                            <x-heroicon-o-credit-card class="w-6 h-6" />
+                                            <span class="font-semibold">کارت به کارت</span>
+                                        </div>
+                                    </button>
+                                @endif
 
-                            @if($starsefarSettings['enabled'])
-                                <button
-                                    type="button"
-                                    @click="selectMethod('starsefar')"
-                                    :class="method === 'starsefar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
-                                    class="p-4 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    <div class="flex flex-col items-center space-y-1">
-                                        <x-heroicon-o-sparkles class="w-6 h-6" />
-                                        <span class="font-semibold">درگاه پرداخت (استارز تلگرام)</span>
-                                    </div>
-                                </button>
-                            @endif
-                        </div>
+                                @if($starsefarSettings['enabled'])
+                                    <button
+                                        type="button"
+                                        @click="selectMethod('starsefar')"
+                                        :class="method === 'starsefar' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                                        class="p-4 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <div class="flex flex-col items-center space-y-1">
+                                            <x-heroicon-o-sparkles class="w-6 h-6" />
+                                            <span class="font-semibold">درگاه پرداخت (استارز تلگرام)</span>
+                                        </div>
+                                    </button>
+                                @endif
+                            </div>
+                        @endif
                     </div>
 
                     {{-- کارت به کارت --}}
-                    <div x-show="method === 'card'" x-transition.opacity class="space-y-6">
-                        <h3 class="text-lg font-semibold text-center">پرداخت از طریق کارت به کارت</h3>
+                    @if($cardToCardEnabled)
+                        <div x-show="method === 'card'" x-transition.opacity class="space-y-6">
+                            <h3 class="text-lg font-semibold text-center">پرداخت از طریق کارت به کارت</h3>
 
                         @if ($errors->any())
                             <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -147,7 +162,8 @@
                                 </button>
                             </div>
                         </form>
-                    </div>
+                        </div>
+                    @endif
 
                     {{-- درگاه استارز --}}
                     @if($starsefarSettings['enabled'])
@@ -165,7 +181,7 @@
     <script>
         function walletChargePage(config) {
             return {
-                method: 'card',
+                method: config.defaultMethod || (config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : null)),
                 cardAmount: @json(old('amount', '')),
                 starAmount: '',
                 starPhone: '',
@@ -183,8 +199,14 @@
                     if (this.starPhone === null) {
                         this.starPhone = '';
                     }
+                    if (!this.method) {
+                        this.method = config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : null);
+                    }
                 },
                 selectMethod(method) {
+                    if ((method === 'card' && !config.cardEnabled) || (method === 'starsefar' && !config.starsefarEnabled)) {
+                        return;
+                    }
                     this.method = method;
                     if (method !== 'starsefar') {
                         this.clearStarsefarFeedback();

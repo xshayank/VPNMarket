@@ -1,4 +1,7 @@
 <x-app-layout>
+    @php
+        $cardToCardEnabled = $cardToCardEnabled ?? true;
+    @endphp
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
             انتخاب روش پرداخت
@@ -15,16 +18,18 @@
                     لطفاً یکی از روش‌های پرداخت زیر را انتخاب کنید:
                 </p>
 
-                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- گزینه کارت به کارت -->
-                    <form method="POST" action="{{ route('payment.card.process') }}">
-                        @csrf
-                        <input type="hidden" name="plan_id" value="{{ $plan->id }}">
-                        <button type="submit" class="w-full text-center p-6 border-2 rounded-lg hover:border-blue-500 transition">
-                            <h4 class="font-bold text-gray-900 dark:text-gray-100">پرداخت با کارت به کارت</h4>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">ساده و سریع، مناسب برای پرداخت ریالی.</p>
-                        </button>
-                    </form>
+                <div class="mt-6 grid grid-cols-1 {{ $cardToCardEnabled ? 'md:grid-cols-2' : 'md:grid-cols-1' }} gap-6">
+                    @if($cardToCardEnabled)
+                        <!-- گزینه کارت به کارت -->
+                        <form method="POST" action="{{ route('payment.card.process') }}">
+                            @csrf
+                            <input type="hidden" name="plan_id" value="{{ $plan->id }}">
+                            <button type="submit" class="w-full text-center p-6 border-2 rounded-lg hover:border-blue-500 transition">
+                                <h4 class="font-bold text-gray-900 dark:text-gray-100">پرداخت با کارت به کارت</h4>
+                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">ساده و سریع، مناسب برای پرداخت ریالی.</p>
+                            </button>
+                        </form>
+                    @endif
 
                     <!-- گزینه ارز دیجیتال -->
                     <form method="POST" action="{{ route('payment.crypto.process') }}">
@@ -35,6 +40,12 @@
                             <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">پرداخت آنی و خودکار.</p>
                         </button>
                     </form>
+
+                    @if (! $cardToCardEnabled)
+                        <div class="w-full text-center p-6 border-2 rounded-lg border-amber-400 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-600 text-amber-700 dark:text-amber-200">
+                            روش پرداخت کارت به کارت در حال حاضر غیرفعال است.
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
