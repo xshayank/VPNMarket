@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentGatewayTransaction;
-use App\Support\StarsefarConfig;
+use App\Models\Reseller;
 use App\Services\Payments\StarsEfarClient;
+use App\Services\WalletResellerReenableService;
 use App\Services\WalletService;
+use App\Support\StarsefarConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -193,8 +195,23 @@ class StarsefarController extends Controller
             $fresh = PaymentGatewayTransaction::whereKey($transaction->id)->lockForUpdate()->first();
 
             if ($fresh->status === PaymentGatewayTransaction::STATUS_PAID) {
+                // Already paid - idempotency guard
+                Log::info('StarsEfar payment already processed (idempotent)', [
+                    'action' => 'starsefar_payment_already_paid',
+                    'transaction_id' => $fresh->id,
+                    'order_id' => $fresh->order_id,
+                    'user_id' => $fresh->user_id,
+                ]);
                 return;
             }
+
+            Log::info('StarsEfar payment verified', [
+                'action' => 'starsefar_payment_verified',
+                'transaction_id' => $fresh->id,
+                'order_id' => $fresh->order_id,
+                'user_id' => $fresh->user_id,
+                'amount' => $fresh->amount_toman,
+            ]);
 
             $walletTransaction = $this->walletService->credit(
                 $fresh->user,
@@ -208,6 +225,14 @@ class StarsefarController extends Controller
                 ]
             );
 
+            Log::info('StarsEfar wallet credited', [
+                'action' => 'starsefar_wallet_credited',
+                'transaction_id' => $fresh->id,
+                'wallet_transaction_id' => $walletTransaction->id,
+                'user_id' => $fresh->user_id,
+                'amount' => $fresh->amount_toman,
+            ]);
+
             $meta = $fresh->meta ?? [];
             $meta['payload'] = $payload;
             $meta['wallet_transaction_id'] = $walletTransaction->id;
@@ -217,6 +242,46 @@ class StarsefarController extends Controller
                 'callback_received_at' => now(),
                 'meta' => $meta,
             ]);
+
+            // Check if user has a wallet-based reseller and handle reactivation
+            $user = $fresh->user;
+            $reseller = $user->reseller;
+
+            if ($reseller instanceof Reseller && 
+                method_exists($reseller, 'isWalletBased') && 
+                $reseller->isWalletBased()) {
+                
+                // Refresh reseller to get updated wallet balance
+                $reseller->refresh();
+
+                // Check if reseller was suspended and should be reactivated
+                if (method_exists($reseller, 'isSuspendedWallet') &&
+                    $reseller->isSuspendedWallet() &&
+                    $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
+                    
+                    Log::info('StarsEfar payment triggers reseller auto-reactivation', [
+                        'action' => 'starsefar_reseller_reactivation_start',
+                        'reseller_id' => $reseller->id,
+                        'user_id' => $user->id,
+                        'wallet_balance' => $reseller->wallet_balance,
+                        'suspension_threshold' => config('billing.wallet.suspension_threshold', -1000),
+                    ]);
+
+                    $reseller->update(['status' => 'active']);
+
+                    // Re-enable configs that were auto-disabled due to wallet suspension
+                    $reenableService = new WalletResellerReenableService();
+                    $reenableStats = $reenableService->reenableWalletSuspendedConfigs($reseller);
+
+                    Log::info('StarsEfar payment reseller reactivation completed', [
+                        'action' => 'starsefar_reseller_reactivation_complete',
+                        'reseller_id' => $reseller->id,
+                        'user_id' => $user->id,
+                        'configs_enabled' => $reenableStats['enabled'],
+                        'configs_failed' => $reenableStats['failed'],
+                    ]);
+                }
+            }
         });
     }
 }
