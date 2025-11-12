@@ -239,7 +239,7 @@ class StarsefarController extends Controller
         $remoteOrderId = (string) data_get($data, 'orderId', '');
 
         $verification = [
-            'success' => (bool) data_get($response, 'success', true),
+            'success' => (bool) data_get($response, 'success', false),
             'order_id' => $remoteOrderId ?: null,
             'paid' => $paid,
             'status' => $status ?: null,
