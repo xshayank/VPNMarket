@@ -8,8 +8,10 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Modules\Ticketing\Models\Ticket;
 use Spatie\Permission\Traits\HasRoles;
+use App\Models\UserTelegramLink;
 
 class User extends Authenticatable implements FilamentUser
 {
@@ -98,6 +100,11 @@ class User extends Authenticatable implements FilamentUser
     public function reseller()
     {
         return $this->hasOne(Reseller::class);
+    }
+
+    public function telegramLink(): HasOne
+    {
+        return $this->hasOne(UserTelegramLink::class);
     }
 
     public function isReseller(): bool

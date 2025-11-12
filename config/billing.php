@@ -24,4 +24,11 @@ return [
          */
         'suspension_threshold' => env('WALLET_SUSPENSION_THRESHOLD', -1000),
     ],
+
+    'reseller' => [
+        /*
+         * Minimum user wallet balance required to auto-upgrade a user to a wallet-based reseller (in تومان)
+         */
+        'min_wallet_upgrade' => env('RESELLER_MIN_WALLET_UPGRADE', 100000),
+    ],
 ];
