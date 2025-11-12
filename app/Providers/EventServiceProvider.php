@@ -18,9 +18,6 @@ class EventServiceProvider extends ServiceProvider
             SendEmailVerificationNotification::class,
         ],
 
-        \App\Events\TransactionCompleted::class => [
-            \App\Listeners\NotifyUserViaTelegram::class,
-        ],
 
         \Modules\Ticketing\Events\TicketReplied::class => [
             \Modules\TelegramBot\Listeners\SendTelegramReplyNotification::class,
