@@ -224,7 +224,7 @@ class StarsefarController extends Controller
         $data = data_get($response, 'data', $response);
         $status = (string) data_get($data, 'status', '');
         $normalizedStatus = Str::lower($status);
-        $paid = filter_var(data_get($data, 'paid', false), FILTER_VALIDATE_BOOLEAN) ?: false;
+        $paid = filter_var(data_get($data, 'paid', false), FILTER_VALIDATE_BOOLEAN);
         $remoteOrderId = (string) data_get($data, 'orderId', '');
 
         $verification = [
