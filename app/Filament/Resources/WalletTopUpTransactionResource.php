@@ -278,9 +278,6 @@ class WalletTopUpTransactionResource extends Resource
                                     Log::error('Failed to send wallet charge notification via Telegram: '.$e->getMessage());
                                 }
                             }
-
-                            // Fire event for TransactionCompleted
-                            event(new \App\Events\TransactionCompleted($record));
                         });
                     }),
 
