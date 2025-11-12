@@ -199,8 +199,19 @@ class StarsefarController extends Controller
         return response()->json(['message' => 'ok']);
     }
 
+    /**
+     * Verify order status with StarsEfar API.
+     *
+     * @param string $orderId The order ID to verify
+     * @return array{success: bool, order_id: string|null, paid: bool, status: string|null, is_paid: bool, raw: array}
+     *     - success: Whether the API call was successful
+     *     - order_id: The order ID returned by the API, or null
+     *     - paid: Whether the order is marked as paid by the API
+     *     - status: The status string returned by the API, or null
+     *     - is_paid: True if the order is confirmed as paid (key verification result)
+     *     - raw: The raw API response or error details
+     */
     protected function verifyOrderWithStarsEfar(string $orderId): array
-    {
         try {
             $response = $this->makeClient()->checkOrder($orderId);
         } catch (Throwable $exception) {
