@@ -104,4 +104,9 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->reseller()->exists();
     }
+
+    public function telegramLink()
+    {
+        return $this->hasOne(UserTelegramLink::class);
+    }
 }
