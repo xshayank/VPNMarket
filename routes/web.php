@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Payments\StarsefarController;
-use App\Support\StarsefarConfig;
 use App\Http\Controllers\ProfileController;
 use App\Models\Order;
 use App\Models\Plan;
@@ -84,7 +83,7 @@ Route::middleware(['auth'])->group(function () {
 
 Route::post('/webhooks/nowpayments', [NowPaymentsWebhookController::class, 'handle'])->name('webhooks.nowpayments');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('webhooks.telegram');
-Route::post(StarsefarConfig::getCallbackPath(), [StarsefarController::class, 'webhook'])->name('webhooks.starsefar');
+Route::post(config('starsefar.callback_path', '/webhooks/Stars-Callback'), [StarsefarController::class, 'webhook'])->name('webhooks.starsefar');
 
 
 /* BREEZE AUTHENTICATION */

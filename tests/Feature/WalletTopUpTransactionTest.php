@@ -396,7 +396,7 @@ test('wallet approval re-enables eylandoo configs only when remote succeeds', fu
         'description' => 'شارژ کیف پول ریسلر',
     ]);
 
-    // Use the actual reenableWalletSuspendedConfigs method
+    // Use the actual reenableWalletSuspendedConfigs method via the service
     DB::transaction(function () use ($transaction, $reseller) {
         $transaction->update(['status' => Transaction::STATUS_COMPLETED]);
         $reseller->increment('wallet_balance', $transaction->amount);
@@ -405,11 +405,9 @@ test('wallet approval re-enables eylandoo configs only when remote succeeds', fu
             $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
             $reseller->update(['status' => 'active']);
             
-            // Call the reenableWalletSuspendedConfigs method
-            $reflection = new \ReflectionClass(\App\Filament\Resources\WalletTopUpTransactionResource::class);
-            $method = $reflection->getMethod('reenableWalletSuspendedConfigs');
-            $method->setAccessible(true);
-            $method->invoke(null, $reseller);
+            // Call the reenableWalletSuspendedConfigs method via service
+            $service = new \App\Services\WalletResellerReenableService();
+            $service->reenableWalletSuspendedConfigs($reseller);
         }
     });
 
@@ -460,7 +458,7 @@ test('wallet approval keeps eylandoo config disabled when remote fails', functio
         'description' => 'شارژ کیف پول ریسلر',
     ]);
 
-    // Use the actual reenableWalletSuspendedConfigs method
+    // Use the actual reenableWalletSuspendedConfigs method via service
     DB::transaction(function () use ($transaction, $reseller) {
         $transaction->update(['status' => Transaction::STATUS_COMPLETED]);
         $reseller->increment('wallet_balance', $transaction->amount);
@@ -469,11 +467,9 @@ test('wallet approval keeps eylandoo config disabled when remote fails', functio
             $reseller->wallet_balance > config('billing.wallet.suspension_threshold', -1000)) {
             $reseller->update(['status' => 'active']);
             
-            // Call the reenableWalletSuspendedConfigs method
-            $reflection = new \ReflectionClass(\App\Filament\Resources\WalletTopUpTransactionResource::class);
-            $method = $reflection->getMethod('reenableWalletSuspendedConfigs');
-            $method->setAccessible(true);
-            $method->invoke(null, $reseller);
+            // Call the reenableWalletSuspendedConfigs method via service
+            $service = new \App\Services\WalletResellerReenableService();
+            $service->reenableWalletSuspendedConfigs($reseller);
         }
     });
 
