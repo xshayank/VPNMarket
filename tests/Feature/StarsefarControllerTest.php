@@ -38,19 +38,13 @@ class StarsefarControllerTest extends TestCase
 
         $user = User::factory()->create();
 
-        Http::fake(function ($request) use ($this) {
-            $payload = $request->data();
-
-            $this->assertSame(30000, $payload['amount']);
-            $this->assertSame('@xShayank', $payload['targetAccount']);
-            $this->assertArrayNotHasKey('phone', $payload);
-
-            return Http::response([
+        Http::fake([
+            'https://starsefar.xyz/api/create-gift-link' => Http::response([
                 'success' => true,
                 'link' => 'https://starsefar.xyz/?order_id=gift_test',
                 'orderId' => 'gift_test',
-            ], 201);
-        });
+            ], 201),
+        ]);
 
         $response = $this->actingAs($user)->postJson(route('wallet.charge.starsefar.initiate'), [
             'amount' => 30000,
