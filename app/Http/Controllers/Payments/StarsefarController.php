@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Throwable;
 
@@ -175,11 +176,70 @@ class StarsefarController extends Controller
             return response()->json(['message' => 'ok']);
         }
 
-        if (($payload['status'] ?? null) === 'completed' || ($payload['status'] ?? null) === 'paid') {
+        $status = Str::lower((string) ($payload['status'] ?? ''));
+
+        if (in_array($status, ['completed', 'paid'], true)) {
+            $verification = $this->verifyOrderWithStarsEfar($orderId);
+
+            if (! $verification['is_paid']) {
+                Log::warning('StarsEfar webhook verification failed to confirm payment', [
+                    'order_id' => $orderId,
+                    'payload_status' => $status,
+                    'verification' => Arr::except($verification, ['raw']),
+                ]);
+
+                return response()->json(['message' => 'ok']);
+            }
+
+            $payload['verification'] = $verification['raw'];
+
             $this->markTransactionPaid($transaction, $payload);
         }
 
         return response()->json(['message' => 'ok']);
+    }
+
+    protected function verifyOrderWithStarsEfar(string $orderId): array
+    {
+        try {
+            $response = $this->makeClient()->checkOrder($orderId);
+        } catch (Throwable $exception) {
+            Log::error('StarsEfar webhook verification request failed', [
+                'order_id' => $orderId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'order_id' => null,
+                'paid' => false,
+                'status' => null,
+                'is_paid' => false,
+                'raw' => [
+                    'exception' => $exception->getMessage(),
+                ],
+            ];
+        }
+
+        $data = data_get($response, 'data', $response);
+        $status = (string) data_get($data, 'status', '');
+        $normalizedStatus = Str::lower($status);
+        $paid = filter_var(data_get($data, 'paid', false), FILTER_VALIDATE_BOOLEAN) ?: false;
+        $remoteOrderId = (string) data_get($data, 'orderId', '');
+
+        $verification = [
+            'success' => (bool) data_get($response, 'success', true),
+            'order_id' => $remoteOrderId ?: null,
+            'paid' => $paid,
+            'status' => $status ?: null,
+            'raw' => $response,
+        ];
+
+        $verification['is_paid'] = $verification['success']
+            && $remoteOrderId === $orderId
+            && ($paid || in_array($normalizedStatus, ['paid', 'completed'], true));
+
+        return $verification;
     }
 
     protected function makeClient(): StarsEfarClient
