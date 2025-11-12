@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Support\PaymentMethodConfig;
 use App\Support\StarsefarConfig;
 use App\Services\CouponService;
 use App\Services\MarzbanService;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -47,7 +49,10 @@ class OrderController extends Controller
             return redirect()->route('dashboard')->with('status', 'این سفارش قبلاً پرداخت شده است.');
         }
 
-        return view('payment.show', ['order' => $order]);
+        return view('payment.show', [
+            'order' => $order,
+            'cardToCardEnabled' => PaymentMethodConfig::cardToCardEnabled(),
+        ]);
     }
 
     /**
@@ -55,6 +60,8 @@ class OrderController extends Controller
      */
     public function processCardPayment(Order $order)
     {
+        abort_if(! PaymentMethodConfig::cardToCardEnabled(), 403, 'پرداخت کارت به کارت غیرفعال است.');
+
         $order->update(['payment_method' => 'card']);
         $settings = Setting::all()->pluck('value', 'key');
 
@@ -79,6 +86,7 @@ class OrderController extends Controller
             : $user->balance;
 
         $settings = Setting::all()->pluck('value', 'key');
+        $cardToCardEnabled = PaymentMethodConfig::cardToCardEnabled();
 
         $cardDetails = [
             'number' => $settings->get('payment_card_number'),
@@ -97,6 +105,7 @@ class OrderController extends Controller
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
             'cardDetails' => $cardDetails,
             'starsefarSettings' => $starsefarSettings,
+            'cardToCardEnabled' => $cardToCardEnabled,
         ]);
     }
 
@@ -105,6 +114,12 @@ class OrderController extends Controller
      */
     public function createChargeOrder(Request $request)
     {
+        if (! PaymentMethodConfig::cardToCardEnabled()) {
+            throw ValidationException::withMessages([
+                'amount' => 'روش پرداخت کارت به کارت در حال حاضر غیرفعال است.',
+            ]);
+        }
+
         $request->validate([
             'amount' => 'required|integer|min:10000',
             'proof' => 'required|image|mimes:jpeg,png,webp,jpg|max:4096',
@@ -215,6 +230,8 @@ class OrderController extends Controller
      */
     public function submitCardReceipt(Request $request, Order $order)
     {
+        abort_if(! PaymentMethodConfig::cardToCardEnabled(), 403, 'پرداخت کارت به کارت غیرفعال است.');
+
         $request->validate(['receipt' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048']);
         $path = $request->file('receipt')->store('receipts', 'public');
         $order->update(['card_payment_receipt' => $path]);

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
 use App\Services\XUIService;
+use App\Support\PaymentMethodConfig;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -553,6 +554,15 @@ class WebhookController extends Controller
             $planId = Str::after($data, 'pay_wallet_');
             $this->processWalletPayment($user, $planId);
         } elseif (Str::startsWith($data, 'pay_card_')) {
+            if (! PaymentMethodConfig::cardToCardEnabled()) {
+                Telegram::sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => 'روش پرداخت کارت به کارت در حال حاضر غیرفعال است.',
+                ]);
+
+                return;
+            }
+
             $orderId = Str::after($data, 'pay_card_');
             $this->sendCardPaymentInfo($chatId, $orderId);
         } elseif (Str::startsWith($data, 'deposit_amount_')) {
@@ -626,6 +636,15 @@ class WebhookController extends Controller
      */
     protected function showDepositOptions($user)
     {
+        if (! PaymentMethodConfig::cardToCardEnabled()) {
+            Telegram::sendMessage([
+                'chat_id' => $user->telegram_chat_id,
+                'text' => 'روش پرداخت کارت به کارت در حال حاضر غیرفعال است. لطفاً بعداً دوباره تلاش کنید.',
+            ]);
+
+            return;
+        }
+
         $message = 'لطفاً یکی از مبلغ‌های زیر را برای شارژ انتخاب کنید یا مبلغ دلخواه خود را وارد نمایید:';
         $keyboard = Keyboard::make()->inline();
 
@@ -671,9 +690,18 @@ class WebhookController extends Controller
     {
         $balance = number_format($user->balance ?? 0);
         $message = "💰 موجودی کیف پول شما: *{$balance} تومان*\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
-        $keyboard = Keyboard::make()->inline()
-            ->row([Keyboard::inlineButton(['text' => '💳 شارژ حساب (کارت به کارت)', 'callback_data' => '/deposit'])])
-            ->row([Keyboard::inlineButton(['text' => '📜 تاریخچه تراکنش‌ها', 'callback_data' => '/transactions'])])
+
+        if (! PaymentMethodConfig::cardToCardEnabled()) {
+            $message .= "\n\n⚠️ روش کارت به کارت در حال حاضر غیرفعال است.";
+        }
+
+        $keyboard = Keyboard::make()->inline();
+
+        if (PaymentMethodConfig::cardToCardEnabled()) {
+            $keyboard->row([Keyboard::inlineButton(['text' => '💳 شارژ حساب (کارت به کارت)', 'callback_data' => '/deposit'])]);
+        }
+
+        $keyboard->row([Keyboard::inlineButton(['text' => '📜 تاریخچه تراکنش‌ها', 'callback_data' => '/transactions'])])
             ->row([Keyboard::inlineButton(['text' => '⬅️ بازگشت به منوی اصلی', 'callback_data' => '/start'])]);
         Telegram::sendMessage(['chat_id' => $user->telegram_chat_id, 'text' => $message, 'parse_mode' => 'Markdown', 'reply_markup' => $keyboard]);
     }
@@ -686,6 +714,15 @@ class WebhookController extends Controller
      */
     protected function processDepositAmount($user, $amount)
     {
+        if (! PaymentMethodConfig::cardToCardEnabled()) {
+            Telegram::sendMessage([
+                'chat_id' => $user->telegram_chat_id,
+                'text' => 'روش پرداخت کارت به کارت در حال حاضر غیرفعال است.',
+            ]);
+
+            return;
+        }
+
         // تمیزسازی مبلغ ورودی
         $amount = str_replace(',', '', $amount);
         $amount = (int) $amount;
@@ -897,7 +934,11 @@ class WebhookController extends Controller
             'amount' => $plan->price,
         ]);
 
-        $keyboard->row([Keyboard::inlineButton(['text' => '💳 کارت به کارت (نیاز به تایید)', 'callback_data' => "pay_card_{$order->id}"])]);
+        if (PaymentMethodConfig::cardToCardEnabled()) {
+            $keyboard->row([Keyboard::inlineButton(['text' => '💳 کارت به کارت (نیاز به تایید)', 'callback_data' => "pay_card_{$order->id}"])]);
+        } else {
+            $message .= "\n\n⚠️ روش کارت به کارت در حال حاضر غیرفعال است.";
+        }
         $keyboard->row([Keyboard::inlineButton(['text' => '⬅️ بازگشت به پلن‌ها', 'callback_data' => '/plans'])]);
 
         Telegram::sendMessage(['chat_id' => $user->telegram_chat_id, 'text' => $message, 'parse_mode' => 'Markdown', 'reply_markup' => $keyboard]);
@@ -911,6 +952,15 @@ class WebhookController extends Controller
      */
     protected function sendCardPaymentInfo($chatId, $orderId)
     {
+        if (! PaymentMethodConfig::cardToCardEnabled()) {
+            Telegram::sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'روش پرداخت کارت به کارت در حال حاضر غیرفعال است.',
+            ]);
+
+            return;
+        }
+
         $user = User::where('telegram_chat_id', $chatId)->first();
         $order = Order::find($orderId);
 
