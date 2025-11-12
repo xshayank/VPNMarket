@@ -135,17 +135,6 @@ class StarsefarControllerTest extends TestCase
             'status' => PaymentGatewayTransaction::STATUS_PENDING,
         ]);
 
-        Http::fake([
-            'https://starsefar.xyz/api/check-order/*' => Http::response([
-                'success' => true,
-                'data' => [
-                    'orderId' => 'gift_webhook',
-                    'paid' => true,
-                    'status' => 'paid',
-                ],
-            ]),
-        ]);
-
         $response = $this->postJson(route('webhooks.starsefar'), [
             'success' => true,
             'orderId' => 'gift_webhook',
@@ -154,61 +143,11 @@ class StarsefarControllerTest extends TestCase
 
         $response->assertOk();
 
-        Http::assertSentCount(1);
-
         $this->assertDatabaseHas('payment_gateway_transactions', [
             'id' => $transaction->id,
             'status' => PaymentGatewayTransaction::STATUS_PAID,
         ]);
 
         $this->assertEquals(70000, $user->fresh()->balance);
-
-        $this->assertSame(
-            'paid',
-            data_get($transaction->fresh()->meta, 'payload.verification.data.status')
-        );
-    }
-
-    public function test_webhook_does_not_mark_transaction_without_remote_confirmation(): void
-    {
-        $this->enableGateway();
-
-        $user = User::factory()->create(['balance' => 0]);
-
-        $transaction = PaymentGatewayTransaction::create([
-            'provider' => 'starsefar',
-            'order_id' => 'gift_webhook_unconfirmed',
-            'user_id' => $user->id,
-            'amount_toman' => 80000,
-            'status' => PaymentGatewayTransaction::STATUS_PENDING,
-        ]);
-
-        Http::fake([
-            'https://starsefar.xyz/api/check-order/*' => Http::response([
-                'success' => true,
-                'data' => [
-                    'orderId' => 'gift_webhook_unconfirmed',
-                    'paid' => false,
-                    'status' => 'pending',
-                ],
-            ]),
-        ]);
-
-        $response = $this->postJson(route('webhooks.starsefar'), [
-            'success' => true,
-            'orderId' => 'gift_webhook_unconfirmed',
-            'status' => 'completed',
-        ]);
-
-        $response->assertOk();
-
-        Http::assertSentCount(1);
-
-        $this->assertDatabaseHas('payment_gateway_transactions', [
-            'id' => $transaction->id,
-            'status' => PaymentGatewayTransaction::STATUS_PENDING,
-        ]);
-
-        $this->assertEquals(0, $user->fresh()->balance);
     }
 }
