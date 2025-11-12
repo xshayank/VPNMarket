@@ -6,10 +6,8 @@ use App\Models\AuditLog;
 use App\Models\Reseller;
 use App\Models\ResellerConfig;
 use App\Models\User;
-use App\Models\Transaction;
 use App\Observers\ResellerConfigObserver;
 use App\Observers\ResellerObserver;
-use App\Observers\TransactionObserver;
 use App\Policies\AuditLogPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -40,7 +38,6 @@ class AppServiceProvider extends ServiceProvider
         // Register observers for audit safety net
         ResellerConfig::observe(ResellerConfigObserver::class);
         Reseller::observe(ResellerObserver::class);
-        Transaction::observe(TransactionObserver::class);
         User::creating(function ($user) {
             do {
 

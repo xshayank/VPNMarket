@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Telegram\Bot\Laravel\Facades\Telegram;
 
 class WalletTopUpTransactionResource extends Resource
 {
@@ -257,7 +258,26 @@ class WalletTopUpTransactionResource extends Resource
                             }
 
                             // Send Telegram notification
-                            // Telegram notification handled by TransactionObserver
+                            if ($user->telegram_chat_id) {
+                                try {
+                                    $settings = Setting::all()->pluck('value', 'key');
+                                    $balance = ($reseller && method_exists($reseller, 'isWalletBased') && $reseller->isWalletBased())
+                                        ? $reseller->fresh()->wallet_balance
+                                        : $user->fresh()->balance;
+
+                                    $telegramMessage = '✅ کیف پول شما به مبلغ *'.number_format($record->amount)." تومان* با موفقیت شارژ شد.\n\n";
+                                    $telegramMessage .= 'موجودی جدید شما: *'.number_format($balance).' تومان*';
+
+                                    Telegram::setAccessToken($settings->get('telegram_bot_token'));
+                                    Telegram::sendMessage([
+                                        'chat_id' => $user->telegram_chat_id,
+                                        'text' => $telegramMessage,
+                                        'parse_mode' => 'Markdown',
+                                    ]);
+                                } catch (\Exception $e) {
+                                    Log::error('Failed to send wallet charge notification via Telegram: '.$e->getMessage());
+                                }
+                            }
                         });
                     }),
 
