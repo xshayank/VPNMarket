@@ -43,6 +43,15 @@ it('denies tetra98 initiation when disabled', function () {
         ->assertForbidden();
 });
 
+it('redirects html callback requests without hashid to wallet charge form', function () {
+    enableTetra98();
+    $user = User::factory()->create();
+
+    actingAs($user)
+        ->get(route('webhooks.tetra98'))
+        ->assertRedirect(route('wallet.charge.form'));
+});
+
 it('requires valid phone number for tetra98 initiation', function () {
     enableTetra98();
     $user = User::factory()->create();
