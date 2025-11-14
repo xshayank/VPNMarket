@@ -14,6 +14,12 @@
         $tetraHasOldContext = old('tetra98_context');
         $tetraDefaultAmount = $tetraHasOldContext ? (int) old('amount', $tetraMinAmount) : $tetraMinAmount;
         $tetraDefaultPhone = $tetraHasOldContext ? old('phone', '') : '';
+        $defaultMethod = $defaultMethod
+            ?? ($cardToCardEnabled
+                ? 'card'
+                : (($starsefarSettings['enabled'] ?? false)
+                    ? 'starsefar'
+                    : (($tetraSettings['enabled'] ?? false) ? 'tetra98' : null)));
     @endphp
 
     <div class="py-12">
@@ -21,17 +27,18 @@
             <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl overflow-hidden shadow-2xl sm:rounded-2xl">
                 <div
                     class="p-6 md:p-8 text-gray-900 dark:text-gray-100 text-right space-y-8"
-                    x-data="walletChargePage({
-                        starsefarMinAmount: {{ (int) ($starsefarSettings['min_amount'] ?? 25000) }},
-                        starsefarEnabled: {{ $starsefarSettings['enabled'] ? 'true' : 'false' }},
-                        cardEnabled: {{ $cardToCardEnabled ? 'true' : 'false' }},
-                        tetraEnabled: {{ $tetraSettings['enabled'] ? 'true' : 'false' }},
-                        tetraMinAmount: {{ $tetraMinAmount }},
-                        tetraDefaultAmount: {{ $tetraDefaultAmount }},
-                        tetraDefaultPhone: @json($tetraDefaultPhone),
-                        csrfToken: '{{ csrf_token() }}',
-                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : ($tetraSettings['enabled'] ? 'tetra98' : '')) }}'
-                    })"
+                    x-data="walletChargePage(@js([
+                        'starsefarMinAmount' => (int) ($starsefarSettings['min_amount'] ?? 25000),
+                        'starsefarEnabled' => (bool) ($starsefarSettings['enabled'] ?? false),
+                        'cardEnabled' => (bool) $cardToCardEnabled,
+                        'tetraEnabled' => (bool) ($tetraSettings['enabled'] ?? false),
+                        'tetraMinAmount' => $tetraMinAmount,
+                        'tetraDefaultAmount' => $tetraDefaultAmount,
+                        'tetraDefaultPhone' => $tetraDefaultPhone,
+                        'csrfToken' => csrf_token(),
+                        'availableMethods' => array_values($availableMethods),
+                        'defaultMethod' => $defaultMethod,
+                    ]))"
                     x-init="init()"
                 >
                     {{-- نمایش موجودی فعلی --}}
@@ -108,9 +115,27 @@
                         @endif
                     </div>
 
+                    <div
+                        x-show="renderErrorMessage"
+                        x-transition.opacity
+                        class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 space-y-3"
+                        x-cloak
+                    >
+                        <p class="text-sm leading-6" x-text="renderErrorMessage"></p>
+                        <div class="flex justify-center">
+                            <button
+                                type="button"
+                                @click="retryRender()"
+                                class="px-4 py-2 text-sm font-semibold bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition"
+                            >
+                                تلاش مجدد برای نمایش فرم
+                            </button>
+                        </div>
+                    </div>
+
                     {{-- کارت به کارت --}}
                     @if($cardToCardEnabled)
-                        <div x-show="method === 'card'" x-transition.opacity class="space-y-6">
+                        <div x-show="method === 'card'" x-transition.opacity x-cloak class="space-y-6">
                             <h3 class="text-lg font-semibold text-center">پرداخت از طریق کارت به کارت</h3>
 
                         @if ($errors->any())
@@ -226,7 +251,8 @@
     <script>
         function walletChargePage(config) {
             return {
-                method: config.defaultMethod || (config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null))),
+                method: null,
+                availableMethods: Array.isArray(config.availableMethods) ? config.availableMethods : [],
                 cardAmount: @json(old('amount', '')),
                 starAmount: '',
                 starPhone: '',
@@ -236,7 +262,11 @@
                 starStatusType: 'info',
                 isInitiating: false,
                 pollTimer: null,
+                renderErrorMessage: '',
+                lastRenderErrorReason: null,
+                lastSuccessfulMethod: null,
                 init() {
+                    this.method = this.resolveInitialMethod(config.defaultMethod);
                     if (this.cardAmount === null) {
                         this.cardAmount = '';
                     }
@@ -249,19 +279,60 @@
                     if (!this.tetraAmount && config.tetraMinAmount) {
                         this.tetraAmount = config.tetraMinAmount;
                     }
-                    if (!this.method) {
-                        this.method = config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null));
+                    this.$watch('method', (value) => {
+                        this.evaluateMethodState(value);
+                    });
+                    this.evaluateMethodState(this.method);
+                },
+                resolveInitialMethod(preferred) {
+                    if (preferred && this.availableMethods.includes(preferred)) {
+                        return preferred;
                     }
+
+                    if (this.availableMethods.length > 0) {
+                        return this.availableMethods[0];
+                    }
+
+                    return null;
+                },
+                evaluateMethodState(value) {
+                    if (this.availableMethods.length === 0) {
+                        this.handleRenderError('empty_methods');
+                        return;
+                    }
+
+                    if (!value) {
+                        this.handleRenderError('empty_selection');
+                        return;
+                    }
+
+                    if (!this.availableMethods.includes(value)) {
+                        this.handleRenderError('unavailable_method', value);
+                        return;
+                    }
+
+                    this.renderErrorMessage = '';
+                    this.lastRenderErrorReason = null;
+                    this.lastSuccessfulMethod = value;
+                    this.logMethodEvent('method_ready', value);
                 },
                 selectMethod(method) {
+                    if (!this.availableMethods.includes(method)) {
+                        this.handleRenderError('unavailable_method', method);
+                        return;
+                    }
                     if (
                         (method === 'card' && !config.cardEnabled) ||
                         (method === 'starsefar' && !config.starsefarEnabled) ||
                         (method === 'tetra98' && !config.tetraEnabled)
                     ) {
+                        this.handleRenderError('disabled_method', method);
                         return;
                     }
+                    this.renderErrorMessage = '';
+                    this.lastRenderErrorReason = null;
                     this.method = method;
+                    this.logMethodEvent('method_selected', method);
                     if (method !== 'starsefar') {
                         this.clearStarsefarFeedback();
                     } else if (!this.starAmount || Number(this.starAmount) < config.starsefarMinAmount) {
@@ -269,6 +340,56 @@
                     }
                     if (method === 'tetra98' && (!this.tetraAmount || Number(this.tetraAmount) < config.tetraMinAmount)) {
                         this.tetraAmount = config.tetraMinAmount;
+                    }
+                },
+                retryRender() {
+                    const fallback = (this.lastSuccessfulMethod && this.availableMethods.includes(this.lastSuccessfulMethod))
+                        ? this.lastSuccessfulMethod
+                        : (this.availableMethods[0] ?? null);
+
+                    if (!fallback) {
+                        this.handleRenderError('empty_methods');
+                        return;
+                    }
+
+                    this.renderErrorMessage = '';
+                    this.lastRenderErrorReason = null;
+                    this.logMethodEvent('retry_method', fallback);
+                    this.method = fallback;
+                },
+                handleRenderError(reason, method = null) {
+                    if (this.lastRenderErrorReason === reason && this.renderErrorMessage) {
+                        return;
+                    }
+
+                    let message = 'خطایی در نمایش فرم پرداخت رخ داد. لطفاً دوباره تلاش کنید یا روش دیگری را انتخاب کنید.';
+
+                    if (reason === 'empty_methods') {
+                        message = 'هیچ روش پرداختی در حال حاضر فعال نیست. لطفاً بعداً دوباره تلاش کنید.';
+                    } else if (reason === 'empty_selection') {
+                        message = 'برای ادامه، لطفاً یکی از روش‌های پرداخت را انتخاب کنید.';
+                    } else if (reason === 'unavailable_method' || reason === 'disabled_method') {
+                        message = 'روش پرداخت انتخاب شده در دسترس نیست. لطفاً روش دیگری را انتخاب کنید یا روی تلاش مجدد کلیک نمایید.';
+                    }
+
+                    this.renderErrorMessage = message;
+                    this.lastRenderErrorReason = reason;
+
+                    if (typeof console !== 'undefined' && console.error) {
+                        console.error('[wallet-charge] methodRenderError', {
+                            reason,
+                            method,
+                            availableMethods: this.availableMethods,
+                        });
+                    }
+                },
+                logMethodEvent(event, method) {
+                    if (typeof console !== 'undefined' && console.info) {
+                        console.info('[wallet-charge] methodEvent', {
+                            event,
+                            method,
+                            availableMethods: this.availableMethods,
+                        });
                     }
                 },
                 clearStarsefarFeedback() {
