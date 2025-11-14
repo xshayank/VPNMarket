@@ -109,17 +109,6 @@ class OrderController extends Controller
             'min_amount' => Tetra98Config::getMinAmountToman(),
         ];
 
-        Log::debug('wallet_charge_form_render', [
-            'user_id' => $user->id,
-            'reseller_wallet' => $reseller && $reseller->isWalletBased(),
-            'available_methods' => $availableMethods,
-            'card_to_card_enabled' => $cardToCardEnabled,
-            'starsefar_enabled' => $starsefarEnabled,
-            'tetra_enabled' => $tetraEnabled,
-            'starsefar_min_amount' => $starsefarSettings['min_amount'],
-            'tetra_min_amount' => $tetraSettings['min_amount'],
-        ]);
-
         return view('wallet.charge', [
             'walletBalance' => $walletBalance,
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
