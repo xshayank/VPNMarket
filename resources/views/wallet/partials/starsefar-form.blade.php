@@ -1,11 +1,4 @@
-<div
-    x-show="activeMethod === 'starsefar'"
-    x-transition.opacity
-    x-cloak
-    x-init="$nextTick(() => registerSection('starsefar', $el))"
-    data-method="starsefar"
-    class="space-y-6 payment-method-section"
->
+<div x-show="method === 'starsefar'" x-transition.opacity x-cloak class="space-y-6">
     <h3 class="text-lg font-semibold text-center">درگاه پرداخت (استارز تلگرام)</h3>
 
     <div class="bg-blue-50 dark:bg-sky-900/30 border border-blue-200 dark:border-sky-700 rounded-xl p-4 text-sm text-blue-800 dark:text-sky-100 space-y-2">
