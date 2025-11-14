@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Payments\StarsefarController;
+use App\Http\Controllers\Payments\Tetra98Controller;
 use App\Http\Controllers\ProfileController;
 use App\Models\Order;
 use App\Models\Plan;
@@ -9,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Support\Tetra98Config;
 
 use App\Http\Controllers\WebhookController as NowPaymentsWebhookController;
 use Modules\TelegramBot\Http\Controllers\WebhookController as TelegramWebhookController;
@@ -52,6 +54,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/wallet/charge', [OrderController::class, 'createChargeOrder'])->name('wallet.charge.create');
     Route::post('/wallet/charge/starsefar/initiate', [StarsefarController::class, 'initiate'])->name('wallet.charge.starsefar.initiate');
     Route::get('/wallet/charge/starsefar/status/{orderId}', [StarsefarController::class, 'status'])->name('wallet.charge.starsefar.status');
+    Route::post('/wallet/charge/tetra98/initiate', [Tetra98Controller::class, 'initiate'])->name('wallet.charge.tetra98.initiate');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -84,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
 Route::post('/webhooks/nowpayments', [NowPaymentsWebhookController::class, 'handle'])->name('webhooks.nowpayments');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('webhooks.telegram');
 Route::post(config('starsefar.callback_path', '/webhooks/Stars-Callback'), [StarsefarController::class, 'webhook'])->name('webhooks.starsefar');
+Route::match(['GET', 'POST'], Tetra98Config::getCallbackPath(), [Tetra98Controller::class, 'callback'])->name('webhooks.tetra98');
 
 
 /* BREEZE AUTHENTICATION */

@@ -20,6 +20,7 @@ use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Filament\Pages\Page;
 
 class ThemeSettings extends Page implements HasForms
@@ -46,7 +47,6 @@ class ThemeSettings extends Page implements HasForms
 
         $settings = Setting::all()->pluck('value', 'key')->toArray();
 
-
         $defaultData = [
             'starsefar_enabled' => config('starsefar.enabled', false),
             'starsefar_api_key' => config('starsefar.api_key'),
@@ -54,8 +54,12 @@ class ThemeSettings extends Page implements HasForms
             'starsefar_callback_path' => config('starsefar.callback_path'),
             'starsefar_default_target_account' => config('starsefar.default_target_account'),
             'payment_card_to_card_enabled' => true,
+            'payment_tetra98_enabled' => config('tetra98.enabled', false),
+            'payment_tetra98_api_key' => config('tetra98.api_key'),
+            'payment_tetra98_base_url' => config('tetra98.base_url', 'https://tetra98.ir'),
+            'payment_tetra98_callback_path' => config('tetra98.callback_path', '/webhooks/tetra98/callback'),
+            'payment_tetra98_min_amount' => config('tetra98.min_amount_toman', 10000),
         ];
-
 
         $this->data = array_merge($defaultData, $settings);
 
@@ -63,7 +67,14 @@ class ThemeSettings extends Page implements HasForms
             ? filter_var($settings['payment_card_to_card_enabled'], FILTER_VALIDATE_BOOLEAN)
             : true;
 
+        $this->data['payment_tetra98_enabled'] = array_key_exists('payment.tetra98.enabled', $settings)
+            ? filter_var($settings['payment.tetra98.enabled'], FILTER_VALIDATE_BOOLEAN)
+            : (bool) $defaultData['payment_tetra98_enabled'];
 
+        $this->data['payment_tetra98_api_key'] = $settings['payment.tetra98.api_key'] ?? $defaultData['payment_tetra98_api_key'];
+        $this->data['payment_tetra98_base_url'] = $settings['payment.tetra98.base_url'] ?? $defaultData['payment_tetra98_base_url'];
+        $this->data['payment_tetra98_callback_path'] = $settings['payment.tetra98.callback_path'] ?? $defaultData['payment_tetra98_callback_path'];
+        $this->data['payment_tetra98_min_amount'] = $settings['payment.tetra98.min_amount'] ?? $defaultData['payment_tetra98_min_amount'];
     }
     public function form(Form $form): Form
     {
@@ -225,6 +236,30 @@ class ThemeSettings extends Page implements HasForms
                             Textarea::make('payment_card_instructions')->label('توضیحات اضافی')->rows(3),
                         ]),
 
+                        Section::make('درگاه پرداخت Tetra98')->schema([
+                            Toggle::make('payment_tetra98_enabled')
+                                ->label('فعال‌سازی درگاه Tetra98')
+                                ->reactive()
+                                ->helperText('با فعال‌سازی این گزینه، پرداخت مستقیم از طریق Tetra98 برای کاربران و ریسلرها فعال می‌شود.'),
+                            TextInput::make('payment_tetra98_api_key')
+                                ->label('API Key Tetra98')
+                                ->password()
+                                ->revealable()
+                                ->required(fn (Get $get) => (bool) $get('payment_tetra98_enabled'))
+                                ->helperText('کلید ارائه‌شده در پنل Tetra98. هنگام فعال بودن درگاه باید این مقدار تکمیل شود.'),
+                            TextInput::make('payment_tetra98_base_url')
+                                ->label('آدرس پایه API')
+                                ->helperText('آدرس سرویس Tetra98. در صورت تغییر دامنه، مقدار را به‌روز کنید.'),
+                            TextInput::make('payment_tetra98_callback_path')
+                                ->label('مسیر Callback (نسبی)')
+                                ->helperText('مسیر نسبی برای دریافت نتیجه پرداخت، مانند /webhooks/tetra98/callback.'),
+                            TextInput::make('payment_tetra98_min_amount')
+                                ->label('حداقل مبلغ (تومان)')
+                                ->numeric()
+                                ->minValue(1000)
+                                ->helperText('حداقل مبلغ قابل پرداخت از طریق Tetra98 به تومان.'),
+                        ])->columns(2),
+
                         Section::make('درگاه استارز تلگرام')->schema([
                             Toggle::make('starsefar_enabled')
                                 ->label('فعال‌سازی درگاه استارز')
@@ -286,6 +321,30 @@ class ThemeSettings extends Page implements HasForms
         $formData = $this->form->getState();
         $cardToggle = (bool) ($formData['payment_card_to_card_enabled'] ?? true);
 
+        $tetraEnabled = (bool) ($formData['payment_tetra98_enabled'] ?? false);
+        $tetraApiKey = trim((string) ($formData['payment_tetra98_api_key'] ?? ''));
+        $tetraBaseUrl = trim((string) ($formData['payment_tetra98_base_url'] ?? ''));
+        $tetraCallbackPath = trim((string) ($formData['payment_tetra98_callback_path'] ?? ''));
+        $tetraMinAmount = (int) ($formData['payment_tetra98_min_amount'] ?? config('tetra98.min_amount_toman', 10000));
+
+        $tetraBaseUrl = $tetraBaseUrl !== '' ? $tetraBaseUrl : config('tetra98.base_url', 'https://tetra98.ir');
+        $tetraCallbackPath = $tetraCallbackPath !== '' ? $tetraCallbackPath : config('tetra98.callback_path', '/webhooks/tetra98/callback');
+        $tetraMinAmount = max(1000, $tetraMinAmount);
+
+        Setting::updateOrCreate(['key' => 'payment.tetra98.enabled'], ['value' => $tetraEnabled ? '1' : '0']);
+        Setting::updateOrCreate(['key' => 'payment.tetra98.api_key'], ['value' => $tetraApiKey]);
+        Setting::updateOrCreate(['key' => 'payment.tetra98.base_url'], ['value' => $tetraBaseUrl]);
+        Setting::updateOrCreate(['key' => 'payment.tetra98.callback_path'], ['value' => $tetraCallbackPath]);
+        Setting::updateOrCreate(['key' => 'payment.tetra98.min_amount'], ['value' => (string) $tetraMinAmount]);
+
+        unset(
+            $formData['payment_tetra98_enabled'],
+            $formData['payment_tetra98_api_key'],
+            $formData['payment_tetra98_base_url'],
+            $formData['payment_tetra98_callback_path'],
+            $formData['payment_tetra98_min_amount'],
+        );
+
         foreach ($formData as $key => $value) {
             if (is_bool($value)) {
                 $value = $value ? '1' : '0';
@@ -299,6 +358,16 @@ class ThemeSettings extends Page implements HasForms
         Log::info('payment.card_to_card.enabled updated', [
             'admin_id' => Auth::id(),
             'enabled' => $cardToggle,
+        ]);
+
+        Log::info('payment.tetra98.settings_updated', [
+            'admin_id' => Auth::id(),
+            'enabled' => $tetraEnabled,
+            'api_key_configured' => $tetraApiKey !== '',
+            'api_key_suffix' => $tetraApiKey !== '' ? Str::of($tetraApiKey)->substr(-4)->toString() : null,
+            'base_url' => $tetraBaseUrl,
+            'callback_path' => $tetraCallbackPath,
+            'min_amount' => $tetraMinAmount,
         ]);
 
         Notification::make()->title('تنظیمات با موفقیت ذخیره شد.')->success()->send();
