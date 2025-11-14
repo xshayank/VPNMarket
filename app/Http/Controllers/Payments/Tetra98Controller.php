@@ -172,7 +172,7 @@ class Tetra98Controller extends Controller
                 'http_status' => SymfonyResponse::HTTP_FOUND,
             ]);
 
-            return redirect('/charge/wallet');
+            return redirect('/wallet/charge');
         }
 
         $hashId = (string) Arr::get($payload, 'hashid');
