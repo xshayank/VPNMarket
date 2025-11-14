@@ -184,6 +184,10 @@ class Tetra98Controller extends Controller
                 'payload' => $this->sanitizePayload($payload),
             ]);
 
+            if ($this->shouldRedirectToWalletCharge($request)) {
+                return redirect()->route('wallet.charge.form');
+            }
+
             return response()->json(['message' => 'hashid missing'], SymfonyResponse::HTTP_BAD_REQUEST);
         }
 
@@ -395,5 +399,17 @@ class Tetra98Controller extends Controller
         }
 
         return $sanitized;
+    }
+
+    protected function shouldRedirectToWalletCharge(Request $request): bool
+    {
+        if ($request->expectsJson() || $request->wantsJson()) {
+            return false;
+        }
+
+        $accept = (string) $request->header('Accept', '');
+        $prefersHtml = $accept === '' || str_contains($accept, 'text/html');
+
+        return $request->isMethod('get') && $prefersHtml;
     }
 }
