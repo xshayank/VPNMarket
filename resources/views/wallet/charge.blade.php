@@ -7,6 +7,13 @@
 
     @php
         $cardToCardEnabled = $cardToCardEnabled ?? true;
+        $availableMethods = $availableMethods ?? [];
+        $tetraSettings = $tetraSettings ?? ['enabled' => false, 'min_amount' => 10000];
+        $methodCount = count($availableMethods);
+        $tetraMinAmount = (int) ($tetraSettings['min_amount'] ?? 10000);
+        $tetraHasOldContext = old('tetra98_context');
+        $tetraDefaultAmount = $tetraHasOldContext ? (int) old('amount', $tetraMinAmount) : $tetraMinAmount;
+        $tetraDefaultPhone = $tetraHasOldContext ? old('phone', '') : '';
     @endphp
 
     <div class="py-12">
@@ -15,11 +22,15 @@
                 <div
                     class="p-6 md:p-8 text-gray-900 dark:text-gray-100 text-right space-y-8"
                     x-data="walletChargePage({
-                        minAmount: {{ (int) ($starsefarSettings['min_amount'] ?? 25000) }},
+                        starsefarMinAmount: {{ (int) ($starsefarSettings['min_amount'] ?? 25000) }},
                         starsefarEnabled: {{ $starsefarSettings['enabled'] ? 'true' : 'false' }},
                         cardEnabled: {{ $cardToCardEnabled ? 'true' : 'false' }},
+                        tetraEnabled: {{ $tetraSettings['enabled'] ? 'true' : 'false' }},
+                        tetraMinAmount: {{ $tetraMinAmount }},
+                        tetraDefaultAmount: {{ $tetraDefaultAmount }},
+                        tetraDefaultPhone: @json($tetraDefaultPhone),
                         csrfToken: '{{ csrf_token() }}',
-                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : '') }}'
+                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : ($tetraSettings['enabled'] ? 'tetra98' : '')) }}'
                     })"
                     x-init="init()"
                 >
@@ -38,12 +49,20 @@
                     {{-- انتخاب روش پرداخت --}}
                     <div class="space-y-3">
                         <h3 class="text-lg font-medium text-center">انتخاب روش پرداخت</h3>
-                        @if (! $cardToCardEnabled && ! $starsefarSettings['enabled'])
+                        @php
+                            $gridColumnsClass = match (true) {
+                                $methodCount >= 3 => 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3',
+                                $methodCount === 2 => 'grid-cols-1 sm:grid-cols-2',
+                                default => 'grid-cols-1',
+                            };
+                        @endphp
+
+                        @if ($methodCount === 0)
                             <div class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4 text-center">
                                 در حال حاضر هیچ روش پرداختی فعال نیست. لطفاً بعداً دوباره تلاش کنید.
                             </div>
                         @else
-                            <div class="grid gap-3 {{ ($cardToCardEnabled && $starsefarSettings['enabled']) ? 'grid-cols-2' : 'grid-cols-1' }}">
+                            <div class="grid gap-3 {{ $gridColumnsClass }}">
                                 @if($cardToCardEnabled)
                                     <button
                                         type="button"
@@ -68,6 +87,20 @@
                                         <div class="flex flex-col items-center space-y-1">
                                             <x-heroicon-o-sparkles class="w-6 h-6" />
                                             <span class="font-semibold">درگاه پرداخت (استارز تلگرام)</span>
+                                        </div>
+                                    </button>
+                                @endif
+
+                                @if($tetraSettings['enabled'])
+                                    <button
+                                        type="button"
+                                        @click="selectMethod('tetra98')"
+                                        :class="method === 'tetra98' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'"
+                                        class="p-4 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <div class="flex flex-col items-center space-y-1">
+                                            <x-heroicon-o-device-phone-mobile class="w-6 h-6" />
+                                            <span class="font-semibold">درگاه پرداخت (Tetra98)</span>
                                         </div>
                                     </button>
                                 @endif
@@ -173,6 +206,18 @@
                             درگاه استارز در حال حاضر غیر فعال است.
                         </div>
                     @endif
+
+                    @if($tetraSettings['enabled'])
+                        @include('wallet.partials.tetra98-form', [
+                            'tetraSettings' => $tetraSettings,
+                            'tetraMinAmount' => $tetraMinAmount,
+                            'tetraHasOldContext' => $tetraHasOldContext,
+                        ])
+                    @else
+                        <div x-show="method === 'tetra98'" class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4" x-cloak>
+                            درگاه Tetra98 در حال حاضر غیر فعال است.
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -181,10 +226,12 @@
     <script>
         function walletChargePage(config) {
             return {
-                method: config.defaultMethod || (config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : null)),
+                method: config.defaultMethod || (config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null))),
                 cardAmount: @json(old('amount', '')),
                 starAmount: '',
                 starPhone: '',
+                tetraAmount: config.tetraDefaultAmount || '',
+                tetraPhone: config.tetraDefaultPhone || '',
                 starStatusMessage: '',
                 starStatusType: 'info',
                 isInitiating: false,
@@ -193,25 +240,35 @@
                     if (this.cardAmount === null) {
                         this.cardAmount = '';
                     }
-                    if (!this.starAmount && config.minAmount) {
-                        this.starAmount = config.minAmount;
+                    if (!this.starAmount && config.starsefarMinAmount) {
+                        this.starAmount = config.starsefarMinAmount;
                     }
                     if (this.starPhone === null) {
                         this.starPhone = '';
                     }
+                    if (!this.tetraAmount && config.tetraMinAmount) {
+                        this.tetraAmount = config.tetraMinAmount;
+                    }
                     if (!this.method) {
-                        this.method = config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : null);
+                        this.method = config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null));
                     }
                 },
                 selectMethod(method) {
-                    if ((method === 'card' && !config.cardEnabled) || (method === 'starsefar' && !config.starsefarEnabled)) {
+                    if (
+                        (method === 'card' && !config.cardEnabled) ||
+                        (method === 'starsefar' && !config.starsefarEnabled) ||
+                        (method === 'tetra98' && !config.tetraEnabled)
+                    ) {
                         return;
                     }
                     this.method = method;
                     if (method !== 'starsefar') {
                         this.clearStarsefarFeedback();
-                    } else if (!this.starAmount || Number(this.starAmount) < config.minAmount) {
-                        this.starAmount = config.minAmount;
+                    } else if (!this.starAmount || Number(this.starAmount) < config.starsefarMinAmount) {
+                        this.starAmount = config.starsefarMinAmount;
+                    }
+                    if (method === 'tetra98' && (!this.tetraAmount || Number(this.tetraAmount) < config.tetraMinAmount)) {
+                        this.tetraAmount = config.tetraMinAmount;
                     }
                 },
                 clearStarsefarFeedback() {

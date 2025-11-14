@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Support\PaymentMethodConfig;
 use App\Support\StarsefarConfig;
+use App\Support\Tetra98Config;
 use App\Services\CouponService;
 use App\Services\MarzbanService;
 use App\Services\MarzneshinService;
@@ -86,7 +87,10 @@ class OrderController extends Controller
             : $user->balance;
 
         $settings = Setting::all()->pluck('value', 'key');
-        $cardToCardEnabled = PaymentMethodConfig::cardToCardEnabled();
+        $availableMethods = PaymentMethodConfig::availableWalletChargeMethods();
+        $cardToCardEnabled = in_array('card', $availableMethods, true);
+        $starsefarEnabled = in_array('starsefar', $availableMethods, true);
+        $tetraEnabled = in_array('tetra98', $availableMethods, true);
 
         $cardDetails = [
             'number' => $settings->get('payment_card_number'),
@@ -95,9 +99,14 @@ class OrderController extends Controller
         ];
 
         $starsefarSettings = [
-            'enabled' => StarsefarConfig::isEnabled(),
+            'enabled' => $starsefarEnabled,
             'min_amount' => StarsefarConfig::getMinAmountToman(),
             'default_target_account' => StarsefarConfig::getDefaultTargetAccount(),
+        ];
+
+        $tetraSettings = [
+            'enabled' => $tetraEnabled,
+            'min_amount' => Tetra98Config::getMinAmountToman(),
         ];
 
         return view('wallet.charge', [
@@ -106,6 +115,8 @@ class OrderController extends Controller
             'cardDetails' => $cardDetails,
             'starsefarSettings' => $starsefarSettings,
             'cardToCardEnabled' => $cardToCardEnabled,
+            'tetraSettings' => $tetraSettings,
+            'availableMethods' => $availableMethods,
         ]);
     }
 
