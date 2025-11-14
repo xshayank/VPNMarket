@@ -165,6 +165,16 @@ class Tetra98Controller extends Controller
     public function callback(Request $request)
     {
         $payload = $request->all();
+
+        if (count(array_filter($payload, static fn ($value) => $value !== null && $value !== '')) === 0) {
+            Log::info('tetra98_callback_empty_payload', [
+                'action' => 'tetra98_callback_empty_payload',
+                'http_status' => SymfonyResponse::HTTP_FOUND,
+            ]);
+
+            return redirect('/charge/wallet');
+        }
+
         $hashId = (string) Arr::get($payload, 'hashid');
         $authority = (string) Arr::get($payload, 'authority');
         $statusValue = Arr::get($payload, 'status');
