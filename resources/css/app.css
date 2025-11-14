@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+[x-cloak] {
+    display: none !important;
+}
+
 @layer utilities {
     /* Hide scrollbar but keep functionality for horizontal scroll */
     .scrollbar-hide {
