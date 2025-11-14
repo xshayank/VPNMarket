@@ -109,22 +109,6 @@ class OrderController extends Controller
             'min_amount' => Tetra98Config::getMinAmountToman(),
         ];
 
-        $defaultMethod = $cardToCardEnabled
-            ? 'card'
-            : ($starsefarEnabled
-                ? 'starsefar'
-                : ($tetraEnabled ? 'tetra98' : null));
-
-        Log::info('wallet_charge_render', [
-            'action' => 'wallet_charge_render',
-            'user_id' => $user->id,
-            'available_methods' => $availableMethods,
-            'default_method' => $defaultMethod,
-            'card_to_card_enabled' => $cardToCardEnabled,
-            'starsefar_enabled' => $starsefarEnabled,
-            'tetra98_enabled' => $tetraEnabled,
-        ]);
-
         return view('wallet.charge', [
             'walletBalance' => $walletBalance,
             'isResellerWallet' => $reseller && $reseller->isWalletBased(),
@@ -133,7 +117,6 @@ class OrderController extends Controller
             'cardToCardEnabled' => $cardToCardEnabled,
             'tetraSettings' => $tetraSettings,
             'availableMethods' => $availableMethods,
-            'defaultMethod' => $defaultMethod,
         ]);
     }
 
