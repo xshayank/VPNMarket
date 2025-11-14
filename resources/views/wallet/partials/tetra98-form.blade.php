@@ -1,4 +1,11 @@
-<div x-show="method === 'tetra98'" x-transition.opacity x-cloak class="space-y-6">
+<div
+    x-show="activeMethod === 'tetra98'"
+    x-transition.opacity
+    x-cloak
+    x-init="$nextTick(() => registerSection('tetra98', $el))"
+    data-method="tetra98"
+    class="space-y-6 payment-method-section"
+>
     <h3 class="text-lg font-semibold text-center">درگاه پرداخت (Tetra98)</h3>
 
     <div class="bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded-xl p-4 text-sm text-sky-800 dark:text-sky-100 space-y-2">
