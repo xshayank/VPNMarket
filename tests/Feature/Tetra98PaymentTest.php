@@ -8,6 +8,7 @@ use App\Support\Tetra98Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\get;
 use function Pest\Laravel\post;
 
 beforeEach(function () {
@@ -180,4 +181,8 @@ it('marks transaction failed when callback reports failure', function () {
 
     expect($transaction->status)->toBe(Transaction::STATUS_FAILED);
     expect($transaction->metadata['tetra98']['state'] ?? null)->toBe('failed');
+});
+
+it('redirects empty tetra98 callback payload to wallet charge page', function () {
+    get(route('webhooks.tetra98'))->assertRedirect('/charge/wallet');
 });
