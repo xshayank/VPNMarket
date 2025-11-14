@@ -30,7 +30,13 @@
                         tetraDefaultAmount: {{ $tetraDefaultAmount }},
                         tetraDefaultPhone: @json($tetraDefaultPhone),
                         csrfToken: '{{ csrf_token() }}',
-                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : ($tetraSettings['enabled'] ? 'tetra98' : '')) }}'
+                        defaultMethod: '{{ $cardToCardEnabled ? 'card' : ($starsefarSettings['enabled'] ? 'starsefar' : ($tetraSettings['enabled'] ? 'tetra98' : '')) }}',
+                        availableMethods: @json($availableMethods),
+                        methodLabels: @json([
+                            'card' => 'کارت به کارت',
+                            'starsefar' => 'درگاه پرداخت (استارز تلگرام)',
+                            'tetra98' => 'درگاه پرداخت (Tetra98)'
+                        ]),
                     })"
                     x-init="init()"
                 >
@@ -108,9 +114,45 @@
                         @endif
                     </div>
 
+                    <div
+                        id="payment-method-error"
+                        x-show="fallback.visible"
+                        x-transition.opacity
+                        x-cloak
+                        class="bg-red-100 border border-red-300 text-red-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                        role="alert"
+                        aria-live="polite"
+                    >
+                        <div class="space-y-1 text-right">
+                            <p class="font-semibold">عدم نمایش فرم پرداخت</p>
+                            <p class="text-sm leading-relaxed" x-text="fallback.message"></p>
+                            <template x-if="fallback.method">
+                                <p class="text-xs text-red-700/80">
+                                    روش انتخاب‌شده: <span x-text="getMethodLabel(fallback.method)"></span>
+                                </p>
+                            </template>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                @click="retryRender()"
+                                class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition"
+                            >
+                                تلاش مجدد
+                            </button>
+                        </div>
+                    </div>
+
                     {{-- کارت به کارت --}}
                     @if($cardToCardEnabled)
-                        <div x-show="method === 'card'" x-transition.opacity class="space-y-6">
+                        <div
+                            x-show="activeMethod === 'card'"
+                            x-transition.opacity
+                            x-cloak
+                            x-init="$nextTick(() => registerSection('card', $el))"
+                            data-method="card"
+                            class="space-y-6 payment-method-section"
+                        >
                             <h3 class="text-lg font-semibold text-center">پرداخت از طریق کارت به کارت</h3>
 
                         @if ($errors->any())
@@ -202,7 +244,7 @@
                     @if($starsefarSettings['enabled'])
                         @include('wallet.partials.starsefar-form', ['starsefarSettings' => $starsefarSettings])
                     @else
-                        <div x-show="method === 'starsefar'" class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4" x-cloak>
+                        <div x-show="activeMethod === 'starsefar'" class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4" x-cloak>
                             درگاه استارز در حال حاضر غیر فعال است.
                         </div>
                     @endif
@@ -214,7 +256,7 @@
                             'tetraHasOldContext' => $tetraHasOldContext,
                         ])
                     @else
-                        <div x-show="method === 'tetra98'" class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4" x-cloak>
+                        <div x-show="activeMethod === 'tetra98'" class="bg-amber-100 border border-amber-300 text-amber-700 rounded-xl p-4" x-cloak>
                             درگاه Tetra98 در حال حاضر غیر فعال است.
                         </div>
                     @endif
@@ -227,6 +269,7 @@
         function walletChargePage(config) {
             return {
                 method: config.defaultMethod || (config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null))),
+                activeMethod: null,
                 cardAmount: @json(old('amount', '')),
                 starAmount: '',
                 starPhone: '',
@@ -236,6 +279,17 @@
                 starStatusType: 'info',
                 isInitiating: false,
                 pollTimer: null,
+                availableMethods: Array.isArray(config.availableMethods) ? config.availableMethods.filter(Boolean) : [],
+                methodLabels: config.methodLabels || {},
+                fallback: {
+                    visible: false,
+                    message: '',
+                    reason: null,
+                    method: null,
+                },
+                sectionRegistry: {},
+                pendingSectionChecks: {},
+                selectionLog: [],
                 init() {
                     if (this.cardAmount === null) {
                         this.cardAmount = '';
@@ -252,6 +306,13 @@
                     if (!this.method) {
                         this.method = config.cardEnabled ? 'card' : (config.starsefarEnabled ? 'starsefar' : (config.tetraEnabled ? 'tetra98' : null));
                     }
+                    this.$watch('method', (value) => {
+                        this.logSelection(value, 'watch');
+                        this.handleMethodChange(value);
+                    });
+                    this.$nextTick(() => {
+                        this.ensureMethodSelected();
+                    });
                 },
                 selectMethod(method) {
                     if (
@@ -261,6 +322,7 @@
                     ) {
                         return;
                     }
+                    this.logSelection(method, 'select');
                     this.method = method;
                     if (method !== 'starsefar') {
                         this.clearStarsefarFeedback();
@@ -270,6 +332,7 @@
                     if (method === 'tetra98' && (!this.tetraAmount || Number(this.tetraAmount) < config.tetraMinAmount)) {
                         this.tetraAmount = config.tetraMinAmount;
                     }
+                    this.handleMethodChange(method);
                 },
                 clearStarsefarFeedback() {
                     this.starStatusMessage = '';
@@ -277,6 +340,163 @@
                     if (this.pollTimer) {
                         clearInterval(this.pollTimer);
                         this.pollTimer = null;
+                    }
+                },
+                ensureMethodSelected() {
+                    if (!this.availableMethods.length) {
+                        this.activeMethod = null;
+                        this.showFallback('no_methods');
+                        return;
+                    }
+
+                    if (!this.method || !this.availableMethods.includes(this.method)) {
+                        const firstMethod = this.availableMethods[0];
+                        if (this.method !== firstMethod) {
+                            this.logSelection(firstMethod, 'auto-select');
+                        }
+                        this.method = firstMethod;
+                    } else {
+                        this.handleMethodChange(this.method);
+                    }
+                },
+                handleMethodChange(method, options = {}) {
+                    const { attempt = 0, skipLog = false } = options;
+                    if (!method) {
+                        this.activeMethod = null;
+                        this.showFallback('none_selected');
+                        return;
+                    }
+
+                    if (!this.availableMethods.includes(method)) {
+                        this.activeMethod = null;
+                        this.showFallback('unsupported', method);
+                        return;
+                    }
+
+                    const section = this.sectionRegistry[method];
+
+                    if (!section) {
+                        this.showFallback(attempt > 0 ? 'missing_section' : 'loading', method);
+                        this.scheduleSectionRetry(method, attempt);
+                        if (!skipLog) {
+                            this.logIssue('missing-section', { method, attempt });
+                        }
+                        return;
+                    }
+
+                    this.activeMethod = method;
+                    this.hideFallback();
+                },
+                scheduleSectionRetry(method, attempt = 0) {
+                    if (this.pendingSectionChecks[method]) {
+                        clearTimeout(this.pendingSectionChecks[method]);
+                    }
+
+                    if (attempt >= 3) {
+                        return;
+                    }
+
+                    this.pendingSectionChecks[method] = setTimeout(() => {
+                        delete this.pendingSectionChecks[method];
+                        if (this.method === method) {
+                            this.handleMethodChange(method, { attempt: attempt + 1, skipLog: true });
+                        }
+                    }, 120);
+                },
+                registerSection(method, element) {
+                    if (!method || !element) {
+                        return;
+                    }
+
+                    this.sectionRegistry[method] = element;
+
+                    if (this.pendingSectionChecks[method]) {
+                        clearTimeout(this.pendingSectionChecks[method]);
+                        delete this.pendingSectionChecks[method];
+                    }
+
+                    if (this.method === method) {
+                        this.handleMethodChange(method, { skipLog: true });
+                    }
+                },
+                showFallback(reason, method = null) {
+                    const message = this.getFallbackMessage(reason, method);
+                    this.fallback = {
+                        visible: true,
+                        message,
+                        reason,
+                        method,
+                    };
+                    this.logIssue('fallback-visible', { reason, method });
+                },
+                hideFallback() {
+                    this.fallback = {
+                        visible: false,
+                        message: '',
+                        reason: null,
+                        method: null,
+                    };
+                },
+                retryRender() {
+                    if (!this.method) {
+                        this.ensureMethodSelected();
+                        return;
+                    }
+
+                    this.handleMethodChange(this.method, { attempt: 0 });
+                },
+                getFallbackMessage(reason, method = null) {
+                    const label = method ? this.getMethodLabel(method) : null;
+                    switch (reason) {
+                        case 'no_methods':
+                            return 'هیچ روش پرداخت فعالی در دسترس نیست. لطفاً بعداً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.';
+                        case 'none_selected':
+                            return 'برای ادامه، لطفاً یکی از روش‌های پرداخت را انتخاب کنید.';
+                        case 'unsupported':
+                            return label
+                                ? `نمایش فرم مربوط به روش «${label}» امکان‌پذیر نیست. لطفاً روش دیگری را انتخاب کنید یا دوباره تلاش کنید.`
+                                : 'نمایش فرم روش انتخاب‌شده امکان‌پذیر نیست. لطفاً روش دیگری را انتخاب کنید یا دوباره تلاش کنید.';
+                        case 'missing_section':
+                            return label
+                                ? `فرم مربوط به روش «${label}» بارگذاری نشد. روی «تلاش مجدد» کلیک کنید یا روش دیگری را انتخاب کنید.`
+                                : 'فرم مربوط به روش انتخاب‌شده بارگذاری نشد. روی «تلاش مجدد» کلیک کنید یا روش دیگری را انتخاب کنید.';
+                        case 'loading':
+                            return label
+                                ? `در حال آماده‌سازی فرم «${label}» هستیم. در صورت عدم نمایش، روی «تلاش مجدد» کلیک کنید.`
+                                : 'در حال آماده‌سازی فرم پرداخت هستیم. در صورت عدم نمایش، روی «تلاش مجدد» کلیک کنید.';
+                        default:
+                            return 'خطایی در نمایش فرم پرداخت رخ داد. لطفاً دوباره تلاش کنید یا روش دیگری را انتخاب کنید.';
+                    }
+                },
+                getMethodLabel(method) {
+                    return this.methodLabels?.[method] || method || '';
+                },
+                logSelection(method, source) {
+                    if (!method) {
+                        return;
+                    }
+                    const entry = {
+                        method,
+                        source,
+                        timestamp: Date.now(),
+                        available: this.availableMethods,
+                    };
+                    this.selectionLog.push(entry);
+                    if (this.selectionLog.length > 25) {
+                        this.selectionLog.shift();
+                    }
+                    if (typeof window !== 'undefined' && window.console) {
+                        window.console.debug?.('[wallet-charge] method-select', entry);
+                    }
+                },
+                logIssue(type, context = {}) {
+                    if (typeof window !== 'undefined' && window.console) {
+                        window.console.error?.('[wallet-charge] ' + type, {
+                            ...context,
+                            activeMethod: this.activeMethod,
+                            method: this.method,
+                            availableMethods: this.availableMethods,
+                        });
                     }
                 },
                 async initiateStarsefar() {
